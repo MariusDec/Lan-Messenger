@@ -303,7 +303,7 @@ QString ImagesList::addAvatar(const QString &icon)
         });
 
         LoggerManager::getInstance ().writeInfo (QString("ImagesList.addAvatar ended -|- added avatar: \"%1\"").arg(icon));
-        return _avatars.back ().icon;
+        return fileName;
     }
     LoggerManager::getInstance ().writeInfo (QString("ImagesList.addAvatar ended -|- the avatar \"%1\" is invalid").arg(icon));
 
