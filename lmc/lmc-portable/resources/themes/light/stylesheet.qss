@@ -13,6 +13,11 @@ QWidget[isWindow=true] {
 QWidget[dark=true] {
 	background-color: rgb(232, 231, 232); 
 }
+QWidget[isToolbar=true] {
+	background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgb(239, 239, 239), stop:1 rgb(200, 200, 200));
+	border: 2px outset rgb(210, 210, 210);
+	border-radius: 4px;
+}
 
 QMessageBox, QFontDialog, QColorDialog, QInputDialog {
 	background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgb(255, 255, 255), stop:1 rgb(200, 200, 200));

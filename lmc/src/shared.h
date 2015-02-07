@@ -40,25 +40,21 @@ struct User {
     QString address;
     QString version;
     QString status;
-    int avatar;
     QString group;
     QString note;
+    int avatar;
     QString avatarPath;
     uint caps;
+    QString hostName;
+    int lanIndex;
 
     User() {}
-    User(const QString &szId, const QString &szVersion, const QString &szAddress, const QString &szName, const QString &szStatus, const QString &szGroup,
-         int nAvatar, const QString &szNote, const QString &szAvatarPath, const QString &szCaps) {
-        this->id = szId;
-        this->version = szVersion;
-        this->address = szAddress;
-        this->name = szName;
-        this->status = szStatus;
-        this->group = szGroup;
-        this->avatar = nAvatar;
-        this->note = szNote;
-        this->avatarPath = szAvatarPath;
-        this->caps = szCaps.toUInt();
+    User(const QString &id, const QString &version, const QString &address, const QString &name, const QString &status, const QString &group,
+         int nAvatar, const QString &note, const QString &avatarPath, const QString &caps, const QString &hostName) : id(id), name(name), address(address), version(version), status(status), group(group), note(note), avatar(nAvatar), avatarPath(avatarPath), caps(caps.toInt()), hostName(hostName) {
+        lanIndex = address.mid(address.lastIndexOf('.') + 1).toInt();
+
+        // TODO is this ok ? Discuss
+        this->name.prepend(QString("C%1 - ").arg(lanIndex));
     }
 };
 

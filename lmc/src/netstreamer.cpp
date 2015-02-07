@@ -298,8 +298,6 @@ void FileReceiver::receiveFile() {
     LoggerManager::getInstance().writeInfo(QStringLiteral("MsgStream.receiveFile ended"));
 }
 
-#include <QMessageBox>
-
 /****************************************************************************
 ** Class: MsgStream
 ** Description: Handles transmission and reception of TCP streaming messages.

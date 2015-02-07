@@ -222,9 +222,10 @@ void lmcMainWindow::addUser(User *pUser) {
   pItem->setData(0, StatusRole, index);
   pItem->setData(0, SubtextRole, pUser->note);
   pItem->setData(0, CapsRole, pUser->caps);
+  pItem->setData(0, DataRole, pUser->lanIndex);
   pItem->setText(0, pUser->name);
 
-  QString userTooltip = QString("<b>%1</b><br />Name: %2<br />IP: %3<br />Version: %4").arg(currentStatus->uiDescription, pUser->name, pUser->address, pUser->version); // TODO !!! Add PC as well
+  QString userTooltip = QString("<b>%1</b><br />Name: %2<br />IP: %3<br />Computer: %4<br />Version: %5").arg(currentStatus->uiDescription, pUser->name, pUser->address, pUser->hostName, pUser->version);
   pItem->setToolTip(0, userTooltip);
 
   if (currentStatus)
@@ -266,7 +267,7 @@ void lmcMainWindow::updateUser(User *pUser) {
     pItem->setData(0, SubtextRole, pUser->note);
     pItem->setText(0, pUser->name);
 
-    QString userTooltip = QString("<b>%1</b><br />Name: %2<br />IP: %3<br />Version: %4").arg(currentStatus->uiDescription, pUser->name, pUser->address, pUser->version);
+    QString userTooltip = QString("<b>%1</b><br />Name: %2<br />IP: %3<br />Computer: %4<br />Version: %5").arg(currentStatus->uiDescription, pUser->name, pUser->address, pUser->hostName, pUser->version);
     pItem->setToolTip(0, userTooltip);
 
     QTreeWidgetItem *pGroupItem = pItem->parent();

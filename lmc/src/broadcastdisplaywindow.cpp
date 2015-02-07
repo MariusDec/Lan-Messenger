@@ -3,7 +3,7 @@
 #include "messagelog.h"
 #include "settings.h"
 
-broadcastDisplayWindow::broadcastDisplayWindow(User *localUser, QWidget *parent) : _localUser(localUser), QDialog(parent),
+broadcastDisplayWindow::broadcastDisplayWindow(User *localUser, QWidget *parent) :  QDialog(parent), _localUser(localUser),
     ui(new Ui::broadcastDisplayWindow)
 {
     ui->setupUi(this);

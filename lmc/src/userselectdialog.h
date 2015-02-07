@@ -49,7 +49,6 @@ private slots:
     void buttonOK_clicked();
     void buttonCancel_clicked();
     void treeWidgetUserList_itemClicked(QTreeWidgetItem* item, int column);
-    void treeWidgetUserList_itemActivated(QTreeWidgetItem *item, int column);
 
 private:
     void setUIText();

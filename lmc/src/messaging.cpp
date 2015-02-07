@@ -78,7 +78,7 @@ void lmcMessaging::init(XmlMessage *pInitParams) {
     uint userCaps = UC_File | UC_GroupMessage | UC_Folder;
     localUser = new User(userId, IDA_VERSION, pNetwork->ipAddress, userName, userStatus,
                          QString::null, nAvatar, userNote, ImagesList::getInstance ().getAvatar (nAvatar),
-                         QString::number(userCaps));
+                         QString::number(userCaps), Helper::getHostName());
 
     loadGroups();
 
@@ -328,7 +328,7 @@ void lmcMessaging::getUserInfo(XmlMessage* pMessage) {
     pMessage->addData(XN_ABOUT, about);
 }
 
-bool lmcMessaging::addUser(QString szUserId, const QString &szVersion, const QString &userIP, const QString &szName, const QString &szStatus, const QString &szAvatar, const QString &szNote, const QString &szCaps) { // TODO !!! Add pc name and stuff here
+bool lmcMessaging::addUser(QString szUserId, const QString &szVersion, const QString &userIP, const QString &szName, const QString &szStatus, const QString &szAvatar, const QString &szNote, const QString &szCaps, const QString &hostName) { // TODO !!! Add pc name and stuff here
     for(int index = 0; index < userList.count(); index++)
         if(userList[index].id.compare(szUserId) == 0) {
             LoggerManager::getInstance().writeInfo(QString("lmcMessaging.addUser failed -|- Adding new user: %1, %2, %3").arg(szUserId, szVersion, userIP));
@@ -343,7 +343,7 @@ bool lmcMessaging::addUser(QString szUserId, const QString &szVersion, const QSt
     uint nAvatar = szAvatar.isNull() ? -1 : szAvatar.toInt();
 
     userList.append(User(szUserId, szVersion, userIP, szName, szStatus, userGroupMap[szUserId],
-                         nAvatar, szNote, ImagesList::getInstance ().getAvatar (nAvatar), szCaps));
+                         nAvatar, szNote, ImagesList::getInstance ().getAvatar (nAvatar), szCaps, hostName));
     if(!szStatus.isNull()) {
         XmlMessage xmlMessage;
         xmlMessage.addHeader(XN_FROM, szUserId);

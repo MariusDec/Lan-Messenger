@@ -12,6 +12,11 @@ QWidget[isWindow=true] {
 QWidget[dark=true] {
 	background-color: rgb(51, 42, 39); 
 }
+QWidget[isToolbar=true] {
+	border: 2px outset rgb(36, 27, 24);
+	border-radius: 4px;
+	background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgb(60, 51, 48), stop:0.3 rgb(55, 46, 43), stop:1 rgb(45, 36, 33));
+}
 
 QMessageBox, QFontDialog, QColorDialog, QInputDialog {
 	background-color: rgb(55, 46, 42); 

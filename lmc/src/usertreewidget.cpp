@@ -57,14 +57,17 @@ void lmcUserTreeWidgetGroupItem::addChild(QTreeWidgetItem* child) {
 bool lmcUserTreeWidgetUserItem::operator < (const QTreeWidgetItem& other) const {
     int column = treeWidget()->sortColumn();
     if(column == 0) {
-        // TODO add sort mode by IP (numeric mode)
+        // TODO add option in settings to sort by text or by IP
+
         //	sort based on status and user name
         if(data(column, StatusRole).toInt() < other.data(column, StatusRole).toInt())
             return true;
         else if(data(column, StatusRole).toInt() > other.data(column, StatusRole).toInt())
             return false;
-        else
-            return text(column).toLower() < other.text(column).toLower();
+        else {
+            //return text(column).toLower() < other.text(column).toLower(); // if (sort by text)
+            return data(column, DataRole).toInt() < other.data(column, DataRole).toInt();
+        }
     }
 
     return text(column).toLower() < other.text(column).toLower();
@@ -209,7 +212,7 @@ void lmcUserTreeWidgetDelegate::drawCheckBox(QPainter *painter, const QPalette& 
     }
 }
 
-lmcUserTreeWidget::lmcUserTreeWidget(QWidget* parent) : QTreeWidget(parent), dragUser(false), dragGroup(false), dragFile(false) {
+lmcUserTreeWidget::lmcUserTreeWidget(QWidget* parent) : QTreeWidget(parent), dragGroup(false), dragUser(false), dragFile(false) {
     itemDelegate = new lmcUserTreeWidgetDelegate();
     setItemDelegate(itemDelegate);
 

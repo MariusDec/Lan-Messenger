@@ -186,7 +186,7 @@ private:
     void processFile(MessageHeader* pHeader, XmlMessage* pMessage);
     void processFolder(MessageHeader* pHeader, XmlMessage* pMessage);
     void processWebMessage(MessageHeader* pHeader, XmlMessage* pMessage);
-    bool addUser(QString szUserId, const QString &szVersion, const QString &userIP, const QString &szName, const QString &szStatus, const QString &szAvatar, const QString &szNote, const QString &szCaps);
+    bool addUser(QString szUserId, const QString &szVersion, const QString &userIP, const QString &szName, const QString &szStatus, const QString &szAvatar, const QString &szNote, const QString &szCaps, const QString &hostName);
     void updateUser(MessageType type, QString &szUserId, const QString &szUserData);
     void removeUser(QString szUserId);
     bool addReceivedMsg(qint64 msgId, const QString &userId);

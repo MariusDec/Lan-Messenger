@@ -35,8 +35,6 @@ lmcUserSelectDialog::lmcUserSelectDialog(QWidget *parent) : QDialog(parent) {
     connect(ui.buttonCancel, &ThemedButton::clicked, this, &lmcUserSelectDialog::buttonCancel_clicked);
     connect(ui.treeWidgetUserList, &lmcUserTreeWidget::itemClicked,
         this, &lmcUserSelectDialog::treeWidgetUserList_itemClicked);
-    connect(ui.treeWidgetUserList, &lmcUserTreeWidget::itemActivated,
-        this, &lmcUserSelectDialog::treeWidgetUserList_itemActivated);
 
     parentToggling = false;
     childToggling = false;
@@ -136,14 +134,6 @@ void lmcUserSelectDialog::treeWidgetUserList_itemClicked(QTreeWidgetItem* item, 
     }
 
     ui.buttonOK->setEnabled((selectedCount > 0));
-}
-
-//	event called when the user checks/unchecks a tree item
-void lmcUserSelectDialog::treeWidgetUserList_itemActivated(QTreeWidgetItem* item, int column) {
-    Q_UNUSED(column);
-
-
-   // ui.buttonOK->setEnabled((selectedCount > 0));
 }
 
 void lmcUserSelectDialog::setUIText() {

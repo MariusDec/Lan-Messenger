@@ -322,8 +322,8 @@ void lmcChatRoomWindow::updateUser(User *pUser) {
   QTreeWidgetItem *pItem = getUserItem(&pUser->id);
   if (pItem) {
     int index;
-    StatusStruct *status =
-        Globals::getInstance().getStatus(pUser->status, &index);
+
+   Globals::getInstance().getStatus(pUser->status, &index);
 
     updateStatusImage(pItem, &pUser->status);
     pItem->setData(0, StatusRole, index);
@@ -335,8 +335,6 @@ void lmcChatRoomWindow::updateUser(User *pUser) {
 
   if (_peerNames.size () > 1)
     setWindowTitle(getWindowTitle());
-
-  // TODO !!! When window gets focus, move focus to ui,textBoxMessage
 
   //	Local user cannot participate in public chat if status is offline
   if (_isPublicChat && pUser->id.compare(localId) == 0) {
@@ -1220,7 +1218,7 @@ void lmcChatRoomWindow::showStatus(int flag, bool add) {
       pMessageLog->page()->mainFrame()->scrollBarMaximum(Qt::Vertical) -
       pMessageLog->page()->mainFrame()->scrollBarValue(Qt::Vertical);
 
-  if (!groupMode)
+  //if (!groupMode)
 
   if(infoFlag & IT_Disconnected) {
       ui.labelInfo->setText("<span style='color:rgb(96,96,96);'>" + tr("You are no longer connected.") + "</span>");
@@ -1466,6 +1464,8 @@ void lmcChatRoomWindow::toggleSideBar(bool toggle, bool toggled)
 
 void lmcChatRoomWindow::setClibpoardIcon(QClipboard::Mode mode)
 {
+    Q_UNUSED(mode);
+
     if (_clipboard->mimeData()->hasImage()) {
         _buttonSendClipboard->setIcon(QIcon(ThemeManager::getInstance().getAppIcon("clipboard_up")));
         _buttonSendClipboard->setEnabled(true);

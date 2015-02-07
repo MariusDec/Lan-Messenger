@@ -159,6 +159,7 @@ void lmcMessaging::sendUserData(MessageType type, QueryOp op, QString* lpszUserI
     xmlMessage.addData(XN_STATUS, localUser->status);
     xmlMessage.addData(XN_NOTE, localUser->note);
     xmlMessage.addData(XN_USERCAPS, QString::number(localUser->caps));
+    xmlMessage.addData(XN_HOST, localUser->hostName);
     xmlMessage.addData(XN_QUERYOP, QueryOpNames[op]);
     QString szMessage = Message::addHeader(type, msgId, &localUser->id, lpszUserId, &xmlMessage);
     pNetwork->sendMessage(lpszUserId, lpszAddress, &szMessage);
@@ -300,7 +301,7 @@ void lmcMessaging::processMessage(MessageHeader* pHeader, XmlMessage* pMessage) 
         //	add the user only after sending back user data, this way both parties will have added each other
         addUser(pMessage->data(XN_USERID), pMessage->data(XN_VERSION), pMessage->data(XN_ADDRESS),
             pMessage->data(XN_NAME), pMessage->data(XN_STATUS), pMessage->data(XN_AVATAR), pMessage->data(XN_NOTE),
-            pMessage->data(XN_USERCAPS));
+            pMessage->data(XN_USERCAPS), pMessage->data(XN_HOST));
         break;
     case MT_Broadcast:
         emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
