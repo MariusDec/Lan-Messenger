@@ -34,8 +34,8 @@ QFrame[frameShape="4"] {
 }
 
 QFrame[frameShape="5"] {
-	border: 3px; 
-	border-bottom: 3px solid qlineargradient(x1:0, y1:1, x2:0, y2:0, stop:0 rgb(49, 64, 52), stop:0.5 rgb(37, 52, 40), stop:1 rgb(21, 36, 24));
+	border: 2px; 
+	border-left: 2px solid qlineargradient(x1:1, y1:0, x2:0, y2:0, stop:0 rgb(49, 64, 52), stop:0.5 rgb(37, 52, 40), stop:1 rgb(21, 36, 24));
 }
 
    					/* QWidget */
@@ -43,7 +43,7 @@ QFrame[frameShape="5"] {
    					/* QScrollBar */
 					
 QScrollBar {
-    border: 1px inset rgb(83, 79, 70);
+    border: 1px solid rgb(83, 79, 70);
     background: rgb(52, 67, 56);
 }
 QScrollBar:horizontal {
@@ -60,20 +60,19 @@ QScrollBar:vertical {
 }
 QScrollBar::handle {
     background: rgb(40, 73, 40); 
-    border: 1px inset rgb(30, 59, 35);
-	border-radius: 3px;
+    border: 1px solid rgb(30, 59, 35);
+	border-radius: 1px;
     min-width: 20px;
 }
 QScrollBar::handle:hover {
     background: rgb(35, 68, 35);
 }
 QScrollBar::handle:pressed {
-    background: rgb(30, 63, 30);
-    border: 1px outset rgb(30, 59, 35);
+    background: rgb(25, 58, 25);
 }
 
 QScrollBar::sub-line {
-    border: 1px inset rgb(83, 79, 70);
+    border: 1px solid rgb(83, 79, 70);
     background: rgb(52, 67, 56);
     subcontrol-origin: margin;
 }
@@ -82,16 +81,16 @@ QScrollBar::sub-line:horizontal {
 	border-right: none;
     width: 20px;
     subcontrol-position: left;
-	border-bottom-left-radius: 4px;
-	border-top-left-radius: 4px;
+	border-bottom-left-radius: 1px;
+	border-top-left-radius: 1px;
 }
 
 QScrollBar::sub-line:vertical {
 	border-bottom: none;
     height: 20px;
     subcontrol-position: top;
-	border-top-left-radius: 4px;
-	border-top-right-radius: 4px;
+	border-top-left-radius: 1px;
+	border-top-right-radius: 1px;
 }
 
 QScrollBar::sub-line:hover {
@@ -103,9 +102,8 @@ QScrollBar::sub-line:pressed {
 }
 
 QScrollBar::add-line {
-    border: 1px inset rgb(83, 79, 70);
+    border: 1px solid rgb(83, 79, 70);
     background: rgb(52, 67, 56);
-    subcontrol-position: right;
     subcontrol-origin: margin;
 }
 
@@ -113,16 +111,16 @@ QScrollBar::add-line:horizontal {
 	border-left: none;
     width: 20px;
     subcontrol-position: right;
-	border-bottom-right-radius: 4px;
-	border-top-right-radius: 4px;
+	border-bottom-right-radius: 1px;
+	border-top-right-radius: 1px;
 }
 
 QScrollBar::add-line:vertical {
 	border-top: none;
     height: 20px;
     subcontrol-position: bottom;
-	border-bottom-left-radius: 4px;
-	border-bottom-right-radius: 4px;
+	border-bottom-left-radius: 1px;
+	border-bottom-right-radius: 1px;
 }
 
 QScrollBar::add-line:hover {
