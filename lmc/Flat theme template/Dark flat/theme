@@ -1,0 +1,11 @@
+window backgound= background-color: rgb(60, 40, 53); color: rgb(223, 219, 210); font: 45 10pt "Ubuntu";
+
+menu background= background-color: rgb(64, 44, 57); color: rgb(223, 219, 210); selection-color: rgb(207, 88, 175); 
+
+combobox= background-color: rgb(64, 44, 57); color: rgb(223, 219, 210); selection-color: rgb(207, 88, 175); 
+
+label= color: rgb(173, 169, 160);font-weight: bold;
+
+button= color: rgb(223, 219, 210);
+
+textEdit readonly= color: rgb(173, 169, 160);background-color: rgb(72, 52, 63);
