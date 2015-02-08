@@ -270,14 +270,13 @@ void lmcMessageLog::updateAvatar(QString* lpszUserId, QString* lpszFilePath) {
 }
 
 void lmcMessageLog::reloadMessageLog() {
-    // TODO call reload after changing the chat theme
     initMessageLog(false, false, false);
     for(int index = 0; index < messageLog.count(); index++) {
         SingleMessage msg = messageLog[index];
         appendMessageLog(msg.type, &msg.userId, &msg.userName, &msg.message, true);
     }
 }
-#include <QMessageBox>
+
 QString lmcMessageLog::prepareMessageLogForSave(OutputFormat format) {
     if (format == TextFormat)
         return page()->mainFrame()->toPlainText();

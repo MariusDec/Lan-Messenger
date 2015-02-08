@@ -273,29 +273,8 @@ void lmcBroadcastWindow::createToolBar() {
     //	create the toolbar
     _toolbar = new QToolBar(ui.toolBarWidget);
     _toolbar->setStyleSheet("QToolBar { border: 0px; background: transparent; padding: 0px; margin: 0px }");
-    _toolbar->setIconSize(QSize(26, 26)); // NOTE 24, workaround
+    _toolbar->setIconSize(QSize(26, 26));
     ui.toolBarLayout->addWidget(_toolbar);
-
-    //	create the font menu
-//    QMenu* pFontMenu = new QMenu(this);
-//    _groupActionFont = new QActionGroup(this);
-//    connect(_groupActionFont, &QActionGroup::triggered, this, &lmcBroadcastWindow::fontAction_triggered);
-
-//    for(int index = 0; index < FS_COUNT; index++) {
-//        QAction* pAction = new QAction(lmcStrings::fontSize()[index], this);
-//        pAction->setCheckable(true);
-//        pAction->setData(index);
-//        _groupActionFont->addAction(pAction);
-//        pFontMenu->addAction(pAction);
-//    }
-
-//    //	create the font tool button
-//    _buttonFontSize = new ThemedButton(_toolbar);
-//    _buttonFontSize->setToolButtonStyle(Qt::ToolButtonTextOnly);
-//    //_buttonFontSize->setPopupMode(QToolButton::MenuButtonPopup);
-//    _buttonFontSize->setMenu(pFontMenu);
-//    connect(_buttonFontSize, &ThemedButton::clicked, this, &lmcBroadcastWindow::btnFontSize_clicked);
-//    _toolbar->addWidget(_buttonFontSize);
 
     QMenu* smileyMenu = new QMenu(this);
     lmcImagePickerAction* smileyAction = new lmcImagePickerAction(smileyMenu, ImagesList::getInstance ().getSmileys (), ImagesList::getInstance ().getTabs (ImagesList::Smileys), 39, 39, 10, &nSmiley, true);
@@ -334,15 +313,10 @@ void lmcBroadcastWindow::setUIText() {
 
     setWindowTitle(tr("Send Broadcast Message"));
 
-    //_buttonFontSize->setText(lmcStrings::fontSize()[fontSizeVal]);
-    //_buttonFontSize->setToolTip(tr("Change Font Size"));
     _buttonSmiley->setText(tr("Smiley"));
     _buttonSmiley->setToolTip(tr("Insert Smiley"));
     _buttonEmoji->setText(tr("Emoji"));
     _buttonEmoji->setToolTip(tr("Insert Emoji"));
-
-//    for(int index = 0; index < _groupActionFont->actions().count(); index++)
-//        _groupActionFont->actions()[index]->setText(lmcStrings::fontSize()[index]);
 }
 
 //	send the broadcast message to all selected users

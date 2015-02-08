@@ -106,7 +106,7 @@ void ThemedButton::mouseReleaseEvent(QMouseEvent *e) {
   } else
     _hovered = false;
 } // mouseReleaseEvent
-#include <QMessageBox>
+
 void ThemedButton::paintEvent(QPaintEvent *e) {
   if (ThemeManager::getInstance().useSystemTheme()) {
     QToolButton::paintEvent(e);

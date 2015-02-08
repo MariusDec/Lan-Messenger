@@ -159,7 +159,7 @@ bool lmcCore::start() {
       pSettings->value(IDS_AUTOSTART, IDS_AUTOSTART_DEFAULT_VAL).toBool();
   lmcSettings::setAutoStart(autoStart);
 
-  pMainWindow->restore(); // TODO don't use this right now
+  pMainWindow->restore();
 
   LoggerManager::getInstance().writeInfo(QStringLiteral("lmcCore.start ended"));
 
@@ -439,7 +439,7 @@ bool lmcCore::receiveAppMessage(const QString &szMessage) {
   if (messageList.contains("/noconfig", Qt::CaseInsensitive)) {
     // TODO this shouldn't remove the avatar file...
     // QFile::remove(StdLocation::avatarFile());
-    QFile::remove(pSettings->fileName());
+   // QFile::remove(pSettings->fileName());
     pSettings->sync();
     settingsChanged();
   }

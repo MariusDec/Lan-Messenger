@@ -131,7 +131,7 @@ private:
     void sendMessage();
 //    void encodeMessage(QString* lpszMessage);
     void appendMessageLog(MessageType type, QString* lpszUserId, QString* lpszUserName, XmlMessage* pMessage);
-    void showStatus(int flag, bool add);
+    void showStatus(int flag, bool isLocalUser);
     QString getWindowTitle();
     void setMessageFont(QFont& font);
     void updateStatusImage(QTreeWidgetItem* pItem, QString* lpszStatus);

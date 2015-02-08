@@ -36,7 +36,6 @@
 #include <QTreeWidget>
 #include <QWidgetAction>
 #include <QInputDialog>
-#include <QMessageBox>
 #include <QFileDialog>
 #include <QClipboard>
 #include "ui_mainwindow.h"

@@ -54,7 +54,8 @@ struct User {
         lanIndex = address.mid(address.lastIndexOf('.') + 1).toInt();
 
         // TODO is this ok ? Discuss
-        this->name.prepend(QString("C%1 - ").arg(lanIndex));
+        if (!this->name.startsWith(QString("C%1 - ").arg(lanIndex)))
+            this->name.prepend(QString("C%1 - ").arg(lanIndex));
     }
 };
 

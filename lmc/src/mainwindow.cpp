@@ -248,6 +248,7 @@ void lmcMainWindow::addUser(User *pUser) {
   }
 
   sendAvatar(&pUser->id);
+  sendMessage(MT_Status, NULL, &pLocalUser->status);
 }
 
 void lmcMainWindow::updateUser(User *pUser) {
@@ -397,7 +398,7 @@ QList<QTreeWidgetItem *> lmcMainWindow::getContactsList() {
   QList<QTreeWidgetItem *> contactsList;
   for (int index = 0; index < ui.treeWidgetUserList->topLevelItemCount();
        index++)
-    contactsList.append(ui.treeWidgetUserList->topLevelItem(index)->clone()); // TODO !!! pass the selection state also
+    contactsList.append(ui.treeWidgetUserList->topLevelItem(index)->clone());
 
   return contactsList;
 }

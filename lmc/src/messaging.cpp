@@ -156,6 +156,10 @@ void lmcMessaging::settingsChanged() {
     QString userName = getUserName();
     if(localUser->name.compare(userName) != 0) {
         localUser->name = userName;
+
+        if (!localUser->name.startsWith(QString("C%1 - ").arg(localUser->lanIndex)))
+            localUser->name.prepend(QString("C%1 - ").arg(localUser->lanIndex));
+
         XmlMessage xmlMessage;
         xmlMessage.addData(XN_NAME, userName);
         sendMessage(MT_UserName, NULL, &xmlMessage);
@@ -321,14 +325,14 @@ void lmcMessaging::getUserInfo(XmlMessage* pMessage) {
     pMessage->addData(XN_STATUS, localUser->status);
     pMessage->addData(XN_NOTE, localUser->note);
     pMessage->addData(XN_LOGON, Helper::getLogonName());
-    pMessage->addData(XN_HOST, Helper::getHostName()); // NOTE  Computer name
+    pMessage->addData(XN_HOST, Helper::getHostName());
     pMessage->addData(XN_OS, Helper::getOSName());
     pMessage->addData(XN_FIRSTNAME, firstName);
     pMessage->addData(XN_LASTNAME, lastName);
     pMessage->addData(XN_ABOUT, about);
 }
 
-bool lmcMessaging::addUser(QString szUserId, const QString &szVersion, const QString &userIP, const QString &szName, const QString &szStatus, const QString &szAvatar, const QString &szNote, const QString &szCaps, const QString &hostName) { // TODO !!! Add pc name and stuff here
+bool lmcMessaging::addUser(QString szUserId, const QString &szVersion, const QString &userIP, const QString &szName, const QString &szStatus, const QString &szAvatar, const QString &szNote, const QString &szCaps, const QString &hostName) {
     for(int index = 0; index < userList.count(); index++)
         if(userList[index].id.compare(szUserId) == 0) {
             LoggerManager::getInstance().writeInfo(QString("lmcMessaging.addUser failed -|- Adding new user: %1, %2, %3").arg(szUserId, szVersion, userIP));
@@ -356,7 +360,6 @@ bool lmcMessaging::addUser(QString szUserId, const QString &szVersion, const QSt
         }
     }
 
-    // TODO avatar
     emit messageReceived(MT_Announce, &szUserId, NULL);
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.addUser ended"));
     return true;

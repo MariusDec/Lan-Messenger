@@ -428,7 +428,7 @@ void MsgStream::readyRead() {
 void MsgStream::bytesWritten(qint64 bytes) {
     outDataLen -= bytes;
     if(outDataLen == 0){
-        LoggerManager::getInstance().writeWarning(QStringLiteral("MsgStream.bytesWritten -|- Socket write operation completed"));
+        LoggerManager::getInstance().writeInfo(QStringLiteral("MsgStream.bytesWritten -|- Socket write operation completed"));
         return;
     }
 

@@ -105,7 +105,7 @@ void ThemeManager::previewTheme(const QString &themePath, const QString &buttonT
 void ThemeManager::endPreview()
 {
     _previewTheme = false;
-    if (_themeIndex >= 0) // TODO remove this
+    if (_themeIndex >= 0)
         _themeStyleSheet = loadStyleSheet ();
 }
 

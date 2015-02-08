@@ -250,7 +250,6 @@ void lmcSettings::setAutoStart(bool on) {
 
 void lmcSettings::saveDefaults()
 {
-// TODO check if these are all
     setValue(IDS_VERSION, IDA_VERSION);
 
     setValue(IDS_AUTOSTART, IDS_AUTOSTART_DEFAULT_VAL);

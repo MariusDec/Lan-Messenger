@@ -107,7 +107,7 @@ lmcChatRoomWindow::~lmcChatRoomWindow() {
     delete pSoundPlayer;
     delete pSettings;
 }
-#include <QMessageBox>
+
 void lmcChatRoomWindow::init(User *pLocalUser, bool connected, const QString &thread) {
   LoggerManager::getInstance().writeInfo(
       QStringLiteral("lmcChatRoomWindow.init started"));
@@ -287,11 +287,27 @@ void lmcChatRoomWindow::addUser(User *pUser) {
   }
 
   //	Local user cannot participate in public chat if status is offline
-  if (_peerNames.size () <= 1 && pUser->id.compare(localId) == 0) {
+  if (_peerNames.size () <= 1 && !pUser->id.compare(localId)) {
     bool offline = Globals::getInstance().getStatusType(pUser->status) ==
                    StatusTypeEnum::StatusOffline;
     ui.textBoxMessage->setEnabled(!offline);
     ui.textBoxMessage->setFocus();
+  }
+
+  if (_peerNames.size() == 1 && pUser->id.compare(localId)) {
+      StatusStruct *statusItem = Globals::getInstance().getStatus(pUser->status);
+      if (statusItem) {
+          if (statusItem->statusType == StatusTypeEnum::StatusOffline)
+              showStatus(IT_Offline, false);
+          else if (statusItem->statusType == StatusTypeEnum::StatusBusy)
+              showStatus(IT_Busy, false);
+          else if (statusItem->statusType == StatusTypeEnum::StatusAway)
+              showStatus(IT_Away, false);
+          else
+              showStatus(IT_Ok, false);
+      }
+  } else if (_peerNames.size() == 2) {
+      showStatus(IT_Ok, false);
   }
 
   if (!_isPublicChat && _peerNames.size() == 1) {
@@ -379,7 +395,6 @@ void lmcChatRoomWindow::removeUser(QString *lpszUserId) {
   appendMessageLog(MT_Leave, &userId, &userName, &xmlMessage);
   setWindowTitle(getWindowTitle());
 
-  // TODO toggle doesn't work too well
   if (!_isPublicChat && _peerNames.size() == 1) {
       toggleSideBar(false, false);
 
@@ -458,20 +473,22 @@ void lmcChatRoomWindow::receiveMessage(MessageType type, QString *lpszUserId,
     appendMessageLog(type, lpszUserId, &senderName, pMessage);
     break;
   case MT_Status:
+  {
     data = pMessage->data(XN_STATUS);
+    bool isLocalUser = (pLocalUser->id == senderId);
     if (statusItem) {
       setWindowIcon(
           QIcon(ThemeManager::getInstance().getAppIcon(statusItem->icon)));
-      statusItem->statusType == StatusTypeEnum::StatusOffline
-          ? showStatus(IT_Offline, true)
-          : showStatus(IT_Offline, false);
-      statusItem->statusType == StatusTypeEnum::StatusBusy
-          ? showStatus(IT_Busy, true)
-          : showStatus(IT_Busy, false);
-      statusItem->statusType == StatusTypeEnum::StatusAway
-          ? showStatus(IT_Away, true)
-          : showStatus(IT_Away, false);
+      if (statusItem->statusType == StatusTypeEnum::StatusOffline)
+          showStatus(IT_Offline, isLocalUser);
+      else if (statusItem->statusType == StatusTypeEnum::StatusBusy)
+          showStatus(IT_Busy, isLocalUser);
+      else if (statusItem->statusType == StatusTypeEnum::StatusAway)
+          showStatus(IT_Away, isLocalUser);
+      else
+          showStatus(IT_Ok, isLocalUser);
     }
+  }
     break;
   case MT_Avatar:
     data = pMessage->data(XN_FILEPATH);
@@ -498,8 +515,6 @@ void lmcChatRoomWindow::receiveMessage(MessageType type, QString *lpszUserId,
               else
                   title = tr("%1 sends a folder...");
               setWindowTitle(title.arg(senderName));
-
-              // TODO append the message in the tray icon pMessage->data(XN_FILENAME)
           }
       } else {
           // a file message of op other than request has been received
@@ -516,8 +531,8 @@ void lmcChatRoomWindow::receiveMessage(MessageType type, QString *lpszUserId,
 
 void lmcChatRoomWindow::connectionStateChanged(bool connected) {
   bConnected = connected;
-  bConnected ? showStatus(IT_Disconnected, false)
-             : showStatus(IT_Disconnected, true);
+  if (!bConnected)
+      showStatus(IT_Disconnected,true);
 }
 
 void lmcChatRoomWindow::settingsChanged() {
@@ -1161,7 +1176,7 @@ void lmcChatRoomWindow::setUIText() {
   userFileAction->setText(tr("Send &File"));
   userInfoAction->setText(tr("Get &Information"));
 
-  showStatus(IT_Ok, true); //	this will force the info label to retranslate
+  showStatus(IT_Ok, false); //	this will force the info label to retranslate
 }
 
 void lmcChatRoomWindow::sendMessage() {
@@ -1210,8 +1225,8 @@ void lmcChatRoomWindow::appendMessageLog(MessageType type, QString *lpszUserId,
     _buttonSaveConversation->setEnabled(pMessageLog->hasData);
 }
 
-void lmcChatRoomWindow::showStatus(int flag, bool add) {
-  infoFlag = add ? infoFlag | flag : infoFlag & ~flag;
+void lmcChatRoomWindow::showStatus(int flag, bool isLocalUser) {
+  infoFlag = flag;
   bool groupMode = _peerNames.size() != 1;
 
   int relScrollPos =
@@ -1220,22 +1235,22 @@ void lmcChatRoomWindow::showStatus(int flag, bool add) {
 
   //if (!groupMode)
 
-  if(infoFlag & IT_Disconnected) {
+  if(infoFlag == IT_Disconnected) {
       ui.labelInfo->setText("<span style='color:rgb(96,96,96);'>" + tr("You are no longer connected.") + "</span>");
       ui.labelInfo->setVisible(true);
-  } else if(!groupMode && (infoFlag & IT_Offline))  { // TODO !!! this should be the status of the interlocutor
+  } else if(!groupMode && !isLocalUser && (infoFlag == IT_Offline))  { // TODO !!! this should be the status of the interlocutor
       QString msg = tr("%1 is offline.");
       ui.labelInfo->setText("<span style='color:rgb(96,96,96);'>" + msg.arg(_peerNames.values().first()) + "</span>");
       ui.labelInfo->setVisible(true);
-  } else if(!groupMode && (infoFlag & IT_Away)) {
+  } else if(!groupMode && !isLocalUser && (infoFlag == IT_Away)) {
       QString msg = tr("%1 is away.");
       ui.labelInfo->setText("<span style='color:rgb(255,115,0);'>" + msg.arg(_peerNames.values().first()) + "</span>");
       ui.labelInfo->setVisible(true);
-  } else if(!groupMode && (infoFlag & IT_Busy)) {
+  } else if(!groupMode && !isLocalUser && (infoFlag == IT_Busy)) {
       QString msg = tr("%1 is busy. You may be interrupting.");
       ui.labelInfo->setText("<span style='color:rgb(192,0,0);'>" + msg.arg(_peerNames.values().first()) + "</span>");
       ui.labelInfo->setVisible(true);
-  } else {
+  } else if (!isLocalUser) {
       ui.labelInfo->setText(QString::null);
       ui.labelInfo->setVisible(false);
   }
