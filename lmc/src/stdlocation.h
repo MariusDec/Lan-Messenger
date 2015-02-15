@@ -39,7 +39,7 @@
 #define SL_LOGDIR "logs"
 #define SL_TEMPCONFIG "lmctmpconf.ini"
 
-#define PORTABLE 1
+#define PORTABLE 0
 #define PortableResFolder "resources"
 
 class StdLocation {
@@ -158,9 +158,11 @@ public:
     if (!location.endsWith('/'))
         location.append('/');
 
-    bool userFolders = settings.value(IDS_STORAGEUSERFOLDER, IDS_STORAGEUSERFOLDER_VAL).toBool();
-    if (userFolders and !sender.isEmpty())
-        location.append(QString("%1/").arg(sender));
+    if (!sender.isEmpty()) {
+        bool userFolders = settings.value(IDS_STORAGEUSERFOLDER, IDS_STORAGEUSERFOLDER_VAL).toBool();
+        if (userFolders)
+            location.append(QString("%1/").arg(sender));
+    }
 
     // create the dir if it does not exist
     QDir dir(location);

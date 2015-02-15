@@ -51,8 +51,8 @@ lmcSettingsDialog::lmcSettingsDialog(QWidget *parent, Qt::WindowFlags flags) : Q
     connect(ui.checkBoxAllowLinks, &QCheckBox::toggled, this, &lmcSettingsDialog::checkBoxAllowLinks_toggled);
     connect(ui.radioButtonSysHistoryPath, &QRadioButton::toggled, this, &lmcSettingsDialog::radioButtonSysHistoryPath_toggled);
     connect(ui.buttonHistoryPath, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonHistoryPath_clicked);
-    // TODO change all connects to QT5 equivalents
     connect(ui.checkBoxSysTrayMsg, &QCheckBox::toggled, this, &lmcSettingsDialog::checkBoxSysTrayMsg_toggled);
+    // TODO change all connects to QT5 equivalents
     connect(ui.buttonFilePath, SIGNAL(clicked()), this, SLOT(buttonFilePath_clicked()));
     connect(ui.buttonClearHistory, SIGNAL(clicked()), this, SLOT(buttonClearHistory_clicked()));
     connect(ui.buttonClearFileHistory, SIGNAL(clicked()), this, SLOT(buttonClearFileHistory_clicked()));
@@ -275,26 +275,31 @@ void lmcSettingsDialog::buttonFont_clicked() {
     QFont newFont = QFontDialog::getFont(&ok, font, this, tr("Select Font"));
     if(ok) {
         font = newFont;
-        ui.labelFontDescription->setText(QString("%1, %2px").arg(font.family(), QString::number(font.pointSize())));
+        ui.labelFontDescription->setText(QString("%1, %2pt").arg(font.family(), QString::number(font.pointSize())));
+        ui.labelFontDescription->setFont(font);
 
-        ui.labelFontDescription->setStyleSheet(getFontStyle(font));
+        QString style = QString("color: %1; ").arg(color.name());
+        ui.textEditFontColorText->setFont(font);
+        ui.textEditFontColorText->setStyleSheet(style);
+
+     //   QMessageBox::information(0, 0, ui.textEditFontColorText->font().toString() + "\n" + QString::number(ui.textEditFontColorText->fontItalic()) + "\n" + QString::number(ui.textEditFontColorText->fontWeight()));
     }
 }
 
-QString lmcSettingsDialog::getFontStyle(const QFont &font) {
+QString lmcSettingsDialog::getFontStyle() {
     QString style;
 
     if(font.italic())
-        style.append("font-style:italic; ");
+        style.append("font-style: italic; ");
     if(font.bold())
-        style.append("font-weight:bold; ");
+        style.append("font-weight: bold; ");
     if(font.strikeOut())
-        style.append("text-decoration:line-through; ");
+        style.append("text-decoration: line-through; ");
     if(font.underline())
-        style.append("text-decoration:underline; ");
+        style.append("text-decoration: underline; ");
 
-    style.append(QString("font-family:\"%1\"; ").arg(font.family()));
-    style.append(QString("font-size:%1; ").arg(QString::number(font.pointSize())));
+    style.append(QString("font-family: \"%1\"; ").arg(font.family()));
+    style.append(QString("font-size: %1pt; ").arg(QString::number(font.pointSize())));
 
     return style;
 }
@@ -305,7 +310,10 @@ void lmcSettingsDialog::buttonColor_clicked() {
         color = newColor;
 
         ui.labelFontColorDisplay->setStyleSheet(QString("border: 2px outset rgb(144, 144, 144); border-radius: 4px; background-color: %1; ").arg(color.name()));
-        ui.textEditFontColorText->setStyleSheet(QString("color: %1; ").arg(color.name()));
+
+        QString style = QString("color: %1; ").arg(color.name());
+        ui.textEditFontColorText->setFont(font);
+        ui.textEditFontColorText->setStyleSheet(style);
     }
 }
 
@@ -582,11 +590,13 @@ void lmcSettingsDialog::loadSettings() {
     color.setNamedColor(pSettings->value(IDS_COLOR, IDS_COLOR_VAL).toString());
     ui.checkBoxOverrideIncoming->setChecked(pSettings->value(IDS_OVERRIDEINMSG, IDS_OVERRIDEINMSG_VAL).toBool());
 
-    ui.labelFontDescription->setText(QString("%1, %2px").arg(font.family(), QString::number(font.pointSize())));
-    ui.labelFontDescription->setStyleSheet(getFontStyle(font));
+    ui.labelFontDescription->setText(QString("%1, %2pt").arg(font.family(), QString::number(font.pointSize())));
+    ui.labelFontDescription->setFont(font);//->setStyleSheet(fontStyle);
 
     ui.labelFontColorDisplay->setStyleSheet(QString("border: 2px outset rgb(144, 144, 144); border-radius: 4px; background-color: %1; ").arg(color.name()));
-    ui.textEditFontColorText->setStyleSheet(QString("color: %1; ").arg(color.name()));
+    QString style = QString("color: %1; ").arg(color.name());
+    ui.textEditFontColorText->setFont(font);
+    ui.textEditFontColorText->setStyleSheet(style);
 
     ui.checkBoxHistory->setChecked(pSettings->value(IDS_HISTORY, IDS_HISTORY_VAL).toBool());
     ui.radioButtonSysHistoryPath->setChecked(pSettings->value(IDS_SYSHISTORYPATH, IDS_SYSHISTORYPATH_VAL).toBool());

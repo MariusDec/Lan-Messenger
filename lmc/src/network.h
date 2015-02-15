@@ -32,7 +32,6 @@
 #include "udpnetwork.h"
 #include "tcpnetwork.h"
 #include "webnetwork.h"
-#include "crypto.h"
 #include "settings.h"
 #include "xmlmessage.h"
 

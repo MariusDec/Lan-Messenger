@@ -1158,8 +1158,10 @@ void lmcChatRoomWindow::createToolBar() {
 
   if (!_isPublicChat)
     ui.buttonAddUsers->setVisible(true);
-  else
+  else {
     ui.buttonAddUsers->setVisible(false);
+    _buttonSendClipboard->setVisible(false);
+  }
 
   connect(_clipboard, &QClipboard::changed, this, &lmcChatRoomWindow::setClibpoardIcon);
 }
@@ -1219,7 +1221,7 @@ void lmcChatRoomWindow::sendMessage() {
 void lmcChatRoomWindow::appendMessageLog(MessageType type, QString *lpszUserId,
                                          QString *lpszUserName,
                                          XmlMessage *pMessage) {
-    pMessageLog->appendMessageLog(type, lpszUserId, lpszUserName, pMessage, false, _peerNames.count(), true, pLocalUser, _peerNames.values());
+    pMessageLog->appendMessageLog(type, lpszUserId, lpszUserName, pMessage, false, _peerNames.count(), true, pLocalUser, _peerNames);
 
   if (!_buttonSaveConversation->isEnabled())
     _buttonSaveConversation->setEnabled(pMessageLog->hasData);
@@ -1238,7 +1240,7 @@ void lmcChatRoomWindow::showStatus(int flag, bool isLocalUser) {
   if(infoFlag == IT_Disconnected) {
       ui.labelInfo->setText("<span style='color:rgb(96,96,96);'>" + tr("You are no longer connected.") + "</span>");
       ui.labelInfo->setVisible(true);
-  } else if(!groupMode && !isLocalUser && (infoFlag == IT_Offline))  { // TODO !!! this should be the status of the interlocutor
+  } else if(!groupMode && !isLocalUser && (infoFlag == IT_Offline))  {
       QString msg = tr("%1 is offline.");
       ui.labelInfo->setText("<span style='color:rgb(96,96,96);'>" + msg.arg(_peerNames.values().first()) + "</span>");
       ui.labelInfo->setVisible(true);
@@ -1276,12 +1278,10 @@ QString lmcChatRoomWindow::getWindowTitle() {
                 title.append(" - ");
                 title.append(tr("Conversation"));
             } else {
-                title = QString("%1 people in the conversation").arg(_peerNames.size());
+                title = QString("%1 people in this conversation").arg(_peerNames.size());
             }
         } else {
-            title = QStringLiteral("Alone");
-            title.append(" - ");
-            title.append(tr("Conversation"));
+            title = QStringLiteral("Alone in this conversation");
         }
     } else
         title = tr("Public Chat");

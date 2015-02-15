@@ -359,6 +359,7 @@ void MsgStream::sendMessage(QByteArray& data) {
     LoggerManager::getInstance().writeInfo(QString("MsgStream.sendMessage started -|- Writing %1 bytes: %2").arg(QString::number(outData.length()), outData.data()));
 
     qint64 numBytesWritten = _socket->write(outData);
+    _socket->flush();
     if(numBytesWritten < 0)
         LoggerManager::getInstance().writeError(QStringLiteral("MsgStream.sendMessage -|- Socket write failed"));
 
@@ -381,6 +382,7 @@ void MsgStream::connected() {
 }
 
 void MsgStream::disconnected() {
+    LoggerManager::getInstance().writeInfo(QString("MsgStream.disconnected -|- Connection to user %1 lost").arg(peerId));
     emit connectionLost(&peerId);
 }
 

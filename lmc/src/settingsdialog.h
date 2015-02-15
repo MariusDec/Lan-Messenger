@@ -94,7 +94,7 @@ private:
   void setUIText();
   void loadSettings();
   void saveSettings();
-  QString getFontStyle(const QFont &font);
+  QString getFontStyle();
 
   Ui::SettingsDialog ui;
   lmcSettings* pSettings = nullptr;

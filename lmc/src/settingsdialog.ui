@@ -32,15 +32,15 @@
    <item row="4" column="0" alignment="Qt::AlignLeft">
     <widget class="ThemedButton" name="buttonReset">
      <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
        <horstretch>0</horstretch>
        <verstretch>0</verstretch>
       </sizepolicy>
      </property>
      <property name="minimumSize">
       <size>
-       <width>0</width>
-       <height>25</height>
+       <width>75</width>
+       <height>23</height>
       </size>
      </property>
      <property name="text">
@@ -69,15 +69,15 @@
       <item>
        <widget class="ThemedButton" name="buttonOK">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
         <property name="minimumSize">
          <size>
-          <width>50</width>
-          <height>25</height>
+          <width>75</width>
+          <height>23</height>
          </size>
         </property>
         <property name="text">
@@ -91,15 +91,15 @@
       <item>
        <widget class="ThemedButton" name="buttonCancel">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
         <property name="minimumSize">
          <size>
-          <width>50</width>
-          <height>25</height>
+          <width>75</width>
+          <height>23</height>
          </size>
         </property>
         <property name="text">
@@ -360,7 +360,7 @@
                   <property name="minimumSize">
                    <size>
                     <width>0</width>
-                    <height>25</height>
+                    <height>23</height>
                    </size>
                   </property>
                  </widget>
@@ -727,15 +727,15 @@
                 <item row="1" column="0">
                  <widget class="ThemedButton" name="buttonFont">
                   <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
                   <property name="minimumSize">
                    <size>
-                    <width>0</width>
-                    <height>25</height>
+                    <width>75</width>
+                    <height>23</height>
                    </size>
                   </property>
                   <property name="text">
@@ -756,15 +756,15 @@
                 <item row="2" column="0">
                  <widget class="ThemedButton" name="buttonColor">
                   <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
                   <property name="minimumSize">
                    <size>
-                    <width>0</width>
-                    <height>25</height>
+                    <width>75</width>
+                    <height>23</height>
                    </size>
                   </property>
                   <property name="text">
@@ -818,25 +818,15 @@ border-radius: 4px</string>
                     </widget>
                    </item>
                    <item>
-                    <widget class="QTextEdit" name="textEditFontColorText">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Expanding" vsizetype="Ignored">
-                       <horstretch>0</horstretch>
-                       <verstretch>0</verstretch>
-                      </sizepolicy>
+                    <widget class="QLineEdit" name="textEditFontColorText">
+                     <property name="text">
+                      <string>Your message looks like this</string>
                      </property>
-                     <property name="tabChangesFocus">
+                     <property name="frame">
                       <bool>true</bool>
                      </property>
-                     <property name="lineWrapMode">
-                      <enum>QTextEdit::WidgetWidth</enum>
-                     </property>
-                     <property name="html">
-                      <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'MS Shell Dlg 2'; font-size:8.25pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:10pt;&quot;&gt;Your message looks like this&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                     <property name="dragEnabled">
+                      <bool>false</bool>
                      </property>
                     </widget>
                    </item>
@@ -846,7 +836,7 @@ p, li { white-space: pre-wrap; }
                 <item row="3" column="0" colspan="2">
                  <widget class="QCheckBox" name="checkBoxOverrideIncoming">
                   <property name="text">
-                   <string>Also use this style for incoming messages</string>
+                   <string>Override the font and color for the incoming messages</string>
                   </property>
                  </widget>
                 </item>
@@ -919,15 +909,15 @@ p, li { white-space: pre-wrap; }
                 <item alignment="Qt::AlignLeft">
                  <widget class="ThemedButton" name="buttonClearHistory">
                   <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
                   <property name="minimumSize">
                    <size>
-                    <width>0</width>
-                    <height>25</height>
+                    <width>75</width>
+                    <height>23</height>
                    </size>
                   </property>
                   <property name="text">
@@ -977,7 +967,7 @@ p, li { white-space: pre-wrap; }
                 <item row="2" column="1">
                  <widget class="ThemedButton" name="buttonHistoryPath">
                   <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
@@ -985,7 +975,7 @@ p, li { white-space: pre-wrap; }
                   <property name="minimumSize">
                    <size>
                     <width>34</width>
-                    <height>0</height>
+                    <height>23</height>
                    </size>
                   </property>
                   <property name="maximumSize">
@@ -1018,15 +1008,15 @@ p, li { white-space: pre-wrap; }
                 <item alignment="Qt::AlignLeft">
                  <widget class="ThemedButton" name="buttonClearFileHistory">
                   <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
                   <property name="minimumSize">
                    <size>
-                    <width>0</width>
-                    <height>25</height>
+                    <width>75</width>
+                    <height>23</height>
                    </size>
                   </property>
                   <property name="text">
@@ -1183,7 +1173,7 @@ p, li { white-space: pre-wrap; }
                    <bool>false</bool>
                   </property>
                   <property name="sizePolicy">
-                   <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+                   <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
@@ -1191,7 +1181,7 @@ p, li { white-space: pre-wrap; }
                   <property name="minimumSize">
                    <size>
                     <width>0</width>
-                    <height>25</height>
+                    <height>23</height>
                    </size>
                   </property>
                   <property name="text">
@@ -1205,7 +1195,7 @@ p, li { white-space: pre-wrap; }
                    <bool>false</bool>
                   </property>
                   <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
@@ -1213,7 +1203,7 @@ p, li { white-space: pre-wrap; }
                   <property name="minimumSize">
                    <size>
                     <width>0</width>
-                    <height>25</height>
+                    <height>23</height>
                    </size>
                   </property>
                   <property name="maximumSize">
@@ -1230,15 +1220,15 @@ p, li { white-space: pre-wrap; }
                 <item row="3" column="3" alignment="Qt::AlignRight">
                  <widget class="ThemedButton" name="buttonResetSounds">
                   <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
                   <property name="minimumSize">
                    <size>
-                    <width>0</width>
-                    <height>25</height>
+                    <width>75</width>
+                    <height>23</height>
                    </size>
                   </property>
                   <property name="text">
@@ -1641,15 +1631,15 @@ p, li { white-space: pre-wrap; }
                 <item row="0" column="1">
                  <widget class="ThemedButton" name="buttonFilePath">
                   <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
                   <property name="minimumSize">
                    <size>
-                    <width>0</width>
-                    <height>25</height>
+                    <width>34</width>
+                    <height>23</height>
                    </size>
                   </property>
                   <property name="maximumSize">
@@ -1676,15 +1666,15 @@ p, li { white-space: pre-wrap; }
                 <item row="2" column="0" alignment="Qt::AlignLeft">
                  <widget class="ThemedButton" name="buttonViewFiles">
                   <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
                   <property name="minimumSize">
                    <size>
-                    <width>0</width>
-                    <height>25</height>
+                    <width>75</width>
+                    <height>23</height>
                    </size>
                   </property>
                   <property name="text">
@@ -1758,7 +1748,7 @@ p, li { white-space: pre-wrap; }
                 <item row="1" column="1">
                  <widget class="ThemedComboBox" name="comboBoxButtonTheme">
                   <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
@@ -1766,7 +1756,7 @@ p, li { white-space: pre-wrap; }
                   <property name="minimumSize">
                    <size>
                     <width>0</width>
-                    <height>25</height>
+                    <height>23</height>
                    </size>
                   </property>
                  </widget>
@@ -1776,7 +1766,7 @@ p, li { white-space: pre-wrap; }
                   <property name="minimumSize">
                    <size>
                     <width>0</width>
-                    <height>25</height>
+                    <height>23</height>
                    </size>
                   </property>
                  </widget>
@@ -1801,7 +1791,7 @@ p, li { white-space: pre-wrap; }
                 <item row="2" column="1">
                  <widget class="ThemedComboBox" name="comboBoxIconTheme">
                   <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
@@ -1809,7 +1799,7 @@ p, li { white-space: pre-wrap; }
                   <property name="minimumSize">
                    <size>
                     <width>0</width>
-                    <height>25</height>
+                    <height>23</height>
                    </size>
                   </property>
                  </widget>
@@ -1909,7 +1899,7 @@ p, li { white-space: pre-wrap; }
                   <property name="minimumSize">
                    <size>
                     <width>170</width>
-                    <height>0</height>
+                    <height>23</height>
                    </size>
                   </property>
                  </widget>
@@ -1974,7 +1964,7 @@ p, li { white-space: pre-wrap; }
                   <property name="minimumSize">
                    <size>
                     <width>0</width>
-                    <height>25</height>
+                    <height>23</height>
                    </size>
                   </property>
                  </widget>

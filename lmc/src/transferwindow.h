@@ -76,8 +76,9 @@ private slots:
     void updateProgress(FileView* view, qint64 currentPos);
 
 private:
-    void createToolBar();
     void setUIText();
+    void createToolBar();
+    QFrame *createSeparator(QWidget *parent);
     void setButtonState(FileView::TransferState state);
     QPixmap getIcon(QString filePath);
     QString formatTime(qint64 size, qint64 speed);
@@ -88,9 +89,9 @@ private:
     Ui::TransferWindow ui;
     lmcSettings* pSettings;
     lmcSoundPlayer* pSoundPlayer;
-    ThemedButton *buttonCancel;
-    ThemedButton *buttonShowFolder;
-    ThemedButton *buttonRemove;
+    ThemedButton *_buttonCancel;
+    ThemedButton *_buttonShowFolder;
+    ThemedButton *_buttonRemove;
     QList<FileView> pendingSendList;
 };
 

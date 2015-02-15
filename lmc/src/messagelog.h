@@ -46,7 +46,7 @@ public:
 
     void initMessageLog(bool themePreviewMode = false, bool clearLog = true, bool reloadMessages = true);
     void appendMessageLog(MessageType type, QString* lpszUserId, QString* lpszUserName, XmlMessage* pMessage,
-        bool bReload = false, bool groupMessage = true, bool saveLog = true, User *localUser = nullptr, const QList<QString> &peersList = QList<QString> ());
+        bool bReload = false, bool groupMessage = true, bool saveLog = true, User *localUser = nullptr, const QHash<QString, QString> &peersList = QHash<QString, QString> ());
     void updateFileMessage(FileMode mode, FileOp op, QString fileId);
     void updateUserName(QString* lpszUserId, QString* lpszUserName);
     void updateAvatar(QString* lpszUserId, QString* lpszFilePath);
@@ -54,7 +54,7 @@ public:
     QString prepareMessageLogForSave(OutputFormat format);
     void setAutoScroll(bool enable);
     void abortPendingFileOperations();
-    void saveMessageLog(const QString &user, const QString &userId, User *localUser, const QList<QString> &peersList, const QDateTime &date, const SingleMessage &message);
+    static void saveMessageLog(const QString &user, const QString &userId, User *localUser, const QList<QString> &peersList, const QDateTime &date, SingleMessage &message, const QString &savePath);
     void prependHtml(const QString &html);
 
     static void decodeMessage(QString* lpszMessage, bool trimMessage, bool allowLinks, bool pathToLink, bool showSmileys, bool useDefaults = false);

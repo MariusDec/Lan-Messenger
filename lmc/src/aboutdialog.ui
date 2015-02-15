@@ -73,7 +73,7 @@
       </sizepolicy>
      </property>
      <property name="currentIndex">
-      <number>2</number>
+      <number>0</number>
      </property>
      <widget class="QWidget" name="tabAbout">
       <attribute name="title">
@@ -198,8 +198,8 @@
      </property>
      <property name="minimumSize">
       <size>
-       <width>0</width>
-       <height>25</height>
+       <width>75</width>
+       <height>23</height>
       </size>
      </property>
      <property name="text">

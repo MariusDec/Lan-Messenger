@@ -40,6 +40,17 @@ QString Message::addHeader(MessageType type, qint64 id, QString* lpszLocalId, QS
     return pMessage->toString();
 }
 
+void Message::removeHeader(XmlMessage *pMessage) {
+    if (!pMessage)
+        return;
+
+    pMessage->removeHeader(XN_TIME);
+    pMessage->removeHeader(XN_FROM);
+    pMessage->removeHeader(XN_TO);
+    pMessage->removeHeader(XN_MESSAGEID);
+    pMessage->removeHeader(XN_TYPE);
+}
+
 bool Message::getHeader(QString* lpszMessage, MessageHeader** ppHeader, XmlMessage** ppMessage) {
     *ppMessage = new XmlMessage(*lpszMessage);
     if(!((*ppMessage)->isValid()))

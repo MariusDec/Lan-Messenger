@@ -45,13 +45,13 @@ LoggerManager::LoggerManager() {
 LoggerManager::~LoggerManager() {}
 
 void LoggerManager::writeInfo(const QString &message) {
-  QString msg = QString("<entry>\n\t<message> %1 </message>\n\t<Date> %2 </Date>\n\t<Type> Info </Type>\n</entry>\n").arg(message, QDateTime::currentDateTimeUtc ().toString ("yyyy.MM.dd hh:mm:ss"));
+  QString msg = QString("<entry>\n\t<message> %1 </message>\n\t<Date> %2 </Date>\n\t<Type> Info </Type>\n</entry>\n").arg(message, QDateTime::currentDateTime ().toString ("yyyy.MM.dd hh:mm:ss (t)"));
 
   appendMessagesList(msg);
 }
 
 void LoggerManager::writeWarning(const QString &message) {
-  QString msg = QString("<entry>\n\t<message> %1 </message>\n\t<Date> %2 </Date>\n\t<Type> >> Warning << </Type>\n</entry>\n").arg(message, QDateTime::currentDateTimeUtc ().toString ("yyyy.MM.dd hh:mm:ss"));
+  QString msg = QString("<entry>\n\t<message> %1 </message>\n\t<Date> %2 </Date>\n\t<Type> >> Warning << </Type>\n</entry>\n").arg(message, QDateTime::currentDateTime ().toString ("yyyy.MM.dd hh:mm:ss (t)"));
 
   appendMessagesList(msg);
 }
@@ -60,7 +60,7 @@ void LoggerManager::writeError(const QString &message) {
     // TODO find a way to log the caller function
   QString msg =
       QString(
-          "<entry>\n\t<message> %1 </message>\n\t<Date> %2 </Date>\n\t<Type> !! Error !! </Type>\n</entry>\n").arg(message, QDateTime::currentDateTimeUtc ().toString ("yyyy.MM.dd hh:mm:ss"));
+          "<entry>\n\t<message> %1 </message>\n\t<Date> %2 </Date>\n\t<Type> !! Error !! </Type>\n</entry>\n").arg(message, QDateTime::currentDateTime ().toString ("yyyy.MM.dd hh:mm:ss (t)"));
 
   appendMessagesList(msg);
 }

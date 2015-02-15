@@ -15,20 +15,8 @@
   </property>
   <layout class="QGridLayout" name="gridLayout">
    <item row="0" column="0" colspan="2">
-    <widget class="QWidget" name="widgetToolBar" native="true">
-     <property name="minimumSize">
-      <size>
-       <width>0</width>
-       <height>26</height>
-      </size>
-     </property>
-     <property name="maximumSize">
-      <size>
-       <width>16777215</width>
-       <height>26</height>
-      </size>
-     </property>
-     <layout class="QHBoxLayout" name="widgetToolbar_layout">
+    <widget class="QWidget" name="widgetToolBarContainer" native="true">
+     <layout class="QHBoxLayout" name="widgetToolBarContainer_layout">
       <property name="spacing">
        <number>0</number>
       </property>
@@ -44,21 +32,39 @@
       <property name="bottomMargin">
        <number>0</number>
       </property>
+      <item alignment="Qt::AlignLeft">
+       <widget class="QWidget" name="widgetToolBar" native="true">
+        <layout class="QHBoxLayout" name="widgetToolbar_layout">
+         <property name="leftMargin">
+          <number>3</number>
+         </property>
+         <property name="topMargin">
+          <number>3</number>
+         </property>
+         <property name="rightMargin">
+          <number>3</number>
+         </property>
+         <property name="bottomMargin">
+          <number>3</number>
+         </property>
+        </layout>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
    <item row="5" column="1" alignment="Qt::AlignRight">
     <widget class="ThemedButton" name="buttonClose">
      <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
        <horstretch>0</horstretch>
        <verstretch>0</verstretch>
       </sizepolicy>
      </property>
      <property name="minimumSize">
       <size>
-       <width>0</width>
-       <height>25</height>
+       <width>75</width>
+       <height>23</height>
       </size>
      </property>
      <property name="text">
@@ -69,15 +75,15 @@
    <item row="5" column="0" alignment="Qt::AlignLeft">
     <widget class="ThemedButton" name="buttonClear">
      <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
        <horstretch>0</horstretch>
        <verstretch>0</verstretch>
       </sizepolicy>
      </property>
      <property name="minimumSize">
       <size>
-       <width>0</width>
-       <height>25</height>
+       <width>75</width>
+       <height>23</height>
       </size>
      </property>
      <property name="text">
@@ -104,7 +110,7 @@
      <property name="minimumSize">
       <size>
        <width>0</width>
-       <height>25</height>
+       <height>23</height>
       </size>
      </property>
     </widget>

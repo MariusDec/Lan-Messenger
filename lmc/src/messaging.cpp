@@ -98,7 +98,6 @@ void lmcMessaging::start() {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.start started"));
     pNetwork->start();
 
-    sendBroadcast(MT_Depart, NULL);
     sendBroadcast(MT_Announce, NULL);
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.start ended"));
 }
@@ -335,7 +334,6 @@ void lmcMessaging::getUserInfo(XmlMessage* pMessage) {
 bool lmcMessaging::addUser(QString szUserId, const QString &szVersion, const QString &userIP, const QString &szName, const QString &szStatus, const QString &szAvatar, const QString &szNote, const QString &szCaps, const QString &hostName) {
     for(int index = 0; index < userList.count(); index++)
         if(userList[index].id.compare(szUserId) == 0) {
-            LoggerManager::getInstance().writeInfo(QString("lmcMessaging.addUser failed -|- Adding new user: %1, %2, %3").arg(szUserId, szVersion, userIP));
             return false;
         }
 
@@ -355,7 +353,7 @@ bool lmcMessaging::addUser(QString szUserId, const QString &szVersion, const QSt
         //	send a status message to app layer, this is different from announce message
         emit messageReceived(MT_Status, &szUserId, &xmlMessage);
         if(Globals::getInstance ().getStatusType (szStatus) == StatusTypeEnum::StatusOffline) { // offline status
-            LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.addUser ended-|- szStatus is offline"));
+            LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.addUser ended-|- User was not added: user is offline"));
             return false;	//	no need to send a new user message to app layer
         }
     }
@@ -386,6 +384,8 @@ void lmcMessaging::updateUser(MessageType type, QString &szUserId, const QString
             if(Globals::getInstance ().getStatusType (pUser->status) == StatusTypeEnum::StatusOffline) { // new status is offline
                 // Send a dummy xml message. A non null xml message implies that the
                 // user is only in offline status, and not actually offline.
+
+                LoggerManager::getInstance().writeWarning(QString("User %1 has offline status (%2)").arg(pUser->name, pUser->status));
                 XmlMessage xmlMessage;
                 emit messageReceived(MT_Depart, &szUserId, &xmlMessage);
             }
@@ -418,16 +418,21 @@ void lmcMessaging::updateUser(MessageType type, QString &szUserId, const QString
     }
 }
 
-void lmcMessaging::removeUser(QString szUserId) {
+void lmcMessaging::removeUser(QString &userId) {
+    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.removeUser started -|- Removing user %1").arg(userId));
+
     for(int index = 0; index < userList.count(); index++)
-        if(userList.value(index).id.compare(szUserId) == 0) {
+        if(userList.value(index).id.compare(userId) == 0) {
             XmlMessage statusMsg;
             statusMsg.addData(XN_STATUS, Globals::getInstance ().getStatuses ().back ().description);
-            emit messageReceived(MT_Status, &szUserId, &statusMsg);
-            emit messageReceived(MT_Depart, &szUserId, NULL);
+            emit messageReceived(MT_Status, &userId, &statusMsg);
+            emit messageReceived(MT_Depart, &userId, NULL);
             userList.removeAt(index);
+            LoggerManager::getInstance().writeInfo(QString("lmcMessaging.removeUser ended -|- User %1 removed").arg(userId));
             return;
         }
+
+    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.removeUser ended -|- User %1 not found in the list of users").arg(userId));
 }
 
 bool lmcMessaging::addReceivedMsg(qint64 msgId, const QString &userId) {

@@ -32,7 +32,6 @@
 #include "datagram.h"
 #include "settings.h"
 #include "netstreamer.h"
-#include "crypto.h"
 
 class lmcTcpNetwork : public QObject {
     Q_OBJECT

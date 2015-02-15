@@ -51,19 +51,28 @@ void History::save(const QString &user, const QString &userId, const QDateTime &
 
     QString path = historyFile(date.date());
     QString users;
+    QStringList usersList;
+    QStringList userIds;
     QString ConversationUserId = userId;
     int peersInConversation = 0;
 
-    if (!userId.compare("-1"))
-        users = user;
-    else {
+    if (!userId.compare(QStringLiteral("-2"))) {
         for (const SingleMessage &message : messages)
-            if (message.userName != user) {
-                users.append(QString("%1, ").arg(message.userName));
+            if (message.userId != userId) {
+                int userIdIndex = userIds.indexOf(message.userId);
+
+                if (userIdIndex >= 0) {
+                    usersList[userIdIndex] = message.userName;
+                } else {
+                    usersList.append(message.userName);
+                    userIds.append(message.userId);
+                }
                 ++peersInConversation;
             }
-        users.chop(2);
+        users = usersList.join(QStringList(", "));
     }
+    else
+        users = user;
 
     if (users.isEmpty()) {
         if (peersList.isEmpty())
@@ -76,9 +85,6 @@ void History::save(const QString &user, const QString &userId, const QDateTime &
             peersInConversation = peersList.size();
         }
     }
-
-    if (peersInConversation > 1)
-        ConversationUserId = "-1";
 
     QDir dir = QFileInfo(path).dir();
     if(!dir.exists())

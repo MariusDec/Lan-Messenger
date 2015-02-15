@@ -31,16 +31,23 @@ void lmcMessaging::sendBroadcast(MessageType type, XmlMessage* pMessage) {
 }
 
 //	A message is to be sent
-void lmcMessaging::sendMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage) {
+void lmcMessaging::sendMessage(MessageType type, QString* userId, XmlMessage* pMessage) {
     QString data = QString::null;
     XmlMessage message;
 
     switch(type) {
     case MT_Group:
         data = pMessage->data(XN_GROUP);
-        updateUser(type, *lpszUserId, data);
+        updateUser(type, *userId, data);
         break;
     case MT_Status:
+        if (userId)
+            prepareMessage(type, msgId, false, userId, pMessage);
+        else
+            for(int index = 0; index < userList.count(); index++)
+                prepareMessage(type, msgId, false, &userList[index].id, pMessage);
+        msgId++;
+        break;
     case MT_UserName:
     case MT_Note:
     case MT_PublicMessage:
@@ -49,8 +56,8 @@ void lmcMessaging::sendMessage(MessageType type, QString* lpszUserId, XmlMessage
         msgId++;
         break;
     case MT_GroupMessage:
-        if(lpszUserId)
-            prepareMessage(type, msgId, false, lpszUserId, pMessage);
+        if(userId)
+            prepareMessage(type, msgId, false, userId, pMessage);
         else {
             for(int index = 0; index < userList.count(); index++)
                 prepareMessage(type, msgId, false, &userList[index].id, pMessage);
@@ -59,8 +66,8 @@ void lmcMessaging::sendMessage(MessageType type, QString* lpszUserId, XmlMessage
         break;
     case MT_Avatar:
         //	if user id is specified send to that user alone, else send to all
-        if(lpszUserId) {
-            prepareMessage(type, msgId, false, lpszUserId, pMessage);
+        if(userId) {
+            prepareMessage(type, msgId, false, userId, pMessage);
         } else {
             message = pMessage->clone();
             emit messageReceived(MT_Avatar, &localUser->id, &message);
@@ -75,7 +82,7 @@ void lmcMessaging::sendMessage(MessageType type, QString* lpszUserId, XmlMessage
         sendWebMessage(type, pMessage);
         break;
     default:
-        prepareMessage(type, msgId, false, lpszUserId, pMessage);
+        prepareMessage(type, msgId, false, userId, pMessage);
         msgId++;
         break;
     }
@@ -179,6 +186,7 @@ void lmcMessaging::prepareBroadcast(MessageType type, XmlMessage* pMessage) {
         return;
     }
 
+    Message::removeHeader(pMessage);
     QString szMessage = Message::addHeader(type, msgId, &localUser->id, NULL, pMessage);
     pNetwork->sendBroadcast(&szMessage);
 
@@ -186,7 +194,7 @@ void lmcMessaging::prepareBroadcast(MessageType type, XmlMessage* pMessage) {
 }
 
 //	This method converts a Message from ui layer to a Datagram that can be passed to network layer
-void lmcMessaging::prepareMessage(MessageType type, qint64 msgId, bool retry, QString* lpszUserId, XmlMessage* pMessage) {
+void lmcMessaging::prepareMessage(MessageType type, qint64 msgId, bool retry, QString* lpszUserId, XmlMessage *pMessage) {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.prepareMessage started"));
 
     if(!isConnected()) {
@@ -206,13 +214,16 @@ void lmcMessaging::prepareMessage(MessageType type, qint64 msgId, bool retry, QS
 
     switch(type) {
     case MT_Status:
-        pMessage->addData(XN_STATUS, localUser->status);
+        if (!pMessage->dataExists(XN_STATUS))
+            pMessage->addData(XN_STATUS, localUser->status); // TODO!!! revise all this functionality with MT_STATUS
         break;
     case MT_UserName:
-        pMessage->addData(XN_NAME, localUser->name);
+        if (!pMessage->dataExists(XN_NAME))
+            pMessage->addData(XN_NAME, localUser->name);
         break;
     case MT_Note:
-        pMessage->addData(XN_NOTE, localUser->note);
+        if (!pMessage->dataExists(XN_NOTE))
+            pMessage->addData(XN_NOTE, localUser->note);
         break;
     case MT_Message:
         if(!receiver) {
@@ -252,13 +263,16 @@ void lmcMessaging::prepareMessage(MessageType type, qint64 msgId, bool retry, QS
     }
 
     if(!receiver) {
-        LoggerManager::getInstance().writeWarning(QString("lmcMessaging.prepareMessage -|- Recipient %1 not found. Message not sent").arg(*lpszUserId));
+        LoggerManager::getInstance().writeWarning(QString("lmcMessaging.prepareMessage -|- Recipient %1 not found. Message not sent").arg(lpszUserId ? *lpszUserId : "(null)"));
         return;
     }
 
     LoggerManager::getInstance().writeInfo(QString("lmcMessaging.prepareMessage -|- Sending message type %1 (%2) to user %3 at %4").arg(QString::number(type), MessageTypeNames[type], receiver->id, receiver->address));
+
+    Message::removeHeader(pMessage);
     QString szMessage = Message::addHeader(type, msgId, &localUser->id, lpszUserId, pMessage);
     pNetwork->sendMessage(&receiver->id, &receiver->address, &szMessage);
+
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.prepareMessage ended"));
 }
 

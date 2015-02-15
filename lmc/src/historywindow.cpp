@@ -107,22 +107,29 @@ void lmcHistoryWindow::setUserFilter(const QString &userName) {
     if ((itemIndex = ui.comboBoxHistoryFilter->findText(userName, Qt::MatchFixedString | Qt::MatchCaseSensitive)) < 0)
         return;
 
+    QTreeWidgetItem *firstItem = nullptr;
+
     if (!userName.compare(QStringLiteral("All users"))) {
         for(int index = 0; index < ui.treeWidgetMsgList->topLevelItemCount (); ++index)
             ui.treeWidgetMsgList->topLevelItem (index)->setHidden (false);
-
+        if (ui.treeWidgetMsgList->topLevelItemCount() > 0)
+            firstItem = ui.treeWidgetMsgList->topLevelItem(0);
     } else {
         for(int index = 0; index < ui.treeWidgetMsgList->topLevelItemCount (); ++index) {
             QTreeWidgetItem *item = ui.treeWidgetMsgList->topLevelItem (index);
             QString itemUserName = item->text(0);
-            if (!userName.compare (itemUserName))
+            if (!userName.compare (itemUserName)) {
                 item->setHidden (false);
-            else {
+
+                if (!firstItem)
+                    firstItem = item;
+            } else {
                 item->setHidden (true);
             }
         }
     }
 
+    ui.treeWidgetMsgList->setCurrentItem(firstItem);
     ui.comboBoxHistoryFilter->setCurrentIndex(itemIndex);
 
     LoggerManager::getInstance().writeInfo(

@@ -27,13 +27,8 @@
 
 //	Information about the application
 #define IDA_TITLE		"LAN Messenger"
-#ifdef Q_WS_WIN
 #define IDA_PRODUCT		"LAN Messenger"
 #define IDA_COMPANY		"LAN Messenger"
-#else
-#define IDA_PRODUCT		"lmc" // TODO change in Lan Messenger
-#define IDA_COMPANY		"lmc"
-#endif
 #define IDA_VERSION		"1.3.1"
 #define IDA_DESCRIPTION	"LAN Messenger is a free peer-to-peer messaging application for intra-network communication "\
                         "and does not require a server.\n"\

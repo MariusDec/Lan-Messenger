@@ -45,7 +45,7 @@ QFrame[frameShape="5"] {
 					
 QScrollBar {
     border: 1px solid rgb(83, 79, 70);
-    background: rgb(68, 64, 53);
+    background: rgb(98, 94, 83);
 }
 QScrollBar:horizontal {
 	border-left: none;
@@ -61,12 +61,12 @@ QScrollBar:vertical {
 }
 QScrollBar::handle {
     background: rgb(51, 48, 39); 
-    border: 1px solid rgb(53, 49, 40);
+    border: 1px solid rgb(73, 69, 60);
 	border-radius: 1px;
     min-width: 20px;
 }
 QScrollBar::handle:hover {
-    background: rgb(46, 43, 34);
+    background: rgb(56, 53, 44);
 }
 QScrollBar::handle:pressed {
     background: rgb(36, 33, 24);
@@ -74,7 +74,7 @@ QScrollBar::handle:pressed {
 
 QScrollBar::sub-line {
     border: 1px solid rgb(83, 79, 70);
-    background: rgb(68, 64, 53);
+    background: rgb(98, 94, 83);
     subcontrol-origin: margin;
 }
 
@@ -95,16 +95,16 @@ QScrollBar::sub-line:vertical {
 }
 
 QScrollBar::sub-line:hover {
-    background: rgb(46, 43, 34);
+    background: rgb(56, 53, 44);
 }
 
 QScrollBar::sub-line:pressed {
-    background: rgb(41, 38, 29);
+    background: rgb(36, 33, 24);
 }
 
 QScrollBar::add-line {
     border: 1px solid rgb(83, 79, 70);
-    background: rgb(68, 64, 53);
+    background: rgb(98, 94, 83);
     subcontrol-origin: margin;
 }
 
@@ -125,11 +125,11 @@ QScrollBar::add-line:vertical {
 }
 
 QScrollBar::add-line:hover {
-    background: rgb(46, 43, 34);
+    background: rgb(56, 53, 44);
 }
 
 QScrollBar::add-line:pressed {
-    background: rgb(41, 38, 29);
+    background: rgb(36, 33, 24);
 }
 
 QScrollBar:left-arrow, QScrollBar::right-arrow, QScrollBar::up-arrow, QScrollBar::down-arrow {
@@ -249,7 +249,7 @@ QLineEdit[square=true] {
      border-radius: 2px;
 }
 
-QTextEdit[light=true] {
+QLineEdit[light=true], QPlainTextEdit[light=true], QTextEdit[light=true] {
 	background-color: lightgray;
      selection-background-color: rgb(60, 59, 55);
      selection-color: rgb(213, 209, 200);
@@ -262,13 +262,11 @@ QTextEdit[light=true] {
 
 QToolButton { 
 	color: rgb(213, 209, 200);
-	height: 30px;
 	min-height: 30px;
 	max-height: 30px;
 } 
 QToolButton:disabled { 
 	color: rgb(173, 169, 160);
-	height: 30px;
 	min-height: 30px;
 	max-height: 30px;
 } 

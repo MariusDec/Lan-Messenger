@@ -68,6 +68,9 @@ lmcImagePicker::lmcImagePicker(QWidget *parent,
   verticalHeader()->setVisible(false);
   setStyleSheet("QTableWidget { padding: 4px }"); // padding around table
 
+  if (_columns <= 0)
+      _columns = 4;
+
   int max_row = qCeil(source.size() / (qreal)_columns);
 
   setColumnCount(_columns);
@@ -88,7 +91,7 @@ lmcImagePicker::lmcImagePicker(QWidget *parent,
   int currImageWidth;
   for (int row = 0; row < max_row; row++) {
     for (int column = 0; column < _columns; column++) {
-      int index = (row * _columns) + column;
+      unsigned index = (row * _columns) + column;
 
       QLabelSubclass *item = new QLabelSubclass();
 
@@ -97,7 +100,7 @@ lmcImagePicker::lmcImagePicker(QWidget *parent,
         if (!source[index]->icon.isEmpty()) {
             QPixmap px(source[index]->icon);
 
-            currImageWidth = px.width() > picWidth ? picWidth : px.width();
+            currImageWidth = px.width() > picWidth ? picWidth : px.width(); // TODO !!! Reseach what happens if trying to get width/height or scale a null pixmap
             currImageHeight = px.height() > picHeight ? picHeight : px.height();
 
             item->setPixmap(px.scaled(QSize(currImageWidth, currImageHeight), Qt::KeepAspectRatio,

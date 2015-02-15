@@ -345,9 +345,10 @@ bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, QString*
                         break;
                     }
                 } else {
-                    QString fileStoragePath = StdLocation::getFileStoragePath(*lpszUserName);
                     switch(fileType) {
                     case FT_Normal:
+                    {
+                        QString fileStoragePath = StdLocation::getFileStoragePath(*lpszUserName);
                         //  set valid free file name and correct path
                         fileName = getFreeFileName(transFile.name);
                         filePath = fileStoragePath.isEmpty () ? "" : QDir(fileStoragePath).absoluteFilePath(fileName);
@@ -359,6 +360,15 @@ bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, QString*
                         pMessage->addData(XN_FILENAME, fileName);
                         xmlMessage = pMessage->clone();
                         emit messageReceived(MT_File, lpszUserId, &xmlMessage);
+                    }
+                        break;
+                    case FT_Folder:
+                        folderId = transFile.folderId;
+                        fileName = transFile.relPath;
+                        filePath = QDir(getFolderPath(folderId, *lpszUserId, FM_Receive)).absoluteFilePath(fileName);
+                        fileList[index].path = filePath;
+                        pMessage->removeData(XN_FILEPATH);
+                        pMessage->addData(XN_FILEPATH, filePath);
                         break;
                     case FT_Avatar:
                         cacheDir = QDir(StdLocation::getWritableCacheDir());
@@ -369,14 +379,6 @@ bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, QString*
                         pMessage->addData(XN_FILEPATH, filePath);
                         pMessage->addData(XN_FILENAME, fileName);
                         emitMsg = false;
-                        break;
-                    case FT_Folder:
-                        folderId = transFile.folderId;
-                        fileName = transFile.relPath;
-                        filePath = QDir(getFolderPath(folderId, *lpszUserId, FM_Receive)).absoluteFilePath(fileName);
-                        fileList[index].path = filePath;
-                        pMessage->removeData(XN_FILEPATH);
-                        pMessage->addData(XN_FILEPATH, filePath);
                         break;
                     default:
                         break;
@@ -493,7 +495,6 @@ bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, QString*
 QString lmcMessaging::getFreeFileName(QString fileName) {
     QString freeFileName = fileName;
 
-    // TODO deal when getFileStoragePath returns empty string
     QString fileDir = StdLocation::getFileStoragePath();
     QDir dir(fileDir);
     QString filePath = dir.absoluteFilePath(fileName);

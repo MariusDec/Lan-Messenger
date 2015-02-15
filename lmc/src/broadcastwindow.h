@@ -63,10 +63,10 @@ protected:
 private slots:
     void smileyAction_triggered();
     void emojiAction_triggered();
-    void btnSelectAll_clicked();
-    void btnSelectNone_clicked();
-    void treeWidgetUserList_itemChanged(QTreeWidgetItem* item, int column);
-    void btnSend_clicked();
+    void buttonSelectAll_clicked();
+    void buttonSelectNone_clicked();
+    void treeWidgetUserList_selectedItemsChanged(unsigned count);
+    void buttonSend_clicked();
 
 private:
     void createToolBar();

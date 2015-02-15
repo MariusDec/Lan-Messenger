@@ -2,6 +2,7 @@
 #include "ui_broadcastdisplaywindow.h"
 #include "messagelog.h"
 #include "settings.h"
+#include "stdlocation.h"
 
 broadcastDisplayWindow::broadcastDisplayWindow(User *localUser, QWidget *parent) :  QDialog(parent), _localUser(localUser),
     ui(new Ui::broadcastDisplayWindow)
@@ -18,7 +19,7 @@ broadcastDisplayWindow::~broadcastDisplayWindow()
     delete ui;
 }
 
-void broadcastDisplayWindow::init(const QString &peerId, const QString &peerName, const XmlMessage &message)
+void broadcastDisplayWindow::init(const QString &peerId, const QString &peerName, XmlMessage &message)
 {
     setUIText();
 
@@ -39,6 +40,15 @@ void broadcastDisplayWindow::init(const QString &peerId, const QString &peerName
     setWindowTitle(QString("%1 sent you a broadcast").arg(peerName));
     ui->labelTitle->setText(QString("Broadcast received from <b>%1</b>:").arg(peerName));
     ui->labelMessage->setText(_message);
+
+    XmlMessage xmlMessage = message.clone();
+    SingleMessage messageItem(MT_Broadcast, peerId, peerName, xmlMessage, QString::null);
+
+    QString roomId = _localUser->id;
+    roomId.append(Helper::getUuid());
+    QString savePath = QDir(StdLocation::getWritableCacheDir()).absoluteFilePath(QString("msg_%1.tmp").arg(roomId));
+
+    lmcMessageLog::saveMessageLog(peerName, peerId, _localUser, QList<QString> () << peerName, QDateTime::currentDateTime(), messageItem, savePath);
 
     connect (ui->buttonClose, &ThemedButton::clicked, this, &broadcastDisplayWindow::close);
     connect (ui->buttonReply, &ThemedButton::clicked, this, &broadcastDisplayWindow::reply);

@@ -244,7 +244,7 @@ QLineEdit[square=true] {
      border-radius: 2px;
 }
 
-QTextEdit[light=true] {
+QLineEdit[light=true], QPlainTextEdit[light=true], QTextEdit[light=true] {
 	background-color: lightgray;
      selection-background-color: rgb(95, 32, 73);
      selection-color: rgb(223, 219, 210);
@@ -257,13 +257,11 @@ QTextEdit[light=true] {
 
 QToolButton { 
 	color: rgb(213, 209, 200);
-	height: 30px;
 	min-height: 30px;
 	max-height: 30px;
 } 
 QToolButton:disabled { 
 	color: rgb(183, 179, 170);
-	height: 30px;
 	min-height: 30px;
 	max-height: 30px;
 } 

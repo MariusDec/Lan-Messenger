@@ -1,11 +1,11 @@
 ﻿/****************************************************************************
 **
 ** This file is part of LAN Messenger.
-** 
+**
 ** Copyright (c) 2010 - 2012 Qualia Digital Solutions.
-** 
+**
 ** Contact:  qualiatech@gmail.com
-** 
+**
 ** LAN Messenger is free software: you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation, either version 3 of the License, or
@@ -31,17 +31,18 @@
 #include "xmlmessage.h"
 
 enum MessagHeaderMember {
-	MH_AppId = 0,
-	MH_Type,
-	MH_Id,
-	MH_UserId,
-	MH_Max
+    MH_AppId = 0,
+    MH_Type,
+    MH_Id,
+    MH_UserId,
+    MH_Max
 };
 
 class Message {
 public:
-	static QString addHeader(MessageType type, qint64 id, QString* lpszLocalId, QString* lpszPeerId, XmlMessage* pMessage);
-	static bool getHeader(QString* lpszMessage, MessageHeader** ppHeader, XmlMessage** ppMessage);
+    static QString addHeader(MessageType type, qint64 id, QString* lpszLocalId, QString* lpszPeerId, XmlMessage* pMessage);
+    static void removeHeader(XmlMessage *pMessage);
+    static bool getHeader(QString* lpszMessage, MessageHeader** ppHeader, XmlMessage** ppMessage);
 };
 
 #endif // MESSAGE_H

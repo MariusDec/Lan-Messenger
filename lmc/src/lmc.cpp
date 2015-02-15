@@ -384,8 +384,6 @@ void lmcCore::sendMessage(MessageType type, QString *lpszUserId,
   case MT_Status:
   case MT_Note:
     pMessaging->sendMessage(type, lpszUserId, pMessage);
-    processPublicMessage(type, lpszUserId, pMessage);
-    routeMessage(type, lpszUserId, pMessage);
     break;
   case MT_Refresh:
     pMessaging->update();
@@ -548,8 +546,7 @@ void lmcCore::showUpdate(QRect *pRect) {
   if (!pUpdateWindow) {
     pUpdateWindow = new lmcUpdateWindow(pRect);
     connect(pUpdateWindow,
-            SIGNAL(messageSent(MessageType, QString *, XmlMessage *)), this,
-            SLOT(sendMessage(MessageType, QString *, XmlMessage *)));
+            &lmcUpdateWindow::messageSent, this, &lmcCore::sendMessage);
     pUpdateWindow->init();
   }
 

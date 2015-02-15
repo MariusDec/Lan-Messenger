@@ -25,6 +25,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <QMimeData>
+#include <QMessageBox>
 
 #include "mainwindow.h"
 #include "messagelog.h"
@@ -98,7 +99,7 @@ void lmcMainWindow::init(User *pLocalUser, QList<Group> *pGroupList,
   ui.treeWidgetUserList->header()->setStretchLastSection(false);
   ui.treeWidgetUserList->header()->setSectionResizeMode(0,
                                                         QHeaderView::Stretch);
-  btnStatus->setIconSize(QSize(20, 20));
+  buttonStatus->setIconSize(QSize(20, 20));
 
   // get current status struct
   StatusStruct *currentStatus = nullptr;
@@ -121,7 +122,7 @@ void lmcMainWindow::init(User *pLocalUser, QList<Group> *pGroupList,
       statusIndex = 0;
   }
 
-  btnStatus->setIcon(QIcon(QPixmap(
+  buttonStatus->setIcon(QIcon(QPixmap(
       ThemeManager::getInstance().getAppIcon(currentStatus->icon))));
   statusGroup->actions()[statusIndex]->setChecked(true);
   QFont font = ui.labelUserName->font();
@@ -184,7 +185,7 @@ void lmcMainWindow::minimize() {
   // This function actually hides the window, basically the opposite of
   // restore()
   hide();
-  showMinimizeMessage();
+  //showMinimizeMessage();
 }
 
 void lmcMainWindow::stop() {
@@ -248,7 +249,7 @@ void lmcMainWindow::addUser(User *pUser) {
   }
 
   sendAvatar(&pUser->id);
-  sendMessage(MT_Status, NULL, &pLocalUser->status);
+ // sendMessage(MT_Status, &pUser->id, &pLocalUser->status); // TODO!!! should send only to the added user
 }
 
 void lmcMainWindow::updateUser(User *pUser) {
@@ -468,7 +469,7 @@ void lmcMainWindow::statusAction_triggered(QAction *action) {
   if (currentStatus) {
     QString icon =
         ThemeManager::getInstance().getAppIcon(currentStatus->icon);
-    btnStatus->setIcon(QIcon(icon));
+    buttonStatus->setIcon(QIcon(icon));
     changeTrayIcon(icon);
     ui.labelStatus->setText(statusGroup->checkedAction()->text());
     pLocalUser->status = currentStatus->description;
@@ -972,7 +973,7 @@ void lmcMainWindow::createStatusMenu() {
     pStatusMenu->addAction(pAction);
   }
 
-  btnStatus->setMenu(pStatusMenu);
+  buttonStatus->setMenu(pStatusMenu);
 }
 
 void lmcMainWindow::createAvatarMenu() {
@@ -1091,62 +1092,78 @@ void lmcMainWindow::createUsersListMainMenu() {
       "Add &New Group", this, SLOT(groupAddAction_triggered()));
 }
 
+QFrame *lmcMainWindow::createSeparator(QWidget *parent) {
+    QFrame *separator = new QFrame(parent);
+    separator->setFrameShape(QFrame::VLine);
+    separator->setFrameShadow(QFrame::Sunken);
+    separator->setFixedWidth(2);
+    separator->setFixedHeight(30);
+
+    return separator;
+}
+
 void lmcMainWindow::createToolBar() {
-    // TODO remove this toolbar
-  QToolBar *pStatusBar = new QToolBar(ui.widgetStatus);
-  pStatusBar->setStyleSheet("QToolBar { border: 0px; padding: 0px; background: transparent; }");
-  ui.widgetstatus_layout->insertWidget(0, pStatusBar);
+   ui.widgetToolBarContainer->setProperty("isToolbar", true);
 
-  btnStatus = new ThemedButton(pStatusBar);
-  btnStatus->setPopupMode(QToolButton::InstantPopup);
-  btnStatus->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  pStatusBar->addWidget(btnStatus);
+  buttonStatus = new ThemedButton(ui.widgetStatus);
+  buttonStatus->setPopupMode(QToolButton::InstantPopup);
+  buttonStatus->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  buttonStatus->setAutoRaise(true);
+  ui.widgetstatus_layout->insertWidget(0, buttonStatus);
 
-  QToolBar *pToolBar = new QToolBar(ui.widgetToolBar);
-  pToolBar->setIconSize(QSize(40, 20));
-  ui.widgetToolBar_layout->addWidget(pToolBar);
-
-  buttonStartChat = new ThemedButton(pToolBar);
+  buttonStartChat = new ThemedButton(ui.widgetToolBar);
+  buttonStartChat->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  buttonStartChat->setAutoRaise(true);
+  buttonStartChat->setIconSize(QSize(17, 17));
+  buttonStartChat->setFixedWidth(45);
   buttonStartChat->setIcon(QIcon(
       ThemeManager::getInstance().getAppIcon(QStringLiteral("chat"))));
-  buttonStartChat->setToolButtonStyle(Qt::ToolButtonIconOnly);
 
   connect(buttonStartChat, &ThemedButton::clicked, this,
           &lmcMainWindow::buttonStartChat_clicked);
 
-  buttonSendFile = new ThemedButton(pToolBar);
+  buttonSendFile = new ThemedButton(ui.widgetToolBar);
+  buttonSendFile->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  buttonSendFile->setAutoRaise(true);
+  buttonSendFile->setIconSize(QSize(17, 17));
+  buttonSendFile->setFixedWidth(45);
   buttonSendFile->setIcon(QIcon(
       ThemeManager::getInstance().getAppIcon(QStringLiteral("file"))));
-  buttonSendFile->setToolButtonStyle(Qt::ToolButtonIconOnly);
   buttonSendFile->setEnabled(false);
 
   connect(buttonSendFile, &ThemedButton::clicked, this,
           &lmcMainWindow::buttonSendFile_clicked);
 
-  buttonSendBroadcast = new ThemedButton(pToolBar);
+  buttonSendBroadcast = new ThemedButton(ui.widgetToolBar);
+  buttonSendBroadcast->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  buttonSendBroadcast->setAutoRaise(true);
+  buttonSendBroadcast->setIconSize(QSize(17, 17));
+  buttonSendBroadcast->setFixedWidth(45);
   buttonSendBroadcast->setIcon(
       QIcon(ThemeManager::getInstance().getAppIcon(
           QStringLiteral("broadcastmsg"))));
-  buttonSendBroadcast->setToolButtonStyle(Qt::ToolButtonIconOnly);
 
   connect(buttonSendBroadcast, &ThemedButton::clicked, this,
           &lmcMainWindow::buttonSendBroadcast_clicked);
 
-  buttonStartPublicChat = new ThemedButton(pToolBar);
+  buttonStartPublicChat = new ThemedButton(ui.widgetToolBar);
+  buttonStartPublicChat->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  buttonStartPublicChat->setAutoRaise(true);
+  buttonStartPublicChat->setIconSize(QSize(17, 17));
+  buttonStartPublicChat->setFixedWidth(45);
   buttonStartPublicChat->setIcon(
       QIcon(ThemeManager::getInstance().getAppIcon(
           QStringLiteral("chatroom"))));
-  buttonStartPublicChat->setToolButtonStyle(Qt::ToolButtonIconOnly);
 
   connect(buttonStartPublicChat, &ThemedButton::clicked, this,
           &lmcMainWindow::buttonStartPublicChat_clicked);
 
-  pToolBar->addWidget(buttonStartChat);
-  pToolBar->addWidget(buttonSendFile);
-  pToolBar->addSeparator();
-  pToolBar->addWidget(buttonSendBroadcast);
-  pToolBar->addSeparator();
-  pToolBar->addWidget(buttonStartPublicChat);
+  ui.widgetToolBar_layout->addWidget(buttonStartChat);
+  ui.widgetToolBar_layout->addWidget(buttonSendFile);
+  ui.widgetToolBar_layout->addWidget(createSeparator(ui.widgetToolBar));
+  ui.widgetToolBar_layout->addWidget(buttonSendBroadcast);
+  ui.widgetToolBar_layout->addWidget(createSeparator(ui.widgetToolBar));
+  ui.widgetToolBar_layout->addWidget(buttonStartPublicChat);
 }
 
 void lmcMainWindow::setUIText() {

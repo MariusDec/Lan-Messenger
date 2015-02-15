@@ -29,6 +29,7 @@
 #include <QDateTime>
 #include <QUuid>
 #include <QHostInfo>
+#include <QRegularExpression>
 #include "definitions.h"
 #ifdef QWIDGET_H
 #include "uidefinitions.h"
@@ -53,9 +54,23 @@ struct User {
          int nAvatar, const QString &note, const QString &avatarPath, const QString &caps, const QString &hostName) : id(id), name(name), address(address), version(version), status(status), group(group), note(note), avatar(nAvatar), avatarPath(avatarPath), caps(caps.toInt()), hostName(hostName) {
         lanIndex = address.mid(address.lastIndexOf('.') + 1).toInt();
 
-        // TODO is this ok ? Discuss
-        if (!this->name.startsWith(QString("C%1 - ").arg(lanIndex)))
-            this->name.prepend(QString("C%1 - ").arg(lanIndex));
+        QString userPc = QString("C%1 - ").arg(lanIndex);
+        if (!address.endsWith(QString(".1.%1").arg(lanIndex))) {
+            QRegularExpressionMatch match = QRegularExpression("^(C(\\d)+)$").match(hostName); // TODO !!! test
+            if (match.captured() == hostName) {
+                userPc = QString("%1 - ").arg(hostName);
+                lanIndex = hostName.mid(1).toInt();
+            }
+        }
+
+        if (!this->name.startsWith(userPc)) {
+            QString match = QRegularExpression("^(C(\\d)+ \\- )$").match(hostName).captured();
+            if (this->name.startsWith(match)) {
+                this->name.remove(0, match.length());
+
+                this->name.prepend(userPc);
+            }
+        }
     }
 };
 

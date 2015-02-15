@@ -79,6 +79,7 @@ public:
   void setCheckable(bool enable);
   UserListView view();
   void setView(UserListView view);
+  unsigned selectedItemsCount () const { return _selectedCount; }
 
   QStringList mimeTypes() const {
     return QStringList(
@@ -89,6 +90,7 @@ signals:
   void fileDragDropped(QTreeWidgetItem *item, QStringList fileNames);
   void itemDragDropped(QTreeWidgetItem *item);
   void itemContextMenu(QTreeWidgetItem *item, QPoint &pos);
+  void selectedItemsChanged(unsigned count);
 
 protected:
   void mousePressEvent(QMouseEvent *event);
@@ -100,15 +102,18 @@ protected:
   void dragEnterEvent(QDragEnterEvent *ev);
 
 private:
+  void handleItemChanged(QTreeWidgetItem *item, int column);
+
   lmcUserTreeWidgetDelegate *itemDelegate;
   bool dragGroup;
   bool dragUser;
   bool dragFile;
   QString parentId;
-  QTreeWidgetItem *dragItem;
+  QTreeWidgetItem *dragItem = nullptr;
   bool expanded;
   bool isCheckable;
   UserListView viewType;
+  unsigned _selectedCount = 0;
 };
 
 #endif // USERTREEWIDGET_H

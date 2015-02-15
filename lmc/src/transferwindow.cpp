@@ -257,7 +257,7 @@ void lmcTransferWindow::receiveMessage(MessageType type, QString *lpszUserId,
       itemIndex = ui.listWidgetTransferList->itemIndex(id, FileView::TM_Receive);
       view->filePath = QDir::fromNativeSeparators(pMessage->data(XN_FILEPATH));
       view->icon = getIcon(view->filePath);
-      buttonShowFolder->setEnabled(QFile::exists(view->filePath));
+      _buttonShowFolder->setEnabled(QFile::exists(view->filePath));
       view->state = FileView::TS_Complete;
       if (isHidden() || !isActiveWindow()) {
         trayMsg = tr("'%1' has been received from %2.");
@@ -334,7 +334,7 @@ void lmcTransferWindow::listWidgetTransferList_currentRowChanged(int currentRow)
   // TODO check if row index changes when there are hidden rows
   FileView *pFileView = ui.listWidgetTransferList->item(currentRow);
   setButtonState(pFileView->state);
-  buttonShowFolder->setEnabled(QFile::exists(pFileView->filePath));
+  _buttonShowFolder->setEnabled(QFile::exists(pFileView->filePath));
 }
 
 void lmcTransferWindow::listWidgetTransferList_activated(const QModelIndex &index) {
@@ -404,40 +404,53 @@ void lmcTransferWindow::buttonShowFolder_clicked() {
   QDesktopServices::openUrl(url);
 }
 
+QFrame *lmcTransferWindow::createSeparator(QWidget *parent) {
+    QFrame *separator = new QFrame(parent);
+    separator->setFrameShape(QFrame::VLine);
+    separator->setFrameShadow(QFrame::Sunken);
+    separator->setFixedWidth(2);
+    separator->setFixedHeight(30);
+
+    return separator;
+}
+
 void lmcTransferWindow::createToolBar() {
     LoggerManager::getInstance().writeInfo(
         QStringLiteral("lmcTransferWindow.createToolBar started"));
 
-  QToolBar *pToolBar = new QToolBar(ui.widgetToolBar);
-  pToolBar->setIconSize(QSize(24, 24));
-  pToolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-  ui.widgetToolbar_layout->addWidget(pToolBar);
+   ui.widgetToolBarContainer->setProperty("isToolbar", true);
 
-  buttonCancel = new ThemedButton(pToolBar);
-  buttonCancel->setAutoRaise (true);
-  buttonCancel->setToolButtonStyle (Qt::ToolButtonIconOnly);
-  buttonCancel->setIcon (QIcon(ThemeManager::getInstance ().getAppIcon (QStringLiteral("stop"))));
+  _buttonCancel = new ThemedButton(ui.widgetToolBar);
+  _buttonCancel->setToolButtonStyle (Qt::ToolButtonIconOnly);
+  _buttonCancel->setAutoRaise (true);
+  _buttonCancel->setIconSize (QSize(24, 24));
+  _buttonCancel->setFixedWidth(32);
+  _buttonCancel->setIcon (QIcon(ThemeManager::getInstance ().getAppIcon (QStringLiteral("stop"))));
 
-  connect(buttonCancel, &ThemedButton::clicked, this, &lmcTransferWindow::buttonCancel_clicked);
+  connect(_buttonCancel, &ThemedButton::clicked, this, &lmcTransferWindow::buttonCancel_clicked);
 
-  buttonShowFolder = new ThemedButton(pToolBar);
-  buttonShowFolder->setAutoRaise (true);
-  buttonShowFolder->setToolButtonStyle (Qt::ToolButtonIconOnly);
-  buttonShowFolder->setIcon (QIcon(ThemeManager::getInstance ().getAppIcon (QStringLiteral("folder"))));
+  _buttonShowFolder = new ThemedButton(ui.widgetToolBar);
+  _buttonShowFolder->setToolButtonStyle (Qt::ToolButtonIconOnly);
+  _buttonShowFolder->setAutoRaise (true);
+  _buttonShowFolder->setIconSize (QSize(24, 24));
+  _buttonShowFolder->setFixedWidth(32);
+  _buttonShowFolder->setIcon (QIcon(ThemeManager::getInstance ().getAppIcon (QStringLiteral("folder"))));
 
-  connect(buttonShowFolder, &ThemedButton::clicked, this, &lmcTransferWindow::buttonShowFolder_clicked);
+  connect(_buttonShowFolder, &ThemedButton::clicked, this, &lmcTransferWindow::buttonShowFolder_clicked);
 
-  buttonRemove = new ThemedButton(pToolBar);
-  buttonRemove->setAutoRaise (true);
-  buttonRemove->setToolButtonStyle (Qt::ToolButtonIconOnly);
-  buttonRemove->setIcon (QIcon(ThemeManager::getInstance ().getAppIcon (QStringLiteral("close"))));
+  _buttonRemove = new ThemedButton(ui.widgetToolBar);
+  _buttonRemove->setToolButtonStyle (Qt::ToolButtonIconOnly);
+  _buttonRemove->setAutoRaise (true);
+  _buttonRemove->setIconSize (QSize(24, 24));
+  _buttonRemove->setFixedWidth(32);
+  _buttonRemove->setIcon (QIcon(ThemeManager::getInstance ().getAppIcon (QStringLiteral("close"))));
 
-  connect(buttonRemove, &ThemedButton::clicked, this, &lmcTransferWindow::buttonRemove_clicked);
+  connect(_buttonRemove, &ThemedButton::clicked, this, &lmcTransferWindow::buttonRemove_clicked);
 
-  pToolBar->addWidget (buttonCancel);
-  pToolBar->addSeparator ();
-  pToolBar->addWidget (buttonShowFolder);
-  pToolBar->addWidget (buttonRemove);
+  ui.widgetToolbar_layout->addWidget(_buttonCancel);
+  ui.widgetToolbar_layout->addWidget(createSeparator(ui.widgetToolBar));
+  ui.widgetToolbar_layout->addWidget(_buttonShowFolder);
+  ui.widgetToolbar_layout->addWidget(_buttonRemove);
 
   LoggerManager::getInstance().writeInfo(
       QStringLiteral("lmcTransferWindow.createToolBar ended"));
@@ -448,34 +461,34 @@ void lmcTransferWindow::setUIText() {
 
   setWindowTitle(tr("File Transfers"));
 
-  buttonCancel->setText (tr("Cancel"));
-  buttonCancel->setToolTip (tr("Cancel"));
+  _buttonCancel->setText (tr("Cancel"));
+  _buttonCancel->setToolTip (tr("Cancel"));
 
-  buttonShowFolder->setText (tr("Show In Folder"));
-  buttonShowFolder->setToolTip (tr("Show In Folder"));
+  _buttonShowFolder->setText (tr("Show In Folder"));
+  _buttonShowFolder->setToolTip (tr("Show In Folder"));
 
-  buttonRemove->setText (tr("Remove From List"));
-  buttonRemove->setToolTip (tr("Remove From List"));
+  _buttonRemove->setText (tr("Remove From List"));
+  _buttonRemove->setToolTip (tr("Remove From List"));
 }
 
 void lmcTransferWindow::setButtonState(FileView::TransferState state) {
   switch (state) {
   case FileView::TS_Send:
   case FileView::TS_Receive:
-    buttonCancel->setEnabled(true);
-    buttonRemove->setEnabled(false);
+    _buttonCancel->setEnabled(true);
+    _buttonRemove->setEnabled(false);
     break;
   case FileView::TS_Decline:
   case FileView::TS_Complete:
   case FileView::TS_Cancel:
   case FileView::TS_Abort:
-    buttonCancel->setEnabled(false);
-    buttonRemove->setEnabled(true);
+    _buttonCancel->setEnabled(false);
+    _buttonRemove->setEnabled(true);
     break;
   default:
-    buttonCancel->setEnabled(false);
-    buttonShowFolder->setEnabled(false);
-    buttonRemove->setEnabled(false);
+    _buttonCancel->setEnabled(false);
+    _buttonShowFolder->setEnabled(false);
+    _buttonRemove->setEnabled(false);
     break;
   }
 }

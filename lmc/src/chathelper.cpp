@@ -61,7 +61,7 @@ QString ChatHelper::makeHtmlSafe(const QString &message)
 
 QString ChatHelper::replaceSmiley(QString* lpszHtml) {
     auto smileys = ImagesList::getInstance ().getSmileys ();
-    for(int index = 0; index < smileys.size (); index++) {
+    for(unsigned index = 0; index < smileys.size (); index++) {
         if(lpszHtml->compare(QString("<img src='%1' alt='%2' title='<b>%3</b><br />%2' />").arg (smileys[index].icon, smileys[index].code, smileys[index].description)) == 0) {
             QString code = smileys[index].code;
             makeHtmlSafe(&code);
@@ -85,14 +85,14 @@ void ChatHelper::decodeSmileys(QString &message, const QRegularExpression &regex
         }
 
         bool found;
-        ImagesStruct * const smiley = nullptr;
+        const ImagesStruct * smiley = nullptr;
         for (int index = matches.size() - 1; index >= 0; --index) {
             if (isEmoji) {
-                found = ImagesList::getInstance().getEmojiByCode(matches[index].second, smiley);
+                smiley = ImagesList::getInstance().getEmojiByCode(matches[index].second, found);
                 if (found)
                     message.replace(matches[index].first, matches[index].second.size(), QString("<span title=\"%1\" >%2</span>").arg (makeHtmlSafe(smiley->description), makeHtmlSafe(smiley->code)));
             } else {
-                found = ImagesList::getInstance().getSmileyByCode(matches[index].second, smiley);
+                smiley = ImagesList::getInstance().getSmileyByCode(matches[index].second, found);
                 if (found) {
                     message.replace(matches[index].first, matches[index].second.size(), QString("<img src='%1' alt=\"%2\" title=\"%3: %2\" />").arg (QUrl::fromLocalFile(smiley->icon).toString(), makeHtmlSafe(smiley->code), makeHtmlSafe(smiley->description)));
                 }

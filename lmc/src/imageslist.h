@@ -93,10 +93,10 @@ public:
 
   QStringList getTabs (TypeEnum type);
   std::vector<ImagesStruct> getSmileysByGroup(const QString &group);
-  bool getSmileyByCode(const QString &code, const ImagesStruct *smiley);
-  bool getEmojiByCode(const QString &code, const ImagesStruct *emoji);
+  const ImagesStruct *getSmileyByCode(const QString &code, bool &found);
+  const ImagesStruct *getEmojiByCode(const QString &code, bool &found);
   QString getAvatar(const QString &avatarName);
-  QString getAvatar(int avatarIndex);
+  QString getAvatar(unsigned avatarIndex);
   int getAvatarIndex(const QString &imagePath);
   QString getDefaultAvatar();
   QString addAvatar(const QString &icon);

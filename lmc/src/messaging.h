@@ -178,7 +178,7 @@ private:
     void getUserInfo(XmlMessage* pMessage);
     void sendUserData(MessageType type, QueryOp op, QString* lpszUserId, QString* lpszAddress);
     void prepareBroadcast(MessageType type, XmlMessage* pMessage);
-    void prepareMessage(MessageType type, qint64 msgId, bool retry, QString* lpszUserId, XmlMessage* pMessage);
+    void prepareMessage(MessageType type, qint64 msgId, bool retry, QString* lpszUserId, XmlMessage *pMessage);
     void prepareFile(MessageType type, qint64 msgId, bool retry, QString* lpszUserId, XmlMessage* pMessage);
     void prepareFolder(MessageType type, qint64 msgId, bool retry, QString* lpszUserId, XmlMessage* pMessage);
     void processBroadcast(MessageHeader* pHeader, XmlMessage* pMessage);
@@ -188,7 +188,7 @@ private:
     void processWebMessage(MessageHeader* pHeader, XmlMessage* pMessage);
     bool addUser(QString szUserId, const QString &szVersion, const QString &userIP, const QString &szName, const QString &szStatus, const QString &szAvatar, const QString &szNote, const QString &szCaps, const QString &hostName);
     void updateUser(MessageType type, QString &szUserId, const QString &szUserData);
-    void removeUser(QString szUserId);
+    void removeUser(QString &szUserId);
     bool addReceivedMsg(qint64 msgId, const QString &userId);
     void addPendingMsg(qint64 msgId, MessageType type, QString* lpszUserId, XmlMessage* pMessage);
     void removePendingMsg(qint64);

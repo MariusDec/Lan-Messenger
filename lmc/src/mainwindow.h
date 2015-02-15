@@ -146,6 +146,7 @@ private:
   void createUserMenu();
   void createUsersListMainMenu();
   void createToolBar();
+  QFrame *createSeparator(QWidget *parent);
   void setUIText();
   void showMinimizeMessage();
   void initGroups(QList<Group> *pGroupList);
@@ -178,7 +179,7 @@ private:
   QMenu *pGroupMenu;
   QMenu *pUserMenu;
   QMenu *_usersListMainMenu;
-  ThemedButton *btnStatus;
+  ThemedButton *buttonStatus;
   ThemedButton *buttonStartChat;
   ThemedButton *buttonSendFile;
   ThemedButton *buttonSendBroadcast;

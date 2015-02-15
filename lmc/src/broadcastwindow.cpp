@@ -43,11 +43,11 @@ lmcBroadcastWindow::lmcBroadcastWindow(User *localUser, QWidget *parent) : QWidg
     sizes.append(width() - width() * 0.6 - ui.splitter->handleWidth());
     ui.splitter->setSizes(sizes);
 
-    connect(ui.buttonSelectAll, SIGNAL(clicked()), this, SLOT(btnSelectAll_clicked()));
-    connect(ui.buttonSelectNone, SIGNAL(clicked()), this, SLOT(btnSelectNone_clicked()));
-    connect(ui.treeWidgetUserList, SIGNAL(itemChanged(QTreeWidgetItem*, int)),
-        this, SLOT(treeWidgetUserList_itemChanged(QTreeWidgetItem*, int)));
-    connect(ui.buttonSend, SIGNAL(clicked()), this, SLOT(btnSend_clicked()));
+    connect(ui.buttonSelectAll, &ThemedButton::clicked, this, &lmcBroadcastWindow::buttonSelectAll_clicked);
+    connect(ui.buttonSelectNone, &ThemedButton::clicked, this, &lmcBroadcastWindow::buttonSelectNone_clicked);
+    connect(ui.treeWidgetUserList, &lmcUserTreeWidget::selectedItemsChanged,
+        this, &lmcBroadcastWindow::treeWidgetUserList_selectedItemsChanged);
+    connect(ui.buttonSend, &ThemedButton::clicked, this, &lmcBroadcastWindow::buttonSend_clicked);
 
     //	event filters for handling keyboard input
     ui.textBoxMessage->installEventFilter(this);
@@ -131,7 +131,7 @@ void lmcBroadcastWindow::show(const QList<QTreeWidgetItem *> &pGroupList, const 
     ui.treeWidgetUserList->expandAll();
 
     if (selectedUsers.size() < 2)
-        btnSelectAll_clicked();
+        buttonSelectAll_clicked();
 }
 
 void lmcBroadcastWindow::connectionStateChanged(bool connected) {
@@ -185,7 +185,7 @@ void lmcBroadcastWindow::changeEvent(QEvent* pEvent) {
 
 void lmcBroadcastWindow::closeEvent(QCloseEvent* pEvent) {
     ui.textBoxMessage->clear();
-    btnSelectNone_clicked();
+    buttonSelectNone_clicked();
 
     QWidget::closeEvent(pEvent);
 }
@@ -227,44 +227,23 @@ void lmcBroadcastWindow::insertSmileyCode(const ImagesStruct &smiley) {
 }
 
 //	select all users in the user tree
-void lmcBroadcastWindow::btnSelectAll_clicked() {
+void lmcBroadcastWindow::buttonSelectAll_clicked() {
     for(int index = 0; index < ui.treeWidgetUserList->topLevelItemCount(); index++)
         ui.treeWidgetUserList->topLevelItem(index)->setCheckState(0, Qt::Checked);
 }
 
 //	deselect all users in the user tree
-void lmcBroadcastWindow::btnSelectNone_clicked() {
+void lmcBroadcastWindow::buttonSelectNone_clicked() {
     for(int index = 0; index < ui.treeWidgetUserList->topLevelItemCount(); index++)
         ui.treeWidgetUserList->topLevelItem(index)->setCheckState(0, Qt::Unchecked);
 }
 
-//	event called when the user checks/unchecks a tree item
-void lmcBroadcastWindow::treeWidgetUserList_itemChanged(QTreeWidgetItem* item, int column) {
-    Q_UNUSED(column);
 
-    //	if parent tree item was toggled, update all its children to the same state
-    //	if a child tree item was toggled, two cases arise:
-    //		if all its siblings and it are checked, update its parent to checked
-    //		if all its siblings and it are not checked, update its parent to unchecked
-    if(item->data(0, TypeRole).toString().compare("Group") == 0 && !childToggling) {
-        parentToggling = true;
-        for(int index = 0; index < item->childCount(); index++)
-            item->child(index)->setCheckState(0, item->checkState(0));
-        parentToggling = false;
-    } else if(item->data(0, TypeRole).toString().compare("User") == 0 && !parentToggling) {
-        childToggling = true;
-        int nChecked = 0;
-        QTreeWidgetItem* parent = item->parent();
-        for(int index = 0; index < parent->childCount(); index++)
-            if(parent->child(index)->checkState(0))
-                nChecked++;
-        Qt::CheckState check = (nChecked == parent->childCount()) ? Qt::Checked : Qt::Unchecked;
-        parent->setCheckState(0, check);
-        childToggling = false;
-    }
+void lmcBroadcastWindow::treeWidgetUserList_selectedItemsChanged(unsigned count) {
+    ui.buttonSend->setEnabled(count > 0);
 }
 
-void lmcBroadcastWindow::btnSend_clicked() {
+void lmcBroadcastWindow::buttonSend_clicked() {
     sendMessage();
 }
 

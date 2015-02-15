@@ -107,7 +107,7 @@ void lmcMessageLog::createContextMenu() {
 }
 
 void lmcMessageLog::appendMessageLog(MessageType type, QString* lpszUserId, QString* lpszUserName, XmlMessage* pMessage,
-        bool bReload, bool groupMessage, bool saveLog, User *localUser, const QList<QString> &peersList) {
+        bool bReload, bool groupMessage, bool saveLog, User *localUser, const QHash<QString, QString> &peersList) {
     if(!pMessage && type != MT_Error)
         return;
 
@@ -219,9 +219,14 @@ void lmcMessageLog::appendMessageLog(MessageType type, QString* lpszUserId, QStr
             if (type == MT_PublicMessage) {
                 nameForLog = tr("Public Conversation");
                 idForLog = QStringLiteral("-1");
+            } else if (type == MT_GroupMessage) {
+                idForLog = QStringLiteral("-2");
+            } else if (peersList.size() == 1) {
+                nameForLog = peersList.values().first();
+                idForLog = peersList.keys().first();
             }
 
-            saveMessageLog(nameForLog, idForLog, localUser, peersList, QDateTime::currentDateTime(), message);
+            saveMessageLog(nameForLog, idForLog, localUser, peersList.values(), QDateTime::currentDateTime(), message, savePath);
         }
     }
 }
@@ -313,11 +318,9 @@ void lmcMessageLog::abortPendingFileOperations() {
     }
 }
 
-// TODO !!! Create a function to change the save file header
-
-void lmcMessageLog::saveMessageLog(const QString &user, const QString &userId, User *localUser, const QList<QString> &peersList, const QDateTime &date, const SingleMessage &message) {
-    XmlMessage xmlMessage = message.message;
-    if (xmlMessage.data(XN_MESSAGE).isEmpty())
+void lmcMessageLog::saveMessageLog(const QString &user, const QString &userId, User *localUser, const QList<QString> &peersList, const QDateTime &date, SingleMessage &message, const QString &savePath) {
+    // TODO !!! add log
+    if (message.message.data(XN_MESSAGE).isEmpty() && message.message.data(XN_BROADCAST).isEmpty() && message.message.data(XN_FILENAME).isEmpty())
         return;
 
     QDir dir = QFileInfo(savePath).dir();
@@ -687,11 +690,11 @@ QString lmcMessageLog::getFontStyle(QFont* pFont, QColor* pColor, bool localUser
 
     if (!overrideIncomingStyle or localUser) {
         style.append(QString("font-family:\"%1\"; ").arg(pFont->family()));
-        style.append(QString("font-size:%1; ").arg(QString::number(pFont->pointSize())));
+        style.append(QString("font-size:%1pt; ").arg(QString::number(pFont->pointSize())));
         style.append(QString("color:%1; ").arg(pColor->name()));
     } else {
         style.append(QString("font-family:\"%1\"; ").arg(defaultFont.family()));
-        style.append(QString("font-size:%1; ").arg(QString::number(defaultFont.pointSize())));
+        style.append(QString("font-size:%1pt; ").arg(QString::number(defaultFont.pointSize())));
         style.append(QString("color:%1; ").arg(defaultColor));
     }
 
@@ -816,8 +819,6 @@ void lmcMessageLog::decodeMessage(QString* lpszMessage, bool trimMessage, bool a
     //	making the text html safe. The converted links are given a "data-isLink" custom
     //	attribute to differentiate them from the message content
     if(useDefaults || allowLinks) {
-//		lpszMessage->replace(QRegExp("(((https|http|ftp|file|smb):[/][/]|www.)[\\w\\d:#@%/;$()~_?\\+-=\\\\\\.&]*)"),
-//							 "<a href='\\1'>\\1</a>");
         lpszMessage->replace(QRegExp("((?:(?:https?|ftp|file)://|www\\.|ftp\\.)[-A-Z0-9+&@#/%=~_|$?!:,.]*[A-Z0-9+&@#/%=~_|$])", Qt::CaseInsensitive),
                              "<a data-isLink='true' href='\\1'>\\1</a>");
         lpszMessage->replace("<a data-isLink='true' href='www", "<a data-isLink='true' href='http://www");
@@ -825,6 +826,7 @@ void lmcMessageLog::decodeMessage(QString* lpszMessage, bool trimMessage, bool a
         if(!useDefaults && pathToLink)
             lpszMessage->replace(QRegExp("((\\\\\\\\[\\w-]+\\\\[^\\\\/:*?<>|""]+)((?:\\\\[^\\\\/:*?<>|""]+)*\\\\?)$)"),
                                  "<a data-isLink='true' href='file:\\1'>\\1</a>");
+        // Alternative: ^(?:[a-zA-Z]\:|\\\\\\\\[\\w\\.]+\\[\\w.$]+)\\\\(?:[\\w]+\\)*\\w([\\w.])+$
 
         lmcSettings settings;
         QString erpAddress = settings.value(IDS_ERPADDRESS, IDS_ERPADDRESS_VAL).toString();
@@ -835,7 +837,7 @@ void lmcMessageLog::decodeMessage(QString* lpszMessage, bool trimMessage, bool a
         lpszMessage->replace(QRegExp("\\b(IT(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?IssueId=\\2' title='%1Pages/Issues/IssueDetail.aspx?IssueId=\\2'>\\1</a>").arg(erpAddress));
         lpszMessage->replace(QRegExp("\\b(COMM(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1erp/Pages/Issues/IssueDetail.aspx?CommentId=\\2#COMMN\\2' title='%1erp/Pages/Issues/IssueDetail.aspx?CommentId=\\2#COMMN\\2'>\\1</a>").arg(erpAddress));
         lpszMessage->replace(QRegExp("\\b(ATT(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1erp/Pages/Issues/IssueDetail.aspx?VideoId=\\2' title='%1erp/Pages/Issues/IssueDetail.aspx?VideoId=\\2'>\\1</a>").arg(erpAddress));
-        lpszMessage->replace(QRegExp("\\b(VID(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?AttachmentId=\\2' title='%1Pages/Issues/IssueDetail.aspx?AttachmentId=\\2'>\\1</a>").arg(erpAddress));
+        lpszMessage->replace(QRegExp("\\b(VID(\\d+))\\b", Qt::CaseInsensitive),  QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?AttachmentId=\\2' title='%1Pages/Issues/IssueDetail.aspx?AttachmentId=\\2'>\\1</a>").arg(erpAddress));
     }
 
     QString message = QString::null;

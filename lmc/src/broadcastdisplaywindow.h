@@ -23,7 +23,7 @@ public:
     explicit broadcastDisplayWindow(User *localUser, QWidget *parent = 0);
     ~broadcastDisplayWindow();
 
-    void init(const QString &peerId, const QString &peerName, const XmlMessage &message);
+    void init(const QString &peerId, const QString &peerName, XmlMessage &message);
 
 signals:
     void chatStarting(QString lpszThreadId, XmlMessage message, QStringList contacts);

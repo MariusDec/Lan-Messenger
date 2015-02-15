@@ -205,34 +205,38 @@ std::vector<ImagesStruct> ImagesList::getSmileysByGroup(const QString &group) {
     return list;
 }
 
-bool ImagesList::getSmileyByCode(const QString &code, const ImagesStruct *smiley)
+const ImagesStruct *ImagesList::getSmileyByCode(const QString &code, bool &found)
 {
+    Q_UNUSED(found);
+
     if (!_smileysLoaded)
         loadSmileys();
 
     for (const ImagesStruct &smileyImg : _smileys)
         if (!code.compare(smileyImg.codeHtmlSafe, Qt::CaseInsensitive)) {
-            smiley = &smileyImg;
-            return true;
+            found = true;
+            return &smileyImg;
         }
 
-    smiley = nullptr;
-    return false;
+    found = false;
+    return nullptr;
 }
 
-bool ImagesList::getEmojiByCode(const QString &code, const ImagesStruct *emoji)
+const ImagesStruct *ImagesList::getEmojiByCode(const QString &code, bool &found)
 {
+    Q_UNUSED(found);
+
     if (!_smileysLoaded)
         loadSmileys();
 
     for (const ImagesStruct &emojiImg : _emojis)
         if (!code.compare(emojiImg.codeHtmlSafe, Qt::CaseInsensitive)) {
-            emoji = &emojiImg;
-            return true;
+            found = true;
+            return &emojiImg;
         }
 
-    emoji = nullptr;
-    return false;
+    found = false;
+    return nullptr;
 }
 
 QString ImagesList::getAvatar(const QString &avatarName)
@@ -249,14 +253,14 @@ QString ImagesList::getAvatar(const QString &avatarName)
     return "";
 }
 
-QString ImagesList::getAvatar(int avatarIndex)
+QString ImagesList::getAvatar(unsigned avatarIndex)
 {
     if (!_avatarsLoaded)
         loadAvatars();
 
     QString avatar;
 
-    if (avatarIndex >= 0 && avatarIndex < _avatars.size ())
+    if (avatarIndex < _avatars.size ())
         avatar = _avatars[avatarIndex].icon;
 
     if (avatar.isEmpty())
@@ -270,7 +274,7 @@ int ImagesList::getAvatarIndex(const QString &imagePath)
     if (!_avatarsLoaded)
         loadAvatars();
 
-    for (int index = 0; index < _avatars.size(); ++index)
+    for (unsigned index = 0; index < _avatars.size(); ++index)
         if (_avatars[index].icon == imagePath)
             return index;
 
@@ -281,14 +285,34 @@ QString ImagesList::getDefaultAvatar()
 {
     return getAvatar("default");
 }
-
+#include <QMessageBox>
 QString ImagesList::addAvatar(const QString &icon)
 {
     LoggerManager::getInstance ().writeInfo (QStringLiteral("ImagesList.addAvatar started"));
 
     QPixmap avatar(icon);
     if (!avatar.isNull ()) {
-        avatar = avatar.scaled(QSize(48, 48), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        if (avatar.width() != avatar.height()
+                && QMessageBox::information(0, "Crop image?", QString("Do you want to crop the image (%1 x %2) around the center?").arg(avatar.width(), avatar.height()), "Crop Image", "Keep Aspect Ratio") == 0) {
+            QRect newImageRect;
+            if (avatar.width() > avatar.height()) {
+                newImageRect.setX((avatar.width() - avatar.height()) / 2);
+                newImageRect.setWidth(avatar.height());
+
+                newImageRect.setY(0);
+                newImageRect.setHeight(avatar.height());
+            } else {
+                newImageRect.setY((avatar.height() - avatar.width()) / 2);
+                newImageRect.setHeight(avatar.width());
+
+                newImageRect.setX(0);
+                newImageRect.setWidth(avatar.width());
+            }
+
+            avatar = avatar.copy(newImageRect);
+        }
+
+        avatar = avatar.scaled(QSize(48, 48), Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
         QString fileName;
         QDir dir(StdLocation::getWritableDataDir ("avatars"));

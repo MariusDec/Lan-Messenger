@@ -34,7 +34,7 @@ StatusTypeEnum Globals::getStatusType(const QString &description)
 {
     StatusStruct *currrentStatus = getStatus (description);
     if (!currrentStatus)
-        return StatusTypeEnum::StatusOffline;
+        return StatusTypeEnum::StatusOnline;
 
     return currrentStatus->statusType;
 }

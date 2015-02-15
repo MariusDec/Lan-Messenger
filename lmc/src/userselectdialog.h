@@ -48,16 +48,13 @@ protected:
 private slots:
     void buttonOK_clicked();
     void buttonCancel_clicked();
-    void treeWidgetUserList_itemClicked(QTreeWidgetItem* item, int column);
+    void treeWidgetUserList_selectedItemsChanged(unsigned count);
 
 private:
     void setUIText();
 
     Ui::UserSelectDialog ui;
     lmcSettings* pSettings;
-    bool parentToggling;
-    bool childToggling;
-    int selectedCount;
 };
 
 #endif // USERSELECTDIALOG_H
