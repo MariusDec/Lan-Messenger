@@ -29,7 +29,7 @@
 #define IDA_TITLE		"LAN Messenger"
 #define IDA_PRODUCT		"LAN Messenger"
 #define IDA_COMPANY		"LAN Messenger"
-#define IDA_VERSION		"1.3.1"
+#define IDA_VERSION		"1.3.3"
 #define IDA_DESCRIPTION	"LAN Messenger is a free peer-to-peer messaging application for intra-network communication "\
                         "and does not require a server.\n"\
                         "LAN Messenger works on essentially every popular desktop platform."
@@ -82,6 +82,7 @@ enum MessageType {
     MT_Avatar,
     MT_UserName,
     MT_Message,
+    MT_InstantMessage,
     MT_GroupMessage,
     MT_PublicMessage,
     MT_File,
@@ -115,6 +116,7 @@ const QString MessageTypeNames[] = {
     "avatar",
     "name",
     "message",
+    "instantMessage",
     "groupmessage",
     "publicmessage",
     "file",

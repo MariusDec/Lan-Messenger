@@ -44,28 +44,12 @@ QDataStream &operator >> (QDataStream &in, SingleMessage &message) {
     return in;
 }
 
-void ChatHelper::makeHtmlSafe(QString* lpszMessage) {
-    for(int index = 0; index < HTMLESC_COUNT; index++)
-        lpszMessage->replace(htmlSymbol[index], htmlEscape[index]);
-}
-
-QString ChatHelper::makeHtmlSafe(const QString &message)
-{
-    QString escaped = message;
-
-    for(int index = 0; index < HTMLESC_COUNT; index++)
-        escaped.replace(htmlSymbol[index], htmlEscape[index]);
-
-    return escaped;
-}
-
 QString ChatHelper::replaceSmiley(QString* lpszHtml) {
     auto smileys = ImagesList::getInstance ().getSmileys ();
     for(unsigned index = 0; index < smileys.size (); index++) {
         if(lpszHtml->compare(QString("<img src='%1' alt='%2' title='<b>%3</b><br />%2' />").arg (smileys[index].icon, smileys[index].code, smileys[index].description)) == 0) {
             QString code = smileys[index].code;
-            makeHtmlSafe(&code);
-            return code;
+            return code.toHtmlEscaped();
         }
     }
 
@@ -90,11 +74,11 @@ void ChatHelper::decodeSmileys(QString &message, const QRegularExpression &regex
             if (isEmoji) {
                 smiley = ImagesList::getInstance().getEmojiByCode(matches[index].second, found);
                 if (found)
-                    message.replace(matches[index].first, matches[index].second.size(), QString("<span title=\"%1\" >%2</span>").arg (makeHtmlSafe(smiley->description), makeHtmlSafe(smiley->code)));
+                    message.replace(matches[index].first, matches[index].second.size(), QString("<span title=\"%1\" >%2</span>").arg (smiley->description.toHtmlEscaped(), smiley->code.toHtmlEscaped()));
             } else {
                 smiley = ImagesList::getInstance().getSmileyByCode(matches[index].second, found);
                 if (found) {
-                    message.replace(matches[index].first, matches[index].second.size(), QString("<img src='%1' alt=\"%2\" title=\"%3: %2\" />").arg (QUrl::fromLocalFile(smiley->icon).toString(), makeHtmlSafe(smiley->code), makeHtmlSafe(smiley->description)));
+                    message.replace(matches[index].first, matches[index].second.size(), QString("<img src=\"%1\" alt=\"%2\" title=\"%3: %2\" style='vertical-align: middle;' />").arg (QUrl::fromLocalFile(smiley->icon).toString(), smiley->code.toHtmlEscaped(), smiley->description.toHtmlEscaped()));
                 }
             }
         }

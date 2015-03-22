@@ -1,12 +1,14 @@
 ﻿#include "imageslist.h"
 #include "stdlocation.h"
 #include "chathelper.h"
+#include "loggermanager.h"
 
 #include <QStandardPaths>
 #include <QDir>
 #include <QDirIterator>
 #include <QTextStream>
 #include <QPixmap>
+#include <QMessageBox>
 
 ImagesList::ImagesList() : _smileysLoaded(false), _avatarsLoaded(false) {
     _smileysRegex.setPatternOptions(QRegularExpression::UseUnicodePropertiesOption | QRegularExpression::CaseInsensitiveOption);
@@ -123,7 +125,7 @@ void ImagesList::loadSmileys() {
 void ImagesList::buildRegex (const std::vector<ImagesStruct> &imagesList, QRegularExpression &regex) {
     QString regexString = "(";
     for (const ImagesStruct &image : imagesList)
-        regexString += !image.code.isEmpty() ? QString("%1|").arg(QRegularExpression::escape(ChatHelper::makeHtmlSafe(image.code))) : QString::null;
+        regexString += !image.code.isEmpty() ? QString("%1|").arg(QRegularExpression::escape(image.code.toHtmlEscaped())) : QString::null;
 
     regexString.chop(1);
     regexString += ')';
@@ -285,7 +287,7 @@ QString ImagesList::getDefaultAvatar()
 {
     return getAvatar("default");
 }
-#include <QMessageBox>
+
 QString ImagesList::addAvatar(const QString &icon)
 {
     LoggerManager::getInstance ().writeInfo (QStringLiteral("ImagesList.addAvatar started"));
@@ -293,7 +295,7 @@ QString ImagesList::addAvatar(const QString &icon)
     QPixmap avatar(icon);
     if (!avatar.isNull ()) {
         if (avatar.width() != avatar.height()
-                && QMessageBox::information(0, "Crop image?", QString("Do you want to crop the image (%1 x %2) around the center?").arg(avatar.width(), avatar.height()), "Crop Image", "Keep Aspect Ratio") == 0) {
+                && QMessageBox::information(0, "Crop image?", QString("Do you want to crop the image (%1 x %2) around the center?").arg(QString::number(avatar.width()), QString::number(avatar.height())), "Crop Image", "Keep Aspect Ratio") == 0) {
             QRect newImageRect;
             if (avatar.width() > avatar.height()) {
                 newImageRect.setX((avatar.width() - avatar.height()) / 2);
@@ -312,11 +314,11 @@ QString ImagesList::addAvatar(const QString &icon)
             avatar = avatar.copy(newImageRect);
         }
 
-        avatar = avatar.scaled(QSize(48, 48), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        avatar = avatar.scaled(QSize(64, 64), Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
         QString fileName;
         QDir dir(StdLocation::getWritableDataDir ("avatars"));
-        fileName = dir.absolutePath () + QString("/%1.png").arg (QString::number ((dir.entryList (QDir::Files).size () - 1)));
+        fileName = dir.absolutePath () + QString("/%1.png").arg (QString::number ((dir.entryList (QDir::Files).size ())));
 
         LoggerManager::getInstance ().writeInfo (QString("ImagesList.addAvatar saved -|- file: %1").arg (fileName));
         avatar.save (fileName);

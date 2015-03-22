@@ -1,4 +1,5 @@
 ﻿#include "loggermanager.h"
+#include "shared.h"
 
 #include <thread>
 #include <chrono>

@@ -1,11 +1,11 @@
 ﻿/****************************************************************************
 **
 ** This file is part of LAN Messenger.
-** 
+**
 ** Copyright (c) 2010 - 2012 Qualia Digital Solutions.
-** 
+**
 ** Contact:  qualiatech@gmail.com
-** 
+**
 ** LAN Messenger is free software: you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation, either version 3 of the License, or
@@ -32,23 +32,23 @@
 #include "settings.h"
 
 class lmcAboutDialog : public QDialog {
-	Q_OBJECT
+    Q_OBJECT
 
 public:
-	lmcAboutDialog(QWidget *parent = 0, Qt::WindowFlags flags = 0);
-	~lmcAboutDialog();
+    lmcAboutDialog(QWidget *parent = 0, Qt::WindowFlags flags = 0);
+    ~lmcAboutDialog();
 
-	void init();
-	void settingsChanged();
+    void init();
+    void settingsChanged();
 
 protected:
-	void changeEvent(QEvent* pEvent);
+    void changeEvent(QEvent* pEvent);
+    void moveEvent(QMoveEvent *event);
 
 private:
-	void setUIText();
+    void setUIText();
 
-	Ui::AboutDialog ui;
-	lmcSettings* pSettings;
+    Ui::AboutDialog ui;
 };
 
 #endif // ABOUTDIALOG_H

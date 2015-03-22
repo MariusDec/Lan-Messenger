@@ -24,11 +24,12 @@
 #include "messaging.h"
 #include "loggermanager.h"
 #include "stdlocation.h"
+#include "globals.h"
 
 #include <QDirIterator>
 
-void lmcMessaging::receiveProgress(QString* lpszUserId, QString *lpszUserName, QString* lpszData) {
-    XmlMessage xmlMessage(*lpszData);
+void lmcMessaging::receiveProgress(QString userId, QString userName, QString data) {
+    XmlMessage xmlMessage(data);
     int fileMode = Helper::indexOf(FileModeNames, FM_Max, xmlMessage.data(XN_MODE));
     int fileOp = Helper::indexOf(FileOpNames, FO_Max, xmlMessage.data(XN_FILEOP));
     int fileType = Helper::indexOf(FileTypeNames, FT_Max, xmlMessage.data(XN_FILETYPE));
@@ -53,62 +54,60 @@ void lmcMessaging::receiveProgress(QString* lpszUserId, QString *lpszUserName, Q
 
     switch(fileOp) {
     case FO_Error:
+    {
         reply.addData(XN_MODE, FileModeNames[fileMode]);
         reply.addData(XN_FILETYPE, FileTypeNames[fileType]);
         reply.addData(XN_FILEOP, FileOpNames[FO_Abort]);
         reply.addData(XN_FILEID, fileId);
-        sendMessage(type, lpszUserId, &reply);
+        sendMessage(type, userId, reply);
 
-        if(updateFileTransfer((FileMode)fileMode, (FileOp)fileOp, lpszUserId, lpszUserName, &xmlMessage))
-            emit messageReceived(type, lpszUserId, &xmlMessage);
+        if(updateFileTransfer(static_cast<FileMode>(fileMode), static_cast<FileOp>(fileOp), userId, userName, xmlMessage))
+            emit messageReceived(type, userId, xmlMessage);
+    }
         break;
     case FO_Progress:
     case FO_Complete:
-        if(updateFileTransfer((FileMode)fileMode, (FileOp)fileOp, lpszUserId, lpszUserName, &xmlMessage))
-            emit messageReceived(type, lpszUserId, &xmlMessage);
+        if(updateFileTransfer(static_cast<FileMode>(fileMode), static_cast<FileOp>(fileOp), userId, userName, xmlMessage))
+            emit messageReceived(type, userId, xmlMessage);
         break;
     }
 }
 
-void lmcMessaging::prepareFile(MessageType type, qint64 msgId, bool retry, QString* lpszUserId, XmlMessage* pMessage) {
-    Q_UNUSED(type);
-    Q_UNUSED(msgId);
-    Q_UNUSED(retry);
-
+void lmcMessaging::prepareFile(const QString &userId, XmlMessage &message) {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.prepareFile started"));
 
-    int fileOp = Helper::indexOf(FileOpNames, FO_Max, pMessage->data(XN_FILEOP));
-    int fileMode = Helper::indexOf(FileModeNames, FM_Max, pMessage->data(XN_MODE));
+    int fileOp = Helper::indexOf(FileOpNames, FO_Max, message.data(XN_FILEOP));
+    int fileMode = Helper::indexOf(FileModeNames, FM_Max, message.data(XN_MODE));
 
-    User* user = getUser(lpszUserId);
-    QString szMessage;
+    User* user = getUser(userId);
+    QString messageString;
 
-    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.prepareFile -|- Sending file message type %1 (%2) to user %3, mode: %4 (%5)").arg(QString::number(fileOp), (fileOp >= 0 ? FileOpNames[fileOp] : ""), *lpszUserId, QString::number(fileMode), (fileMode >= 0 ? FileModeNames[fileMode] : "")));
+    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.prepareFile -|- Sending file message type %1 (%2) to user %3, mode: %4 (%5)").arg(QString::number(fileOp), (fileOp >= 0 ? FileOpNames[fileOp] : ""), userId, QString::number(fileMode), (fileMode >= 0 ? FileModeNames[fileMode] : "")));
 
     switch(fileOp) {
     case FO_Request:
         //  New file transfer request, add to file transfer list.
-        addFileTransfer(FM_Send, lpszUserId, pMessage);
+        addFileTransfer(FM_Send, userId, message);
         break;
     case FO_Accept:
         if (user) {
-            updateFileTransfer(FM_Receive, (FileOp)fileOp, lpszUserId, &user->name, pMessage);
+            updateFileTransfer(FM_Receive, (FileOp)fileOp, userId, user->name, message);
             // pMessage now contains the generated id, file mode and other details.
             // Convert this to string now.
-            szMessage = pMessage->toString();
-            pNetwork->initReceiveFile(&user->id, &user->name, &user->address, &szMessage);
+            messageString = message.toString();
+            pNetwork->initReceiveFile(user->id, user->name, user->address, messageString);
         }
         break;
     case FO_Decline:
         if (user) {
-            updateFileTransfer(FM_Receive, (FileOp)fileOp, lpszUserId, &user->name, pMessage);
+            updateFileTransfer(FM_Receive, (FileOp)fileOp, userId, user->name, message);
         }
         break;
     case FO_Cancel:
         if (user) {
-            updateFileTransfer((FileMode)fileMode, (FileOp)fileOp, lpszUserId, &user->name, pMessage);
-            szMessage = pMessage->toString();
-            pNetwork->fileOperation((FileMode)fileMode, &user->id, &szMessage);
+            updateFileTransfer((FileMode)fileMode, (FileOp)fileOp, userId, user->name, message);
+            messageString = message.toString();
+            pNetwork->fileOperation((FileMode)fileMode, user->id, messageString);
         }
         break;
     }
@@ -116,83 +115,79 @@ void lmcMessaging::prepareFile(MessageType type, qint64 msgId, bool retry, QStri
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.prepareFile ended"));
 }
 
-void lmcMessaging::prepareFolder(MessageType type, qint64 msgId, bool retry, QString* lpszUserId, XmlMessage* pMessage) {
-    Q_UNUSED(type);
-    Q_UNUSED(msgId);
-    Q_UNUSED(retry);
-
+void lmcMessaging::prepareFolder(const QString &userId, XmlMessage &message) {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.prepareFolder started"));
 
-    int folderOp = Helper::indexOf(FileOpNames, FO_Max, pMessage->data(XN_FILEOP));
-    int folderMode = Helper::indexOf(FileModeNames, FM_Max, pMessage->data(XN_MODE));
+    int folderOp = Helper::indexOf(FileOpNames, FO_Max, message.data(XN_FILEOP));
+    int folderMode = Helper::indexOf(FileModeNames, FM_Max, message.data(XN_MODE));
 
-    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.prepareFolder -|- Sending folder message type %1 to user %2, mode: %3").arg(QString::number(folderOp), *lpszUserId, QString::number(folderMode)));
+    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.prepareFolder -|- Sending folder message type %1 to user %2, mode: %3").arg(QString::number(folderOp), userId, QString::number(folderMode)));
 
     switch(folderOp) {
     case FO_Request:
         //  New file transfer request, add to file transfer list.
-        addFolderTransfer(FM_Send, lpszUserId, pMessage);
+        addFolderTransfer(FM_Send, userId, message);
         break;
     case FO_Accept:
         //  Upper layers send folder id in FileId field, copy to FolderId field
-        pMessage->addData(XN_FOLDERID, pMessage->data(XN_FILEID));
-        updateFolderTransfer(FM_Receive, (FileOp)folderOp, lpszUserId, pMessage);
+        message.addData(XN_FOLDERID, message.data(XN_FILEID));
+        updateFolderTransfer(FM_Receive, (FileOp)folderOp, userId, message);
         break;
     case FO_Decline:
-        pMessage->addData(XN_FOLDERID, pMessage->data(XN_FILEID));
-        updateFolderTransfer(FM_Receive, (FileOp)folderOp, lpszUserId, pMessage);
+        message.addData(XN_FOLDERID, message.data(XN_FILEID));
+        updateFolderTransfer(FM_Receive, (FileOp)folderOp, userId, message);
         break;
     case FO_Cancel:
-        pMessage->addData(XN_FOLDERID, pMessage->data(XN_FILEID));
-        updateFolderTransfer((FileMode)folderMode, (FileOp)folderOp, lpszUserId, pMessage);
+        message.addData(XN_FOLDERID, message.data(XN_FILEID));
+        updateFolderTransfer((FileMode)folderMode, (FileOp)folderOp, userId, message);
         break;
     }
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.prepareFolder ended"));
 }
 
-void lmcMessaging::processFile(MessageHeader* pHeader, XmlMessage* pMessage) {
+void lmcMessaging::processFile(const MessageHeader &header, XmlMessage &message) {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.processFile started"));
 
-    int fileMode = Helper::indexOf(FileModeNames, FM_Max, pMessage->data(XN_MODE));
-    int fileOp = Helper::indexOf(FileOpNames, FO_Max, pMessage->data(XN_FILEOP));
-    QString szMessage;
+    int fileMode = Helper::indexOf(FileModeNames, FM_Max, message.data(XN_MODE));
+    int fileOp = Helper::indexOf(FileOpNames, FO_Max, message.data(XN_FILEOP));
+    QString messageString;
 
     //  Reverse file mode to match local mode. ie, message from sender with mode Send
     //  will be translated to Receive at receiver side.
     fileMode = fileMode == FM_Send ? FM_Receive : FM_Send;
-    pMessage->removeData(XN_MODE);
-    pMessage->addData(XN_MODE, FileModeNames[fileMode]);
+    message.removeData(XN_MODE);
+    message.addData(XN_MODE, FileModeNames[fileMode]);
 
-    User *user = getUser(&pHeader->userId);
+    User *user = getUser(header.userId);
 
-    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.processFile -|- Processing file message type %1 to user %2, mode: %3").arg(QString::number(fileOp), pHeader->userId, QString::number(fileMode)));
+    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.processFile -|- Processing file message type %1 to user %2, mode: %3").arg(QString::number(fileOp), header.userId, QString::number(fileMode)));
 
     switch(fileOp) {
     case FO_Request:
-        if(addFileTransfer(FM_Receive, &pHeader->userId, pMessage))
-            emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
+        if(addFileTransfer(FM_Receive, header.userId, message))
+            emit messageReceived(header.type, header.userId, message);
         break;
     case FO_Accept:
         if (user) {
-            if(updateFileTransfer(FM_Send, (FileOp)fileOp, &pHeader->userId, &user->name, pMessage))
-                emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
-            szMessage = pMessage->toString();
-            pNetwork->initSendFile(&pHeader->userId, &user->name, &pHeader->address, &szMessage);
+            if(updateFileTransfer(FM_Send, static_cast<FileOp>(fileOp), header.userId, user->name, message))
+                emit messageReceived(header.type, header.userId, message);
+            messageString = message.toString();
+            pNetwork->initSendFile(header.userId, user->name, header.address, messageString);
         }
         break;
     case FO_Decline:
         if (user) {
-            if(updateFileTransfer(FM_Send, (FileOp)fileOp, &pHeader->userId, &user->name, pMessage))
-                emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
+            if(updateFileTransfer(FM_Send, static_cast<FileOp>(fileOp), header.userId, user->name, message))
+                emit messageReceived(header.type, header.userId, message);
         }
         break;
     case FO_Cancel:
     case FO_Abort:
         if (user) {
-            if(updateFileTransfer((FileMode)fileMode, (FileOp)fileOp, &pHeader->userId, &user->name, pMessage))
-                emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
-            szMessage = pMessage->toString();
-            pNetwork->fileOperation((FileMode)fileMode, &pHeader->userId, &szMessage);
+            if(updateFileTransfer(static_cast<FileMode>(fileMode), static_cast<FileOp>(fileOp), header.userId, user->name, message))
+                emit messageReceived(header.type, header.userId, message);
+            messageString = message.toString();
+            pNetwork->fileOperation(static_cast<FileMode>(fileMode), header.userId, messageString);
         }
         break;
     default:
@@ -201,37 +196,37 @@ void lmcMessaging::processFile(MessageHeader* pHeader, XmlMessage* pMessage) {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.processFile ended"));
 }
 
-void lmcMessaging::processFolder(MessageHeader* pHeader, XmlMessage* pMessage) {
+void lmcMessaging::processFolder(const MessageHeader &header, XmlMessage &message) {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.processFolder started"));
 
-    int fileMode = Helper::indexOf(FileModeNames, FM_Max, pMessage->data(XN_MODE));
-    int fileOp = Helper::indexOf(FileOpNames, FO_Max, pMessage->data(XN_FILEOP));
+    int fileMode = Helper::indexOf(FileModeNames, FM_Max, message.data(XN_MODE));
+    int fileOp = Helper::indexOf(FileOpNames, FO_Max, message.data(XN_FILEOP));
 
     //  Reverse file mode to match local mode. ie, message from sender with mode Send
     //  will be translated to Receive at receiver side.
     fileMode = fileMode == FM_Send ? FM_Receive : FM_Send;
-    pMessage->removeData(XN_MODE);
-    pMessage->addData(XN_MODE, FileModeNames[fileMode]);
+    message.removeData(XN_MODE);
+    message.addData(XN_MODE, FileModeNames[fileMode]);
 
-    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.processFolder -|- Processing folder message type %1 to user %2, mode: %3").arg(QString::number(fileOp), pHeader->userId, QString::number(fileMode)));
+    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.processFolder -|- Processing folder message type %1 to user %2, mode: %3").arg(QString::number(fileOp), header.userId, QString::number(fileMode)));
 
     switch(fileOp) {
     case FO_Request:
-        if(addFolderTransfer(FM_Receive, &pHeader->userId, pMessage))
-            emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
+        if(addFolderTransfer(FM_Receive, header.userId, message))
+            emit messageReceived(header.type, header.userId, message);
         break;
     case FO_Accept:
-        if(updateFolderTransfer(FM_Send, (FileOp)fileOp, &pHeader->userId, pMessage))
-            emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
+        if(updateFolderTransfer(FM_Send, static_cast<FileOp>(fileOp), header.userId, message))
+            emit messageReceived(header.type, header.userId, message);
         break;
     case FO_Decline:
-        if(updateFolderTransfer(FM_Send, (FileOp)fileOp, &pHeader->userId, pMessage))
-            emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
+        if(updateFolderTransfer(FM_Send, static_cast<FileOp>(fileOp), header.userId, message))
+            emit messageReceived(header.type, header.userId, message);
         break;
     case FO_Cancel:
     case FO_Abort:
-        if(updateFolderTransfer((FileMode)fileMode, (FileOp)fileOp, &pHeader->userId, pMessage))
-            emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
+        if(updateFolderTransfer(static_cast<FileMode>(fileMode), static_cast<FileOp>(fileOp), header.userId, message))
+            emit messageReceived(header.type, header.userId, message);
         break;
     default:
         break;
@@ -239,11 +234,11 @@ void lmcMessaging::processFolder(MessageHeader* pHeader, XmlMessage* pMessage) {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.processFolder ended"));
 }
 
-bool lmcMessaging::addFileTransfer(FileMode fileMode, QString* lpszUserId, XmlMessage* pMessage) {
+bool lmcMessaging::addFileTransfer(FileMode fileMode, const QString &userId, XmlMessage &message) {
     LoggerManager::getInstance().writeInfo(
         QStringLiteral("lmcTransferWindow.addFileTransfer started"));
 
-    int fileType = Helper::indexOf(FileTypeNames, FT_Max, pMessage->data(XN_FILETYPE));
+    int fileType = Helper::indexOf(FileTypeNames, FT_Max, message.data(XN_FILETYPE));
 
     QString fileId, folderId;
     QFileInfo fileInfo;
@@ -253,53 +248,58 @@ bool lmcMessaging::addFileTransfer(FileMode fileMode, QString* lpszUserId, XmlMe
     switch(fileMode) {
     case FM_Send:
         fileId = Helper::getUuid();
-        fileInfo.setFile(pMessage->data(XN_FILEPATH));
-        fileList.append(TransFile(fileId, QString::null, *lpszUserId, fileInfo.filePath(),
+        fileInfo.setFile(message.data(XN_FILEPATH));
+        fileList.append(TransFile(fileId, QString::null, userId, fileInfo.filePath(),
             fileInfo.fileName(), fileInfo.size(), fileMode, FO_Request, (FileType)fileType));
-        pMessage->addData(XN_FILEID, fileId);
-        pMessage->addData(XN_MODE, FileModeNames[fileMode]);
-        pMessage->addData(XN_FILENAME, fileInfo.fileName());
-        pMessage->addData(XN_FILESIZE, QString::number(fileInfo.size()));
-        xmlMessage = pMessage->clone();
+
+        message.addData(XN_FILEID, fileId);
+        message.addData(XN_MODE, FileModeNames[fileMode]);
+        message.addData(XN_FILENAME, fileInfo.fileName());
+        message.addData(XN_FILESIZE, QString::number(fileInfo.size()));
+        xmlMessage = message.clone();
         switch(fileType) {
         case FT_Normal:
-            emit messageReceived(MT_File, lpszUserId, &xmlMessage);
+            emit messageReceived(MT_File, userId, xmlMessage);
             break;
         case FT_Folder:
-            folderId = pMessage->data(XN_FOLDERID);
+            folderId = message.data(XN_FOLDERID);
             fileList.last().folderId = folderId;
-            pMessage->addData(XN_RELPATH,
-                QDir(getFolderPath(folderId, *lpszUserId, FM_Send)).relativeFilePath(fileInfo.filePath()));
-            updateFolderTransfer(FM_Send, FO_Init, lpszUserId, pMessage);
+            message.addData(XN_RELPATH,
+                QDir(getFolderPath(folderId, userId, FM_Send)).relativeFilePath(fileInfo.filePath()));
+            updateFolderTransfer(FM_Send, FO_Init, userId, message);
             break;
         default:
             break;
         }
         break;
     case FM_Receive:
-        fileList.append(TransFile(pMessage->data(XN_FILEID), QString::null, *lpszUserId, QString::null,
-            pMessage->data(XN_FILENAME), pMessage->data(XN_FILESIZE).toLongLong(),
+        fileList.append(TransFile(message.data(XN_FILEID), QString::null, userId, QString::null,
+            message.data(XN_FILENAME), message.data(XN_FILESIZE).toLongLong(),
             fileMode, FO_Request, (FileType)fileType));
         switch(fileType) {
         case FT_Avatar:
+        {
             xmlMessage.addData(XN_MODE, FileModeNames[FM_Receive]);
             xmlMessage.addData(XN_FILETYPE, FileTypeNames[FT_Avatar]);
             xmlMessage.addData(XN_FILEOP, FileOpNames[FO_Accept]);
-            xmlMessage.addData(XN_FILEID, pMessage->data(XN_FILEID));
-            xmlMessage.addData(XN_FILESIZE, pMessage->data(XN_FILESIZE));
-            sendMessage(MT_Avatar, lpszUserId, &xmlMessage);
+            xmlMessage.addData(XN_FILEID, message.data(XN_FILEID));
+            xmlMessage.addData(XN_FILESIZE, message.data(XN_FILESIZE));
+            sendMessage(MT_Avatar, userId, xmlMessage);
             emitMsg = false;    // Suppress emitting message to upper layers
+        }
             break;
         case FT_Folder:
-            fileList.last().folderId = pMessage->data(XN_FOLDERID);
-            fileList.last().relPath = pMessage->data(XN_RELPATH);
+        {
+            fileList.last().folderId = message.data(XN_FOLDERID);
+            fileList.last().relPath = message.data(XN_RELPATH);
             xmlMessage.addData(XN_MODE, FileModeNames[FM_Receive]);
             xmlMessage.addData(XN_FILETYPE, FileTypeNames[FT_Folder]);
             xmlMessage.addData(XN_FILEOP, FileOpNames[FO_Accept]);
-            xmlMessage.addData(XN_FILEID, pMessage->data(XN_FILEID));
-            xmlMessage.addData(XN_FILESIZE, pMessage->data(XN_FILESIZE));
-            sendMessage(MT_File, lpszUserId, &xmlMessage);
+            xmlMessage.addData(XN_FILEID, message.data(XN_FILEID));
+            xmlMessage.addData(XN_FILESIZE, message.data(XN_FILESIZE));
+            sendMessage(MT_File, userId, xmlMessage);
             emitMsg = false;    // Suppress emitting message to upper layers
+        }
             break;
         default:
             break;
@@ -315,14 +315,14 @@ bool lmcMessaging::addFileTransfer(FileMode fileMode, QString* lpszUserId, XmlMe
     return emitMsg;
 }
 
-bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, QString* lpszUserId, QString *lpszUserName, XmlMessage* pMessage) {
-    QString fileId = pMessage->data(XN_FILEID);
-    int fileType = Helper::indexOf(FileTypeNames, FT_Max, pMessage->data(XN_FILETYPE));
+bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, const QString &userId, const QString &userName, XmlMessage &message) {
+    QString fileId = message.data(XN_FILEID);
+    int fileType = Helper::indexOf(FileTypeNames, FT_Max, message.data(XN_FILETYPE));
 
     bool emitMsg = false;
     for(int index = 0; index < fileList.count(); index++) {
-        TransFile transFile = fileList.at(index);
-        if(transFile.userId == *lpszUserId && transFile.id == fileId && transFile.mode == fileMode) {
+        TransFile transferedFile = fileList.at(index);
+        if(transferedFile.userId == userId && transferedFile.id == fileId && transferedFile.mode == fileMode) {
             QString filePath, fileName, folderId;
             QDir cacheDir;
             XmlMessage xmlMessage;
@@ -332,10 +332,10 @@ bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, QString*
                 if(fileMode == FM_Send) {
                     fileName = fileList[index].name;
                     filePath = fileList[index].path;
-                    pMessage->removeData(XN_FILEPATH);
-                    pMessage->addData(XN_FILEPATH, filePath);
-                    pMessage->removeData(XN_FILENAME);
-                    pMessage->addData(XN_FILENAME, fileName);
+                    message.removeData(XN_FILEPATH);
+                    message.addData(XN_FILEPATH, filePath);
+                    message.removeData(XN_FILENAME);
+                    message.addData(XN_FILENAME, fileName);
                     switch(fileType) {
                     case FT_Avatar:
                     case FT_Folder:
@@ -348,36 +348,36 @@ bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, QString*
                     switch(fileType) {
                     case FT_Normal:
                     {
-                        QString fileStoragePath = StdLocation::getFileStoragePath(*lpszUserName);
+                        QString fileStoragePath = Globals::getInstance().fileStoragePath(userName);
                         //  set valid free file name and correct path
-                        fileName = getFreeFileName(transFile.name);
+                        fileName = getFreeFileName(transferedFile.name);
                         filePath = fileStoragePath.isEmpty () ? "" : QDir(fileStoragePath).absoluteFilePath(fileName);
                         fileList[index].name = fileName;
                         fileList[index].path = filePath;
-                        pMessage->removeData(XN_FILEPATH);
-                        pMessage->addData(XN_FILEPATH, filePath);
-                        pMessage->removeData(XN_FILENAME);
-                        pMessage->addData(XN_FILENAME, fileName);
-                        xmlMessage = pMessage->clone();
-                        emit messageReceived(MT_File, lpszUserId, &xmlMessage);
+                        message.removeData(XN_FILEPATH);
+                        message.addData(XN_FILEPATH, filePath);
+                        message.removeData(XN_FILENAME);
+                        message.addData(XN_FILENAME, fileName);
+                        xmlMessage.setContent(message.toString());
+                        emit messageReceived(MT_File, userId, xmlMessage);
                     }
                         break;
                     case FT_Folder:
-                        folderId = transFile.folderId;
-                        fileName = transFile.relPath;
-                        filePath = QDir(getFolderPath(folderId, *lpszUserId, FM_Receive)).absoluteFilePath(fileName);
+                        folderId = transferedFile.folderId;
+                        fileName = transferedFile.relPath;
+                        filePath = QDir(getFolderPath(folderId, userId, FM_Receive)).absoluteFilePath(fileName);
                         fileList[index].path = filePath;
-                        pMessage->removeData(XN_FILEPATH);
-                        pMessage->addData(XN_FILEPATH, filePath);
+                        message.removeData(XN_FILEPATH);
+                        message.addData(XN_FILEPATH, filePath);
                         break;
                     case FT_Avatar:
                         cacheDir = QDir(StdLocation::getWritableCacheDir());
-                        fileName = "avt_" + *lpszUserId + "_part.png";
+                        fileName = "avt_" + userId + "_part.png";
                         filePath = cacheDir.absoluteFilePath(fileName);
                         fileList[index].name = fileName;
                         fileList[index].path = filePath;
-                        pMessage->addData(XN_FILEPATH, filePath);
-                        pMessage->addData(XN_FILENAME, fileName);
+                        message.addData(XN_FILEPATH, filePath);
+                        message.addData(XN_FILENAME, fileName);
                         emitMsg = false;
                         break;
                     default:
@@ -392,14 +392,15 @@ bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, QString*
                 default:
                     break;
                 }
+
                 fileList.removeAt(index);
                 break;
             case FO_Cancel:
                 fileList[index].op = fileOp;
                 switch(fileType) {
                 case FT_Normal:
-                    xmlMessage = pMessage->clone();
-                    emit messageReceived(MT_File, lpszUserId, &xmlMessage);
+                    xmlMessage.setContent(message.toString());
+                    emit messageReceived(MT_File, userId, xmlMessage);
                     break;
                 case FT_Avatar:
                 case FT_Folder:
@@ -416,8 +417,8 @@ bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, QString*
                     case FT_Avatar:
                         emitMsg = false;
                     case FT_Folder:
-                        pMessage->addData(XN_FOLDERID, transFile.folderId);
-                        updateFolderTransfer(FM_Send, FO_Next, lpszUserId, pMessage);
+                        message.addData(XN_FOLDERID, transferedFile.folderId);
+                        updateFolderTransfer(FM_Send, FO_Next, userId, message);
                         emitMsg = false;
                         break;
                     default:
@@ -427,18 +428,20 @@ bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, QString*
                     switch(fileType) {
                     case FT_Avatar:
                         cacheDir = QDir(StdLocation::getWritableCacheDir());
-                        fileName = "avt_" + *lpszUserId + ".png";
+                        fileName = "avt_" + userId + ".png";
                         filePath = cacheDir.absoluteFilePath(fileName);
+
                         QFile::remove(filePath);
                         QFile::rename(fileList[index].path, filePath);
                         fileList[index].path = filePath;
-                        updateUser(MT_Avatar, *lpszUserId, filePath);
-                        pMessage->removeData(XN_FILEPATH);
-                        pMessage->addData(XN_FILEPATH, filePath);
+
+                        updateUser(MT_Avatar, userId, filePath);
+                        message.removeData(XN_FILEPATH);
+                        message.addData(XN_FILEPATH, filePath);
                         break;
                     case FT_Folder:
-                        pMessage->addData(XN_FOLDERID, transFile.folderId);
-                        updateFolderTransfer(FM_Receive, FO_Next, lpszUserId, pMessage);
+                        message.addData(XN_FOLDERID, transferedFile.folderId);
+                        updateFolderTransfer(FM_Receive, FO_Next, userId, message);
                         emitMsg = false;
                         break;
                     default:
@@ -453,8 +456,8 @@ bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, QString*
                 case FT_Avatar:
                     emitMsg = false;
                 case FT_Folder:
-                    pMessage->addData(XN_FOLDERID, transFile.folderId);
-                    updateFolderTransfer((FileMode)fileMode, (FileOp)fileOp, lpszUserId, pMessage);
+                    message.addData(XN_FOLDERID, transferedFile.folderId);
+                    updateFolderTransfer(fileMode, fileOp, userId, message);
                     emitMsg = false;
                     break;
                 default:
@@ -468,14 +471,14 @@ bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, QString*
                     fileList.removeAt(index);
                 break;
             case FO_Progress:
-                fileList[index].pos = pMessage->data(XN_FILESIZE).toLongLong();
+                fileList[index].pos = message.data(XN_FILESIZE).toLongLong();
                 switch(fileType) {
                 case FT_Avatar:
                     emitMsg = false;
                     break;
                 case FT_Folder:
-                    pMessage->addData(XN_FOLDERID, transFile.folderId);
-                    updateFolderTransfer((FileMode)fileMode, (FileOp)fileOp, lpszUserId, pMessage);
+                    message.addData(XN_FOLDERID, transferedFile.folderId);
+                    updateFolderTransfer(fileMode, fileOp, userId, message);
                     emitMsg = false;
                     break;
                 default:
@@ -492,10 +495,10 @@ bool lmcMessaging::updateFileTransfer(FileMode fileMode, FileOp fileOp, QString*
     return emitMsg;
 }
 
-QString lmcMessaging::getFreeFileName(QString fileName) {
+QString lmcMessaging::getFreeFileName(const QString &fileName) {
     QString freeFileName = fileName;
 
-    QString fileDir = StdLocation::getFileStoragePath();
+    QString fileDir = Globals::getInstance().fileStoragePath();
     QDir dir(fileDir);
     QString filePath = dir.absoluteFilePath(fileName);
     QString baseName = fileName.mid(0, fileName.lastIndexOf("."));
@@ -511,24 +514,24 @@ QString lmcMessaging::getFreeFileName(QString fileName) {
     return freeFileName;
 }
 
-bool lmcMessaging::addFolderTransfer(FileMode folderMode, QString* lpszUserId, XmlMessage* pMessage) {
+bool lmcMessaging::addFolderTransfer(FileMode folderMode, const QString &userId, XmlMessage &message) {
     LoggerManager::getInstance().writeInfo(
         QStringLiteral("lmcTransferWindow.addFolderTransfer started"));
 
-    int folderType = Helper::indexOf(FileTypeNames, FT_Max, pMessage->data(XN_FILETYPE));
+    int folderType = Helper::indexOf(FileTypeNames, FT_Max, message.data(XN_FILETYPE));
 
     QString folderId;
     QFileInfo fileInfo;
     XmlMessage xmlMessage;
 
     bool emitMsg = true;
-    QDirIterator iterator(QDir(pMessage->data(XN_FILEPATH)), QDirIterator::Subdirectories);
+    QDirIterator iterator(QDir(message.data(XN_FILEPATH)), QDirIterator::Subdirectories);
     switch(folderMode) {
     case FM_Send:
         folderId = Helper::getUuid();
-        fileInfo.setFile(pMessage->data(XN_FILEPATH));
-        folderList.append(TransFolder(folderId, *lpszUserId, fileInfo.filePath(),
-            fileInfo.fileName(), 0, folderMode, FO_Request, (FileType)folderType, 0));
+        fileInfo.setFile(message.data(XN_FILEPATH));
+        folderList.append(TransFolder(folderId, userId, fileInfo.filePath(),
+            fileInfo.fileName(), 0, static_cast<FileMode>(folderMode), FO_Request, static_cast<FileType>(folderType), 0));
         //  fetch list of files to be sent
         while(iterator.hasNext()) {
             iterator.next();
@@ -538,19 +541,19 @@ bool lmcMessaging::addFolderTransfer(FileMode folderMode, QString* lpszUserId, X
                 folderList.last().fileCount++;
             }
         }
-        pMessage->addData(XN_FOLDERID, folderId);
-        pMessage->addData(XN_FILEID, folderId); //  Assign the folder id to FileId field for uniformity
-        pMessage->addData(XN_MODE, FileModeNames[folderMode]);
-        pMessage->addData(XN_FILENAME, fileInfo.fileName());
-        pMessage->addData(XN_FILESIZE, QString::number(folderList.last().size));
-        pMessage->addData(XN_FILECOUNT, QString::number(folderList.last().fileCount));
-        xmlMessage = pMessage->clone();
-        emit messageReceived(MT_Folder, lpszUserId, &xmlMessage);
+        message.addData(XN_FOLDERID, folderId);
+        message.addData(XN_FILEID, folderId); //  Assign the folder id to FileId field for uniformity
+        message.addData(XN_MODE, FileModeNames[folderMode]);
+        message.addData(XN_FILENAME, fileInfo.fileName());
+        message.addData(XN_FILESIZE, QString::number(folderList.last().size));
+        message.addData(XN_FILECOUNT, QString::number(folderList.last().fileCount));
+        xmlMessage.setContent(message.toString());
+        emit messageReceived(MT_Folder, userId, xmlMessage);
         break;
     case FM_Receive:
-        folderList.append(TransFolder(pMessage->data(XN_FOLDERID), *lpszUserId, QString::null,
-            pMessage->data(XN_FILENAME), pMessage->data(XN_FILESIZE).toLongLong(),
-            folderMode, FO_Request, (FileType)folderType, pMessage->data(XN_FILECOUNT).toInt()));
+        folderList.append(TransFolder(message.data(XN_FOLDERID), userId, QString::null,
+            message.data(XN_FILENAME), message.data(XN_FILESIZE).toLongLong(),
+            folderMode, FO_Request, static_cast<FileType>(folderType), message.data(XN_FILECOUNT).toInt()));
         break;
     default:
         break;
@@ -562,13 +565,13 @@ bool lmcMessaging::addFolderTransfer(FileMode folderMode, QString* lpszUserId, X
     return emitMsg;
 }
 
-bool lmcMessaging::updateFolderTransfer(FileMode folderMode, FileOp folderOp, QString* lpszUserId, XmlMessage* pMessage) {
-    QString folderId = pMessage->data(XN_FOLDERID);
+bool lmcMessaging::updateFolderTransfer(FileMode folderMode, FileOp folderOp, const QString &userId, XmlMessage &message) {
+    QString folderId = message.data(XN_FOLDERID);
 
     bool emitMsg = false;
     for(int index = 0; index < folderList.count(); index++) {
         TransFolder transFolder = folderList.at(index);
-        if(transFolder.userId == *lpszUserId && transFolder.id == folderId && transFolder.mode == folderMode) {
+        if(transFolder.userId == userId && transFolder.id == folderId && transFolder.mode == folderMode) {
             emitMsg = true;
             QString folderName, folderPath;
             int fileIndex;
@@ -583,30 +586,29 @@ bool lmcMessaging::updateFolderTransfer(FileMode folderMode, FileOp folderOp, QS
                         xmlMessage.addData(XN_FILETYPE, FileTypeNames[FT_Folder]);
                         xmlMessage.addData(XN_FILEOP, FileOpNames[FO_Request]);
                         xmlMessage.addData(XN_FILEPATH, folderList[index].fileList.first());
-                        sendMessage(MT_File, lpszUserId, &xmlMessage);
+                        sendMessage(MT_File, userId, xmlMessage);
                     }
                     folderName = folderList[index].name;
                     folderPath = folderList[index].path;
-                    pMessage->removeData(XN_FILEPATH);
-                    pMessage->addData(XN_FILEPATH, folderPath);
-                    pMessage->removeData(XN_FILENAME);
-                    pMessage->addData(XN_FILENAME, folderName);
+                    message.removeData(XN_FILEPATH);
+                    message.addData(XN_FILEPATH, folderPath);
+                    message.removeData(XN_FILENAME);
+                    message.addData(XN_FILENAME, folderName);
                 } else {
                     //  set valid free folder name and correct path
-                    QString fileStoragePath = StdLocation::getFileStoragePath();
+                    QString fileStoragePath = Globals::getInstance().fileStoragePath();
                     folderName = getFreeFolderName(transFolder.name);
                     folderPath = fileStoragePath.isEmpty () ? "" : fileStoragePath + folderName;
                     folderList[index].name = folderName;
                     folderList[index].path = folderPath;
-                    folderList[index].currentFile = pMessage->data(XN_FILEID);
-                    pMessage->removeData(XN_FILEPATH);
-                    pMessage->addData(XN_FILEPATH, folderPath);
-                    pMessage->removeData(XN_FILENAME);
-                    pMessage->addData(XN_FILENAME, folderName);
+                    folderList[index].currentFile = message.data(XN_FILEID);
+                    message.removeData(XN_FILEPATH);
+                    message.addData(XN_FILEPATH, folderPath);
+                    message.removeData(XN_FILENAME);
+                    message.addData(XN_FILENAME, folderName);
                     if (!fileStoragePath.isEmpty ())
                         QDir(fileStoragePath).mkpath (folderName);
-                    xmlMessage = pMessage->clone();
-                    emit messageReceived(MT_Folder, lpszUserId, &xmlMessage);
+                    emit messageReceived(MT_Folder, userId, message);
                 }
                 folderList[index].lastUpdated = QDateTime::currentDateTime();
                 break;
@@ -614,41 +616,43 @@ bool lmcMessaging::updateFolderTransfer(FileMode folderMode, FileOp folderOp, QS
                 folderList.removeAt(index);
                 break;
             case FO_Cancel:
-                xmlMessage = pMessage->clone();
+            {
+                xmlMessage.setContent(message.toString());
                 xmlMessage.addData(XN_FILEID, transFolder.currentFile);
-                emit messageReceived(MT_File, lpszUserId, &xmlMessage);
-                sendMessage(MT_File, lpszUserId, &xmlMessage);
+                emit messageReceived(MT_File, userId, xmlMessage);
+                sendMessage(MT_File, userId, xmlMessage);
                 folderList.removeAt(index);
+            }
                 break;
             case FO_Complete:   //  This will never be executed
                 folderList.removeAt(index);
                 break;
             case FO_Error:
             case FO_Abort:
-                pMessage->removeData(XN_FILEID);
-                pMessage->addData(XN_FILEID, pMessage->data(XN_FOLDERID));
-                emit messageReceived(MT_Folder, lpszUserId, pMessage);
+                message.removeData(XN_FILEID);
+                message.addData(XN_FILEID, message.data(XN_FOLDERID));
+                emit messageReceived(MT_Folder, userId, message);
                 if(folderMode == FM_Send) {
                     //  Cannot be removed, same reason as file transfer
                 } else
                     folderList.removeAt(index);
                 break;
             case FO_Progress:
-                pMessage->removeData(XN_FILEID);
-                pMessage->addData(XN_FILEID, pMessage->data(XN_FOLDERID));
-                folderList[index].filePos = pMessage->data(XN_FILESIZE).toLongLong();
-                pMessage->removeData(XN_FILESIZE);
-                pMessage->addData(XN_FILESIZE, QString::number(folderList[index].pos + folderList[index].filePos));
-                emit messageReceived(MT_Folder, lpszUserId, pMessage);
+                message.removeData(XN_FILEID);
+                message.addData(XN_FILEID, message.data(XN_FOLDERID));
+                folderList[index].filePos = message.data(XN_FILESIZE).toLongLong();
+                message.removeData(XN_FILESIZE);
+                message.addData(XN_FILESIZE, QString::number(folderList[index].pos + folderList[index].filePos));
+                emit messageReceived(MT_Folder, userId, message);
                 folderList[index].lastUpdated = QDateTime::currentDateTime();
                 break;
             case FO_Init:
-                folderList[index].currentFile = pMessage->data(XN_FILEID);
+                folderList[index].currentFile = message.data(XN_FILEID);
                 break;
             case FO_Next:
                 fileIndex = ++folderList[index].fileIndex;
-                pMessage->removeData(XN_FILEID);
-                pMessage->addData(XN_FILEID, pMessage->data(XN_FOLDERID));
+                message.removeData(XN_FILEID);
+                message.addData(XN_FILEID, message.data(XN_FOLDERID));
                 if(fileIndex < folderList[index].fileCount) {
                     if(folderMode == FM_Send) {
                         xmlMessage.addData(XN_FOLDERID, folderList[index].id);
@@ -656,26 +660,26 @@ bool lmcMessaging::updateFolderTransfer(FileMode folderMode, FileOp folderOp, QS
                         xmlMessage.addData(XN_FILETYPE, FileTypeNames[FT_Folder]);
                         xmlMessage.addData(XN_FILEOP, FileOpNames[FO_Request]);
                         xmlMessage.addData(XN_FILEPATH, folderList[index].fileList.at(fileIndex));
-                        sendMessage(MT_File, lpszUserId, &xmlMessage);
+                        sendMessage(MT_File, userId, xmlMessage);
                     }
-                    folderList[index].pos += QFileInfo(pMessage->data(XN_FILEPATH)).size();
+                    folderList[index].pos += QFileInfo(message.data(XN_FILEPATH)).size();
                     //  If the files are small, the progress timer will not have time to trigger since
                     //  the file transfer will be completed within its timeout period. In such cases
                     //  we manually emit a progress message if a progress update has not been sent for
                     //  more than 1 second (the timeout period).
                     if(folderList[index].lastUpdated.msecsTo(QDateTime::currentDateTime()) > PROGRESS_TIMEOUT) {
-                        pMessage->removeData(XN_FILEOP);
-                        pMessage->addData(XN_FILEOP, FileOpNames[FO_Progress]);
-                        pMessage->removeData(XN_FILESIZE);
-                        pMessage->addData(XN_FILESIZE, QString::number(folderList[index].pos));
-                        emit messageReceived(MT_Folder, lpszUserId, pMessage);
+                        message.removeData(XN_FILEOP);
+                        message.addData(XN_FILEOP, FileOpNames[FO_Progress]);
+                        message.removeData(XN_FILESIZE);
+                        message.addData(XN_FILESIZE, QString::number(folderList[index].pos));
+                        emit messageReceived(MT_Folder, userId, message);
                         folderList[index].lastUpdated = QDateTime::currentDateTime();
                     }
                 } else {
-                    pMessage->removeData(XN_FILEPATH);
-                    pMessage->addData(XN_FILEPATH, folderList[index].path);
+                    message.removeData(XN_FILEPATH);
+                    message.addData(XN_FILEPATH, folderList[index].path);
                     folderList[index].op = FO_Complete;
-                    emit messageReceived(MT_Folder, lpszUserId, pMessage);
+                    emit messageReceived(MT_Folder, userId, message);
                     folderList.removeAt(index);
                 }
                 break;
@@ -689,10 +693,10 @@ bool lmcMessaging::updateFolderTransfer(FileMode folderMode, FileOp folderOp, QS
     return emitMsg;
 }
 
-QString lmcMessaging::getFreeFolderName(QString folderName) {
+QString lmcMessaging::getFreeFolderName(const QString &folderName) {
     QString freeFolderName = folderName;
 
-    QString fileDir = StdLocation::getFileStoragePath();
+    QString fileDir = Globals::getInstance().fileStoragePath();
     QDir dir(fileDir + folderName);
 
     int fileCount = 0;
@@ -705,7 +709,7 @@ QString lmcMessaging::getFreeFolderName(QString folderName) {
     return freeFolderName;
 }
 
-QString lmcMessaging::getFolderPath(QString folderId, QString userId, FileMode mode) {
+QString lmcMessaging::getFolderPath(const QString &folderId, const QString &userId, FileMode mode) {
     for(int index = 0; index < folderList.count(); index++) {
         if(folderList[index].id == folderId && folderList[index].userId == userId
                 && folderList[index].mode == mode)

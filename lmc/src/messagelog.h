@@ -45,19 +45,19 @@ public:
     ~lmcMessageLog();
 
     void initMessageLog(bool themePreviewMode = false, bool clearLog = true, bool reloadMessages = true);
-    void appendMessageLog(MessageType type, QString* lpszUserId, QString* lpszUserName, XmlMessage* pMessage,
-        bool bReload = false, bool groupMessage = true, bool saveLog = true, User *localUser = nullptr, const QHash<QString, QString> &peersList = QHash<QString, QString> ());
+    void appendMessageLog(MessageType type, const QString &userId, const QString &userName, const XmlMessage &message,
+        bool reload = false, bool groupMessage = true, bool saveLog = true, User *localUser = nullptr, const QHash<QString, QString> &peersList = QHash<QString, QString> ());
     void updateFileMessage(FileMode mode, FileOp op, QString fileId);
-    void updateUserName(QString* lpszUserId, QString* lpszUserName);
-    void updateAvatar(QString* lpszUserId, QString* lpszFilePath);
+    void updateUserName(const QString &userId, const QString &userName);
+    void updateAvatar(const QString &userId, const QString &filePath);
     void reloadMessageLog();
     QString prepareMessageLogForSave(OutputFormat format);
     void setAutoScroll(bool enable);
     void abortPendingFileOperations();
-    static void saveMessageLog(const QString &user, const QString &userId, User *localUser, const QList<QString> &peersList, const QDateTime &date, SingleMessage &message, const QString &savePath);
+    static void saveMessageLog(const QString &userName, const QString &userId, User *localUser, const QList<QString> &peersList, const QDateTime &date, SingleMessage &message, const QString &savePath);
     void prependHtml(const QString &html);
 
-    static void decodeMessage(QString* lpszMessage, bool trimMessage, bool allowLinks, bool pathToLink, bool showSmileys, bool useDefaults = false);
+    static void decodeMessage(QString &message, bool trimMessage, bool allowLinks, bool pathToLink, bool showSmileys, bool useDefaults = false);
 
     QString localId;
     QString demoPeerId;
@@ -67,22 +67,11 @@ public:
     QHash<QString, QString> participantAvatars;
     QString lastId;
     bool hasData;
-    bool showSmiley;
-    bool autoFile;
-    bool messageTime;
-    bool messageDate;
-    QString themePath;
-    bool allowLinks;
-    bool pathToLink;
-    bool trimMessage;
-    bool overrideIncomingStyle;
-    QString defaultColor;
-    QFont defaultFont;
 
     bool _themePreviewMode = false;
 
 signals:
-    void messageSent(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
+    void messageSent(MessageType type, QString lpszUserId, XmlMessage pMessage);
 
 protected:
     void changeEvent(QEvent* event);
@@ -90,7 +79,7 @@ protected:
 private slots:
     void log_linkClicked(QUrl url);
     void log_contentsSizeChanged(QSize size);
-    void log_linkHovered(const QString& link, const QString& title, const QString& textContent);
+    void log_linkHovered(QString link, QString title, QString textContent);
     void showContextMenu(const QPoint& pos);
     void copyAction_triggered();
     void copyLinkAction_triggered();
@@ -99,22 +88,24 @@ private slots:
 private:
     void setUIText();
     void createContextMenu();
-    void appendMessageLog(QString* lpszHtml);
-    void removeMessageLog(QString divClass);
-    void appendBroadcast(QString* lpszUserId, QString* lpszUserName, QString* lpszMessage, QDateTime* pTime);
-    void appendMessage(QString* lpszUserId, QString* lpszUserName, QString* lpszMessage, QDateTime* pTime,
-        QFont* pFont, QColor* pColor);
-    void appendPublicMessage(QString* lpszUserId, QString* lpszUserName, QString* lpszMessage, QDateTime* pTime,
-        QFont* pFont, QColor* pColor);
-    void appendFileMessage(MessageType type, QString* lpszUserName, QString *lpszUserId, XmlMessage* pMessage, bool bReload = false);
-    QString getFontStyle(QFont* pFont, QColor* pColor, bool localUser = false);
+    void appendMessageLog(const QString &htmlString);
+    void removeMessageLog(const QString &divClass);
+    void appendBroadcast(const QString &userName, QString &message, const QDateTime &dateTime);
+    void appendInstantMessage(const QString &userId, const QString &userName, QString &message, const QDateTime &dateTime,
+                              const QFont &font, const QColor &color);
+    void appendMessage(const QString &userId, const QString &userName, QString &message, const QDateTime &dateTime,
+                       const QFont &font, const QColor &color);
+    void appendPublicMessage(const QString &userId, const QString &userName, QString &message, const QDateTime &dateTime,
+        const QFont &font, const QColor &color);
+    void appendFileMessage(MessageType type, const QString &userName, const QString &userId, XmlMessage &message, bool reload = false);
+    QString getFontStyle(const QFont &font, const QColor &color, bool localUser = false);
     QString getFileStatusMessage(FileMode mode, FileOp op);
     QString getChatStateMessage(ChatState chatState);
     QString getChatRoomMessage(GroupMsgOp op, bool groupMessage = true);
-    void fileOperation(QString fileId, QString action, QString fileType, QString senderId, FileMode mode = FM_Receive);
-    QString getTimeString(QDateTime* pTime);
+    void fileOperation(QString fileId, const QString &action, const QString &fileType, const QString &senderId, FileMode mode = FM_Receive);
+    QString getTimeString(const QDateTime &dateTime);
 
-    static void processMessageText(QString* lpszMessageText, bool showSmileys, bool useDefaults);
+    static void processMessageText(QString &messageText, bool showSmileys, bool useDefaults);
 
     const ChatThemeStruct &getTheme();
 

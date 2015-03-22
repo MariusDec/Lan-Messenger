@@ -59,14 +59,14 @@ public:
     explicit lmcChatRoomWindow(QWidget *parent = 0, bool isPublicChat = false);
     ~lmcChatRoomWindow();
 
-    void init(User* pLocalUser, bool connected, const QString &thread = QString::null);
+    void init(User* _localUser, bool connected, const QString &thread = QString::null);
     void show();
     void stop();
     void addUser(User* pUser);
     void updateUser(User* pUser);
-    void removeUser(QString* lpszUserId);
+    void removeUser(const QString &userId);
     void setHtml(const QString &html);
-    void receiveMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
+    void receiveMessage(MessageType type, const QString &userId, const XmlMessage &message);
     void connectionStateChanged(bool connected);
     void settingsChanged();
     void selectContacts(const std::vector<User *> selectedContacts);
@@ -84,110 +84,110 @@ public:
     }
 
 signals:
-    void messageSent(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
+    void messageSent(MessageType type, QString lpszUserId, XmlMessage pMessage);
     void chatStarting(QString lpszThreadId, XmlMessage message, QStringList contacts);
-    void contactsAdding(QStringList* excludeList);
+    void contactsAdding(QStringList excludeList);
     void showHistory(QString userId);
     void showTransfers(QString userId);
     void showTrayMessage(TrayMessageType type, QString szMessage, QString chatRoomId, QString szTitle, TrayMessageIcon icon);
-    void closed(QString* lpszThreadId);
+    void closed(QString chatRoomId);
 
 protected:
-    bool eventFilter(QObject* pObject, QEvent* pEvent);
-    void changeEvent(QEvent* pEvent);
+    bool eventFilter(QObject* object, QEvent* event);
+    void changeEvent(QEvent* event);
     void closeEvent(QCloseEvent* event);
-    void dragEnterEvent(QDragEnterEvent* pEvent);
-    void dropEvent(QDropEvent* pEvent);
+    void dragEnterEvent(QDragEnterEvent* event);
+    void dropEvent(QDropEvent* event);
+    void moveEvent(QMoveEvent *event);
 
 private slots:
     void userConversationAction_triggered();
     void userFileAction_triggered();
     void userFolderAction_triggered();
     void userInfoAction_triggered();
+    void buttonHistory_clicked();
+    void checkChatState();
+
+private:
     void buttonFont_clicked();
     void buttonFontColor_clicked();
     void buttonFile_clicked();
     void buttonFolder_clicked();
     void buttonSave_clicked();
     void buttonSendClipboard_clicked();
-    void buttonHistory_clicked();
     void buttonTransfers_clicked();
     void buttonAddUsers_clicked();
     void buttonLeaveChat_clicked();
     void buttonToggleSideBar_clicked();
     void smileyAction_triggered();
     void emojiAction_triggered();
-    void log_sendMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
-    void treeWidgetUserList_itemActivated(QTreeWidgetItem* pItem, int column);
-    void treeWidgetUserList_itemContextMenu(QTreeWidgetItem* pItem, QPoint& pos);
-    void checkChatState();
+    void log_sendMessage(MessageType type, QString userId, XmlMessage message);
+    void treeWidgetUserList_itemActivated(QTreeWidgetItem* item, int column);
+    void treeWidgetUserList_itemContextMenu(QTreeWidgetItem* item, QPoint pos);
+    void textChanged();
 
-private:
     void createUserMenu();
     void createSmileyMenu();
     void createEmojiMenu();
     void createToolBar();
     void setUIText();
     void sendMessage();
-//    void encodeMessage(QString* lpszMessage);
-    void appendMessageLog(MessageType type, QString* lpszUserId, QString* lpszUserName, XmlMessage* pMessage);
+    void appendMessageLog(MessageType type, const QString &userId, const QString &userName, const XmlMessage &message);
     void showStatus(int flag, bool isLocalUser);
     QString getWindowTitle();
     void setMessageFont(QFont& font);
-    void updateStatusImage(QTreeWidgetItem* pItem, QString* lpszStatus);
-    QTreeWidgetItem* getUserItem(QString* lpszUserId);
-    QTreeWidgetItem* getGroupItem(QString* lpszGroupId);
-    void setUserAvatar(QString* lpszUserId, QString* lpszFilePath = 0);
+    void updateStatusImage(QTreeWidgetItem* pItem, const QString &status);
+    QTreeWidgetItem* getUserItem(const QString &userId);
+    QTreeWidgetItem* getGroupItem(const QString &groupId);
+    void setUserAvatar(const QString &userId, const QString &filePath = QString::null);
     void sendFile(bool sendFolder = false);
     void sendObject(const QString &peerId, MessageType type, QString *lpszPath, const QString &roomId = QString::null);
-    void processFileOp(XmlMessage* pMessage);
+    void processFileOp(const XmlMessage &message);
     void setChatState(ChatState newChatState);
     void updateFileMessage(FileMode mode, FileOp op, QString fileId);
     void toggleSideBar(bool toggle = true, bool toggled = false);
     void setClibpoardIcon(QClipboard::Mode mode = QClipboard::Clipboard);
     void insertSmileyCode(const ImagesStruct &smiley);
+    void insertHtmlTag(const QString &beginTag, const QString &endTag);
     QFrame *createSeparator(QWidget *parent);
 
     const QClipboard *_clipboard = QApplication::clipboard();
 
-    QString _chatRoomId;
-    QString _originalChatRoomId;
+    QString                 _chatRoomId;
+    QString                 _originalChatRoomId;
 
-    QString localId;
-    QString localName;
+    QString                 _localId;
+    QString                 _localName;
     QHash<QString, QString> _peerNames;
-    QHash<QString, QString> peerIds;
-    User* pLocalUser;
-    QString lastSenderId;
-    QString _lastUserId;
+    QHash<QString, QString> _peerIds;
+    User*                   _localUser;
+    QString                 _lastSenderId;
+    QString                 _lastUserId;
+    bool                    _hasUnreadMessages = false;
 
 
     Ui::ChatRoomWindow ui;
-    lmcSettings* pSettings = nullptr;
-    lmcMessageLog* pMessageLog = nullptr;
-    QMenu* pUserMenu = nullptr;
-    QAction* userChatAction = nullptr;
-    QAction* userFileAction = nullptr;
-    QAction *userFolderAction = nullptr;
-    QAction* userInfoAction = nullptr;
+    lmcMessageLog* _messageLog = nullptr;
+    QMenu* _userMenu = nullptr;
+    QAction* _userChatAction = nullptr;
+    QAction* _userFileAction = nullptr;
+    QAction *_userFolderAction = nullptr;
+    QAction* _userInfoAction = nullptr;
     ThemedButton *_buttonSaveConversation = nullptr;
     ThemedButton *_buttonSendClipboard = nullptr;
     ThemedButton *_buttonHistory = nullptr;
     ThemedButton *_buttonTransfer = nullptr;
     ThemedButton *_buttonToggleSideBar = nullptr;
-    QMenu *pSmileyMenu = nullptr;
-    QMenu *pEmojiMenu = nullptr;
-    lmcImagePickerAction *pSmileyAction = nullptr;
-    lmcImagePickerAction *pEmojiAction = nullptr;
-    int nSmiley;
-    int nEmoji;
+    QMenu *_smileyMenu = nullptr;
+    QMenu *_emojiMenu = nullptr;
+    lmcImagePickerAction *_smileyAction = nullptr;
+    lmcImagePickerAction *_emojiAction = nullptr;
+    int nSmiley = -1;
+    int nEmoji = -1;
     bool bConnected;
     int infoFlag;
-    bool showSmiley;
-    bool sendKeyMod;
-    bool appendHistory;
-    lmcSoundPlayer* pSoundPlayer = nullptr;
-    QColor messageColor;
+    lmcSoundPlayer* _soundPlayer = nullptr;
+    QColor _messageColor;
     bool dataSaved;
     bool windowLoaded;
     ChatState chatState;
@@ -195,7 +195,6 @@ private:
     qint64 snapKeyStroke;
 
     bool _leaveChatTriggered = false;
-
     bool _isPublicChat = false;
 };
 

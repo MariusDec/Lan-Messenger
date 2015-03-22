@@ -24,7 +24,7 @@
 
 #include "application.h"
 #include "lmc.h"
-#include "stdlocation.h"
+#include "globals.h"
 #include "loggermanager.h"
 
 #include <QResource>
@@ -73,7 +73,6 @@ int main(int argc, char *argv[]) {
 #else
     QApplication::setLibraryPaths(QStringList(QApplication::applicationDirPath()));
 #endif
-    QResource::registerResource(StdLocation::resourceFile());
 
     QApplication::setApplicationName(IDA_PRODUCT);
     QApplication::setOrganizationName(IDA_COMPANY);
@@ -81,6 +80,8 @@ int main(int argc, char *argv[]) {
     QApplication::setWindowIcon(QIcon(ThemeManager::getInstance().getAppIcon(QStringLiteral("messenger"))));
 
     LoggerManager::getInstance ().writeSimpleMessage (QString("============= Application started - %1 =================\n").arg (QDateTime::currentDateTime ().toString ()));
+
+    Globals::getInstance().loadSettings();
 
     QString messageList;
     QStringList arguments = QApplication::arguments();

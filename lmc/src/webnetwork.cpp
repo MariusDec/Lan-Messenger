@@ -41,11 +41,9 @@ void lmcWebNetwork::start() {}
 
 void lmcWebNetwork::stop() {}
 
-void lmcWebNetwork::sendMessage(QString *lpszUrl, QString *lpszData) {
-  Q_UNUSED(lpszData);
-
+void lmcWebNetwork::sendMessage(const QString &url) {
   if (!active)
-    sendMessage(QUrl(*lpszUrl));
+    sendMessageInternal(QUrl(url));
   else
     raiseError(ET_Busy);
 }
@@ -68,12 +66,11 @@ void lmcWebNetwork::replyFinished(QNetworkReply *reply) {
       reply->attribute(QNetworkRequest::RedirectionTargetAttribute);
   if (!redirect.isNull()) {
     // send a new request to the redirected url
-    sendMessage(redirect.toUrl());
+    sendMessageInternal(redirect.toUrl());
   } else {
     // no redirection, get the data from the reply
-    QByteArray data = reply->readAll();
-    QString szMessage = QString(data.constData());
-    emit messageReceived(&szMessage);
+    QString message (reply->readAll());
+    emit messageReceived(message);
     reply->close();
   }
 
@@ -81,7 +78,7 @@ void lmcWebNetwork::replyFinished(QNetworkReply *reply) {
   active = false;
 }
 
-void lmcWebNetwork::sendMessage(const QUrl &url) {
+void lmcWebNetwork::sendMessageInternal(const QUrl &url) {
   if (url.isEmpty()) {
     raiseError(ET_Error);
     return;
@@ -90,8 +87,8 @@ void lmcWebNetwork::sendMessage(const QUrl &url) {
   active = true;
 
   QNetworkReply *reply = manager->get(QNetworkRequest(url));
-  connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this,
-          SLOT(slotError(QNetworkReply::NetworkError)));
+  connect(reply, static_cast<void (QNetworkReply::*)(QNetworkReply::NetworkError)> (&QNetworkReply::error), this,
+          &lmcWebNetwork::slotError);
 }
 
 void lmcWebNetwork::raiseError(ErrorType type) {
@@ -99,6 +96,5 @@ void lmcWebNetwork::raiseError(ErrorType type) {
   xmlMessage.addHeader(XN_TYPE, MessageTypeNames[MT_WebFailed]);
   xmlMessage.addData(XN_ERROR, ErrorTypeNames[type]);
 
-  QString szMessage = xmlMessage.toString();
-  emit messageReceived(&szMessage);
+  emit messageReceived(xmlMessage.toString());
 }

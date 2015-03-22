@@ -23,59 +23,62 @@
 
 #include "lmc.h"
 #include "loggermanager.h"
-#include "broadcastdisplaywindow.h"
+#include "globals.h"
 
 #include <vector>
 #include <QMessageBox>
 #include <QTranslator>
 
 lmcCore::lmcCore() {
-  pMessaging = new lmcMessaging();
-  connect(pMessaging, &lmcMessaging::messageReceived, this,
+  _messaging = new lmcMessaging();
+  connect(_messaging, &lmcMessaging::messageReceived, this,
           &lmcCore::receiveMessage);
-  connect(pMessaging, &lmcMessaging::connectionStateChanged, this,
+  connect(_messaging, &lmcMessaging::connectionStateChanged, this,
           &lmcCore::connectionStateChanged);
 
-  pMainWindow = new lmcMainWindow();
-  connect(pMainWindow, &lmcMainWindow::appExiting, this, &lmcCore::exitApp);
-  connect(pMainWindow, &lmcMainWindow::chatRoomStarting, this,
+  _mainWindow = new lmcMainWindow();
+  connect(_mainWindow, &lmcMainWindow::appExiting, this, &lmcCore::exitApp);
+  connect(_mainWindow, &lmcMainWindow::chatRoomStarting, this,
           &lmcCore::startChat);
-  connect(pMainWindow, &lmcMainWindow::messageSent, this,
+  connect(_mainWindow, &lmcMainWindow::messageSent, this,
           &lmcCore::sendMessage);
-  connect(pMainWindow, &lmcMainWindow::showTransfers, this,
+  connect(_mainWindow, &lmcMainWindow::showTransfers, this,
           &lmcCore::showTransfers);
-  connect(pMainWindow, &lmcMainWindow::showMessage, this, &lmcCore::showMessage);
-  connect(pMainWindow, &lmcMainWindow::showHistory, this,
+  connect(_mainWindow, &lmcMainWindow::showMessage, this, &lmcCore::showMessage);
+  connect(_mainWindow, &lmcMainWindow::showHistory, this,
           &lmcCore::showHistory);
-  connect(pMainWindow, &lmcMainWindow::showSettings, this,
+  connect(_mainWindow, &lmcMainWindow::showSettings, this,
           &lmcCore::showSettings);
-  connect(pMainWindow, &lmcMainWindow::showHelp, this, &lmcCore::showHelp);
-  connect(pMainWindow, &lmcMainWindow::showUpdate, this, &lmcCore::showUpdate);
-  connect(pMainWindow, &lmcMainWindow::showAbout, this, &lmcCore::showAbout);
-  connect(pMainWindow, &lmcMainWindow::showBroadcast, this,
+  connect(_mainWindow, &lmcMainWindow::showHelp, this, &lmcCore::showHelp);
+  connect(_mainWindow, &lmcMainWindow::showUpdate, this, &lmcCore::showUpdate);
+  connect(_mainWindow, &lmcMainWindow::showAbout, this, &lmcCore::showAbout);
+  connect(_mainWindow, &lmcMainWindow::showBroadcast, this,
           &lmcCore::showBroadcast);
-  connect(pMainWindow, &lmcMainWindow::showPublicChat, this,
+  connect(_mainWindow, &lmcMainWindow::showPublicChat, this,
           &lmcCore::showPublicChat);
-  connect(pMainWindow, &lmcMainWindow::groupUpdated, this,
+  connect(_mainWindow, &lmcMainWindow::groupUpdated, this,
           &lmcCore::updateGroup);
+  connect(_mainWindow, &lmcMainWindow::sendInstantMessage, this, &lmcCore::showInstantMessage);
 
-  pPublicChatWindow = new lmcChatRoomWindow(0, true);
-  connect(pPublicChatWindow, &lmcChatRoomWindow::messageSent, this,
+  _publicChatWindow = new lmcChatRoomWindow(0, true);
+  connect(_publicChatWindow, &lmcChatRoomWindow::messageSent, this,
           &lmcCore::sendMessage);
-  connect(pPublicChatWindow, &lmcChatRoomWindow::chatStarting, this,
+  connect(_publicChatWindow, &lmcChatRoomWindow::chatStarting, this,
           &lmcCore::startChat);
+  connect(_publicChatWindow, &lmcChatRoomWindow::showTrayMessage,
+          this, &lmcCore::showTrayMessage);
 
-  chatRoomWindows.clear();
-  pTransferWindow = NULL;
-  pHistoryWindow = NULL;
-  pSettingsDialog = NULL;
-  pUserInfoWindow = NULL;
-  pHelpWindow = NULL;
-  pUpdateWindow = NULL;
-  pUserSelectDialog = NULL;
-  pAboutDialog = NULL;
-  pBroadcastWindow = NULL;
-  pTimer = NULL;
+  _chatRoomWindows.clear();
+  _transferWindow = NULL;
+  _historyWindow = NULL;
+  _settingsDialog = NULL;
+  _userInfoWindow = NULL;
+  _helpWindow = NULL;
+  _updateWindow = NULL;
+  _userSelectDialog = NULL;
+  _aboutDialog = NULL;
+  _broadcastWindow = nullptr;
+  _timer.setParent(this);
 }
 
 lmcCore::~lmcCore() {}
@@ -91,23 +94,22 @@ void lmcCore::init(const QString &szCommandArgs) {
   //	remove duplicates
   arguments = arguments.toSet().toList();
 
-  pInitParams = new XmlMessage();
+  _initParams.clear();
   if (arguments.contains("/silent", Qt::CaseInsensitive))
-    pInitParams->addData(XN_SILENTMODE, LMC_TRUE);
+    _initParams.addData(XN_SILENTMODE, LMC_TRUE);
   if (arguments.contains("/trace", Qt::CaseInsensitive)) {
-    pInitParams->addData(XN_TRACEMODE, LMC_TRUE);
-    pInitParams->addData(XN_LOGFILE, StdLocation::freeLogFile());
+    _initParams.addData(XN_TRACEMODE, LMC_TRUE);
   }
   for (int index = 0; index < arguments.count(); index++) {
     if (arguments.at(index).startsWith("/port=", Qt::CaseInsensitive)) {
       QString port = arguments.at(index).mid(QString("/port=").length());
-      pInitParams->addData(XN_PORT, port);
+      _initParams.addData(XN_PORT, port);
       continue;
     }
     if (arguments.at(index).startsWith("/config=", Qt::CaseInsensitive)) {
       QString configFile =
           arguments.at(index).mid(QString("/config=").length());
-      pInitParams->addData(XN_CONFIG, configFile);
+      _initParams.addData(XN_CONFIG, configFile);
       continue;
     }
   }
@@ -118,10 +120,10 @@ void lmcCore::init(const QString &szCommandArgs) {
 
   LoggerManager::getInstance().writeInfo(QStringLiteral("lmcCore.init -|- Settings loaded"));
 
-  pMessaging->init(pInitParams);
-  pMainWindow->init(pMessaging->localUser, &pMessaging->groupList,
-                    pMessaging->isConnected());
-  pPublicChatWindow->init(pMessaging->localUser, pMessaging->isConnected());
+  _messaging->init(_initParams);
+  _mainWindow->init(_messaging->localUser, _messaging->groupList,
+                    _messaging->isConnected());
+  _publicChatWindow->init(_messaging->localUser, _messaging->isConnected());
 
   saveUnsavedChatLog();
 
@@ -132,9 +134,9 @@ bool lmcCore::start() {
   LoggerManager::getInstance().writeInfo(
       QStringLiteral("lmcCore.start started"));
 
-  pMessaging->start();
+  _messaging->start();
 
-  if (pMessaging->isConnected() && !pMessaging->canReceive()) {
+  if (_messaging->isConnected() && !_messaging->canReceive()) {
     showPortConflictMessage();
     //	stop the application
     stop();
@@ -146,23 +148,18 @@ bool lmcCore::start() {
     return false;
   }
 
-  pMainWindow->start();
+  _mainWindow->start();
 
-  pTimer = new QTimer(this);
-  connect(pTimer, SIGNAL(timeout()), this, SLOT(timer_timeout()));
-  //	Set the timer to trigger 10 seconds after the application starts. After
-  // the
+  connect(&_timer, SIGNAL(timeout()), this, SLOT(timer_timeout()));
+  //	Set the timer to trigger 10 seconds after the application starts. After the
   //	first trigger, the timeout period will be decided by user settings.
-  adaptiveRefresh = false;
-  pTimer->start(10000);
-  bool autoStart =
-      pSettings->value(IDS_AUTOSTART, IDS_AUTOSTART_DEFAULT_VAL).toBool();
-  lmcSettings::setAutoStart(autoStart);
-
-  pMainWindow->restore();
+  _adaptiveRefresh = false;
+  _timer.start(10000);
+  lmcSettings::setAutoStart(Globals::getInstance().autoStart());
+  if (Globals::getInstance().autoShow())
+      _mainWindow->restore();
 
   LoggerManager::getInstance().writeInfo(QStringLiteral("lmcCore.start ended"));
-
   return true;
 }
 
@@ -171,80 +168,63 @@ void lmcCore::loadSettings() {
   LoggerManager::getInstance().writeInfo(
       QStringLiteral("lmcCore.loadSettings started"));
 
-  pSettings = new lmcSettings();
-  bool silent = Helper::stringToBool(pInitParams->data(XN_SILENTMODE));
-  if (pInitParams->dataExists(XN_CONFIG)) {
-    QString configFile = pInitParams->data(XN_CONFIG);
-    if (!pSettings->loadFromConfig(configFile) && !silent) {
+  bool silent = Helper::stringToBool(_initParams.data(XN_SILENTMODE));
+  if (_initParams.dataExists(XN_CONFIG)) {
+    QString configFile = _initParams.data(XN_CONFIG);
+    if (!Globals::getInstance().loadSettingsFromConfig(configFile) && !silent) {
       QString message = tr("Preferences could not be imported from '%1'.\n\n"
                            "File may not exist, or may not be compatible with "
                            "this version of %2.");
-      QMessageBox::warning(NULL, lmcStrings::appName(),
+      QMessageBox::warning(0, lmcStrings::appName(),
                            message.arg(configFile, lmcStrings::appName()));
     }
   }
-  lang = pSettings->value(IDS_LANGUAGE, IDS_LANGUAGE_DEFAULT_VAL).toString();
-  Application::setLanguage(lang);
+  _language = Globals::getInstance().language();
+  Application::setLanguage(_language);
   Application::setLayoutDirection(
       tr("LAYOUT_DIRECTION") == RTL_LAYOUT ? Qt::RightToLeft : Qt::LeftToRight);
-  messagePop = pSettings->value(IDS_MESSAGEPOP, IDS_MESSAGEPOP_VAL).toBool();
-  pubMessagePop =
-      pSettings->value(IDS_PUBMESSAGEPOP, IDS_PUBMESSAGEPOP_VAL).toBool();
-  refreshTime =
-      pSettings->value(IDS_REFRESHTIME, IDS_REFRESHTIME_VAL).toInt() * 1000;
 
-  QString chatThemeName = pSettings->value(IDS_THEME, IDS_THEME_VAL).toString();
-  QString appThemeName =
-      pSettings->value(IDS_APPTHEME, IDS_APPTHEME_VAL).toString();
-  QString buttonThemeName =
-      pSettings->value(IDS_BUTTONTHEME, IDS_BUTTONTHEME_VAL).toString();
-  QString appIconThemeName =
-      pSettings->value(IDS_APPICONTHEME, IDS_APPICONTHEME_VAL).toString();
-
-  ThemeManager::getInstance().changeChatTheme(chatThemeName);
-  ThemeManager::getInstance().changeTheme(appThemeName, buttonThemeName);
-  ThemeManager::getInstance().setIconTheme(appIconThemeName);
+  ThemeManager::getInstance().changeChatTheme(Globals::getInstance().chatTheme());
+  ThemeManager::getInstance().changeTheme(Globals::getInstance().applicationTheme(), Globals::getInstance().buttonsTheme());
+  ThemeManager::getInstance().setIconTheme(Globals::getInstance().iconTheme());
 
   LoggerManager::getInstance().writeInfo(
       QStringLiteral("lmcCore.loadSettings ended"));
 }
 
 void lmcCore::settingsChanged() {
-  pMessaging->settingsChanged();
-  pMainWindow->settingsChanged();
-  if (pPublicChatWindow)
-    pPublicChatWindow->settingsChanged();
-  for (lmcChatRoomWindow *chatRoomWindow : chatRoomWindows)
-    chatRoomWindow->settingsChanged();
-  if (pTransferWindow)
-    pTransferWindow->settingsChanged();
-  if (pUserInfoWindow)
-    pUserInfoWindow->settingsChanged();
-  if (pHistoryWindow)
-    pHistoryWindow->settingsChanged();
-  if (pSettingsDialog)
-    pSettingsDialog->settingsChanged();
-  if (pHelpWindow)
-    pHelpWindow->settingsChanged();
-  if (pAboutDialog)
-    pAboutDialog->settingsChanged();
-  if (pBroadcastWindow)
-    pBroadcastWindow->settingsChanged();
+    // TODO only call Globals::settingsChanged
 
-  messagePop = pSettings->value(IDS_MESSAGEPOP, IDS_MESSAGEPOP_VAL).toBool();
-  pubMessagePop =
-      pSettings->value(IDS_PUBMESSAGEPOP, IDS_PUBMESSAGEPOP_VAL).toBool();
-  refreshTime =
-      pSettings->value(IDS_REFRESHTIME, IDS_REFRESHTIME_VAL).toInt() * 1000;
-  pTimer->setInterval(refreshTime);
-  bool autoStart =
-      pSettings->value(IDS_AUTOSTART, IDS_AUTOSTART_DEFAULT_VAL).toBool();
-  lmcSettings::setAutoStart(autoStart);
-  QString appLang =
-      pSettings->value(IDS_LANGUAGE, IDS_LANGUAGE_DEFAULT_VAL).toString();
-  if (appLang.compare(lang) != 0) {
-    lang = appLang;
-    Application::setLanguage(lang);
+    Globals::getInstance().loadSettings();
+  _messaging->settingsChanged();
+  _mainWindow->settingsChanged();
+  if (_publicChatWindow)
+    _publicChatWindow->settingsChanged();
+  for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows)
+    chatRoomWindow->settingsChanged();
+  if (_transferWindow)
+    _transferWindow->settingsChanged();
+  if (_userInfoWindow)
+    _userInfoWindow->settingsChanged();
+  if (_historyWindow)
+    _historyWindow->settingsChanged();
+  if (_settingsDialog)
+    _settingsDialog->settingsChanged();
+  if (_helpWindow)
+    _helpWindow->settingsChanged();
+  if (_aboutDialog)
+    _aboutDialog->settingsChanged();
+  if (_broadcastWindow)
+    _broadcastWindow->settingsChanged();
+  for (InstantMessageWindow *window : _instantMessageWindows)
+      window->settingsChanged();
+
+  _timer.setInterval(Globals::getInstance().refreshInterval());
+  lmcSettings::setAutoStart(Globals::getInstance().autoStart());
+  QString appLang = Globals::getInstance().language();
+  if (appLang.compare(_language) != 0) {
+    _language = appLang;
+    Application::setLanguage(_language);
     Application::setLayoutDirection(tr("LAYOUT_DIRECTION") == RTL_LAYOUT
                                         ? Qt::RightToLeft
                                         : Qt::LeftToRight);
@@ -255,49 +235,49 @@ void lmcCore::settingsChanged() {
 void lmcCore::stop() {
     LoggerManager::getInstance().writeInfo("lmcCore.stop started");
 
-    for (lmcChatRoomWindow *chatRoomWindow : chatRoomWindows) {
+    for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows) {
         chatRoomWindow->stop();
         chatRoomWindow->deleteLater();
     }
 
-  if (pTransferWindow) {
-    pTransferWindow->stop();
-    pTransferWindow->deleteLater();
+  if (_transferWindow) {
+    _transferWindow->stop();
+    _transferWindow->deleteLater();
   }
 
-  if (pHistoryWindow) {
-    pHistoryWindow->stop();
-    pHistoryWindow->deleteLater();
+  if (_historyWindow) {
+    _historyWindow->stop();
+    _historyWindow->deleteLater();
   }
 
-  if (pUserInfoWindow)
-    pUserInfoWindow->deleteLater();
+  if (_userInfoWindow)
+    _userInfoWindow->deleteLater();
 
-  if (pHelpWindow) {
-    pHelpWindow->stop();
-    pHelpWindow->deleteLater();
+  if (_helpWindow) {
+    _helpWindow->stop();
+    _helpWindow->deleteLater();
   }
 
-  if (pUpdateWindow) {
-    pUpdateWindow->stop();
-    pUpdateWindow->deleteLater();
+  if (_updateWindow) {
+    _updateWindow->stop();
+    _updateWindow->deleteLater();
   }
 
-  if (pBroadcastWindow) {
-    pBroadcastWindow->stop();
-    pBroadcastWindow->deleteLater();
+  if (_broadcastWindow) {
+    _broadcastWindow->stop();
+    _broadcastWindow->deleteLater();
   }
 
-  if (pPublicChatWindow) {
-    pPublicChatWindow->stop();
-    pPublicChatWindow->deleteLater();
+  if (_publicChatWindow) {
+    _publicChatWindow->stop();
+    _publicChatWindow->deleteLater();
   }
 
-  if (pTimer)
-    pTimer->stop();
+  if (_timer.isActive())
+    _timer.stop();
 
-  pMessaging->stop();
-  pMainWindow->stop();
+  _messaging->stop();
+  _mainWindow->stop();
 
   LoggerManager::getInstance().writeInfo("lmcCore.stop ended");
 }
@@ -311,62 +291,62 @@ void lmcCore::exitApp() { saveUnsavedChatLog(); qApp->quit(); }
 //	quits either by user interaction or from operating system signal.
 void lmcCore::aboutToExit() {
   stop();
-  pSettings->setValue(IDS_VERSION, IDA_VERSION);
+  Globals::getInstance().setVersion(IDA_VERSION);
 
   LoggerManager::getInstance().writeInfo(QStringLiteral("Application exit"));
 
-  pSettings->sync();
+  Globals::getInstance().syncSettings();
 }
 
 void lmcCore::timer_timeout() {
   //	Refresh the contacts list whenever the timer triggers
-  pMessaging->update();
-  if (adaptiveRefresh) {
+  _messaging->update();
+  if (_adaptiveRefresh) {
     //	The refresh interval is doubled until the refresh time defined by user
     // is reached.
     //	Then keep refreshing at that interval.
-    int nextInterval = pTimer->interval() * 2;
-    int maxInterval =
-        pSettings->value(IDS_REFRESHTIME, IDS_REFRESHTIME_VAL).toInt() * 1000;
+    int nextInterval = _timer.interval() * 2;
+    int maxInterval = Globals::getInstance().refreshInterval() * 1000;
     int interval = qMin(nextInterval, maxInterval);
-    adaptiveRefresh = (nextInterval >= maxInterval) ? false : true;
-    pTimer->setInterval(interval);
-  } else if (refreshTime > pTimer->interval()) {
-    pTimer->setInterval(refreshTime);
+    _adaptiveRefresh = (nextInterval >= maxInterval) ? false : true;
+    _timer.setInterval(interval);
+  } else if (Globals::getInstance().refreshInterval() > _timer.interval()) {
+    _timer.setInterval(Globals::getInstance().refreshInterval());
   }
 }
 
 void lmcCore::startChat(QString roomId, XmlMessage message, QStringList contacts) {
     lmcChatRoomWindow *chatWindow = nullptr;
-    bool alert = pSettings->value(IDS_MESSAGEPOP, IDS_MESSAGEPOP_VAL).toBool();
+    bool alert = Globals::getInstance().popOnNewMessage();
     if (contacts.size() == 1) {
-        for (lmcChatRoomWindow *chatRoomWindow : chatRoomWindows)
+        for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows)
             if (chatRoomWindow->getUsers().size() == 1 and chatRoomWindow->getUsers().contains(contacts[0]))
                 chatWindow = chatRoomWindow;
     }
 
     if (!chatWindow) {
         createChatRoomWindow(roomId);
-        chatWindow = chatRoomWindows.last();
+        chatWindow = _chatRoomWindows.last();
         alert = true;
     }
 
     showChatRoomWindow(chatWindow, true, alert, true, contacts);
 
-    if (chatWindow->getUsers().size() == 1 && pSettings->value(IDS_APPENDHISTORY, IDS_APPENDHISTORY_VAL).toBool()) {
+    if (chatWindow->getUsers().size() == 1 && Globals::getInstance().appendHistory()) {
         chatWindow->setHtml(History::getUserMessageHistory(chatWindow->getUsers().keys().first(), QDate::currentDate()));
     }
 
-    if (message.isValid() and (message.dataExists(XN_MESSAGE) or message.dataExists(XN_BROADCAST))
-            and contacts.size() == 1) { // used only for broadcast for now
-        chatWindow->receiveMessage(MT_Broadcast, &contacts.first(), &message);
+    if (message.isValid() and message.dataExists(XN_MESSAGE)
+            and contacts.size() == 1) { // used only for broadcast for now - should be used for MT_InstantMessage as well
+        chatWindow->receiveMessage(MT_Broadcast, contacts.first(), message);
     }
 }
 
-void lmcCore::sendMessage(MessageType type, QString *lpszUserId,
-                          XmlMessage *pMessage) {
+void lmcCore::sendMessage(MessageType type, QString lpszUserId,
+                          XmlMessage pMessage) {
   switch (type) {
   case MT_Broadcast:
+  case MT_InstantMessage:
   case MT_UserName:
   case MT_Message:
   case MT_PublicMessage:
@@ -379,23 +359,23 @@ void lmcCore::sendMessage(MessageType type, QString *lpszUserId,
   case MT_Folder:
   case MT_Avatar:
   case MT_UserList:
-    pMessaging->sendMessage(type, lpszUserId, pMessage);
+    _messaging->sendMessage(type, lpszUserId, pMessage);
     break;
   case MT_Status:
   case MT_Note:
-    pMessaging->sendMessage(type, lpszUserId, pMessage);
+    _messaging->sendMessage(type, lpszUserId, pMessage);
     break;
   case MT_Refresh:
-    pMessaging->update();
+    _messaging->update();
     break;
   default:
     break;
   }
 }
 
-void lmcCore::receiveMessage(MessageType type, QString *lpszUserId,
-                             XmlMessage *pMessage) {
-  processMessage(type, lpszUserId, pMessage);
+void lmcCore::receiveMessage(MessageType type, QString userId,
+                             XmlMessage message) {
+  processMessage(type, userId, message);
 }
 
 bool lmcCore::receiveAppMessage(const QString &szMessage) {
@@ -406,7 +386,7 @@ bool lmcCore::receiveAppMessage(const QString &szMessage) {
   bool doNotExit = true;
 
   if (szMessage.isEmpty()) {
-    pMainWindow->restore();
+    _mainWindow->restore();
     return doNotExit;
   }
 
@@ -416,7 +396,7 @@ bool lmcCore::receiveAppMessage(const QString &szMessage) {
 
   if (messageList.contains("/new", Qt::CaseInsensitive)) {
     if (messageList.contains("/loopback", Qt::CaseInsensitive))
-      pMessaging->setLoopback(true);
+      _messaging->setLoopback(true);
   }
   if (messageList.contains("/nohistory", Qt::CaseInsensitive)) {
       QDir dir(History::historyFilesDir());
@@ -425,26 +405,24 @@ bool lmcCore::receiveAppMessage(const QString &szMessage) {
       foreach(QString dirFile, dir.entryList())
           dir.remove(dirFile);
 
-    if (pHistoryWindow)
-      pHistoryWindow->updateList();
+    if (_historyWindow)
+      _historyWindow->updateList();
   }
-  if (messageList.contains("/nofilehistory", Qt::CaseInsensitive)) {
-    // TODO maybe it shouldn't delete the files...
-    QFile::remove(StdLocation::transferHistoryFilePath());
-    if (pTransferWindow)
-      pTransferWindow->updateList();
-  }
+//  if (messageList.contains("/nofilehistory", Qt::CaseInsensitive)) {
+//    // TODO maybe it shouldn't delete the files...
+//    QFile::remove(StdLocation::defaultTransferHistorySavePath());
+//    if (pTransferWindow)
+//      pTransferWindow->updateList();
+//  }
   if (messageList.contains("/noconfig", Qt::CaseInsensitive)) {
     // TODO this shouldn't remove the avatar file...
     // QFile::remove(StdLocation::avatarFile());
    // QFile::remove(pSettings->fileName());
-    pSettings->sync();
+    Globals::getInstance().syncSettings();
     settingsChanged();
   }
   if (messageList.contains("/sync", Qt::CaseInsensitive)) {
-    bool autoStart =
-        pSettings->value(IDS_AUTOSTART, IDS_AUTOSTART_DEFAULT_VAL).toBool();
-    lmcSettings::setAutoStart(autoStart);
+    lmcSettings::setAutoStart(Globals::getInstance().autoStart());
   }
   if (messageList.contains("/unsync", Qt::CaseInsensitive)) {
     lmcSettings::setAutoStart(false);
@@ -465,20 +443,24 @@ bool lmcCore::receiveAppMessage(const QString &szMessage) {
 }
 
 void lmcCore::connectionStateChanged() {
-  bool connected = pMessaging->isConnected();
+  bool connected = _messaging->isConnected();
+  Globals::getInstance().setIsConnected(connected);
 
-  pMainWindow->connectionStateChanged(connected);
-  if (pPublicChatWindow)
-    pPublicChatWindow->connectionStateChanged(connected);
-  for (lmcChatRoomWindow *chatRoomWindow : chatRoomWindows)
+  _mainWindow->connectionStateChanged(connected);
+  if (_publicChatWindow)
+    _publicChatWindow->connectionStateChanged(connected);
+  for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows)
     chatRoomWindow->connectionStateChanged(connected);
-  if (pBroadcastWindow)
-    pBroadcastWindow->connectionStateChanged(connected);
+  if (_broadcastWindow)
+    _broadcastWindow->connectionStateChanged(connected);
 
-  if (pMessaging->isConnected() && !pMessaging->canReceive()) {
+  if (_messaging->isConnected() && !_messaging->canReceive()) {
     showPortConflictMessage();
     exitApp();
   }
+
+  for (InstantMessageWindow *window : _instantMessageWindows)
+      window->connectionChanged(connected);
 }
 
 void lmcCore::showTransfers(QString userId) {
@@ -487,105 +469,106 @@ void lmcCore::showTransfers(QString userId) {
 }
 
 void lmcCore::showMessage(QString chatRoomId) {
-    if (!chatRoomId.isEmpty()) {
-        for (lmcChatRoomWindow *chatRoomWindow : chatRoomWindows)
-            if (chatRoomWindow->getRoomId().compare(chatRoomId) == 0)
+    if (!_publicChatWindow.data()->getRoomId().compare(chatRoomId))
+        showPublicChat();
+    else if (!chatRoomId.isEmpty()) {
+        for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows)
+            if (!chatRoomWindow->getRoomId().compare(chatRoomId))
                 showChatRoomWindow(chatRoomWindow, true, true);
     }
 }
 
 void lmcCore::showHistory(QString userId) {
-  if (!pHistoryWindow) {
-    pHistoryWindow = new lmcHistoryWindow();
-    pHistoryWindow->init();
+  if (!_historyWindow) {
+    _historyWindow = new lmcHistoryWindow();
+    _historyWindow->init();
   }
 
   //	if window is minimized it, restore it to previous state
-  if (pHistoryWindow->windowState().testFlag(Qt::WindowMinimized))
-    pHistoryWindow->setWindowState(pHistoryWindow->windowState() &
+  if (_historyWindow->windowState().testFlag(Qt::WindowMinimized))
+    _historyWindow->setWindowState(_historyWindow->windowState() &
                                    ~Qt::WindowMinimized);
-  pHistoryWindow->setWindowState(pHistoryWindow->windowState() |
+  _historyWindow->setWindowState(_historyWindow->windowState() |
                                  Qt::WindowActive);
-  pHistoryWindow->raise(); // make window the top most window of the application
-  pHistoryWindow->show();
-  pHistoryWindow->activateWindow(); // bring window to foreground
-  pHistoryWindow->setUserFilter(userId);
+  _historyWindow->raise(); // make window the top most window of the application
+  _historyWindow->show();
+  _historyWindow->activateWindow(); // bring window to foreground
+  _historyWindow->setUserFilter(userId);
 }
 
 void lmcCore::showSettings() {
-  if (!pSettingsDialog) {
-    pSettingsDialog = new lmcSettingsDialog();
-    connect(pSettingsDialog, SIGNAL(historyCleared()), this,
-            SLOT(historyCleared()));
-    connect(pSettingsDialog, SIGNAL(fileHistoryCleared()), this,
-            SLOT(fileHistoryCleared()));
-    pSettingsDialog->init();
+  if (!_settingsDialog) {
+    _settingsDialog = new lmcSettingsDialog();
+    connect(_settingsDialog, &lmcSettingsDialog::historyCleared, this,
+            &lmcCore::historyCleared);
+    connect(_settingsDialog, &lmcSettingsDialog::fileHistoryCleared, this,
+            &lmcCore::fileHistoryCleared);
   }
 
-  if (pSettingsDialog->exec())
+  if (_settingsDialog->exec())
     settingsChanged();
 }
 
-void lmcCore::showHelp(QRect *pRect) {
-  if (!pHelpWindow) {
-    pHelpWindow = new lmcHelpWindow(pRect);
-    pHelpWindow->init();
+void lmcCore::showHelp(QRect rect) {
+  if (!_helpWindow) {
+    _helpWindow = new lmcHelpWindow(rect);
+    _helpWindow->init();
   }
 
   //	if window is minimized it, restore it to previous state
-  if (pHelpWindow->windowState().testFlag(Qt::WindowMinimized))
-    pHelpWindow->setWindowState(pHelpWindow->windowState() &
+  if (_helpWindow->windowState().testFlag(Qt::WindowMinimized))
+    _helpWindow->setWindowState(_helpWindow->windowState() &
                                 ~Qt::WindowMinimized);
-  pHelpWindow->setWindowState(pHelpWindow->windowState() | Qt::WindowActive);
-  pHelpWindow->raise(); // make window the top most window of the application
-  pHelpWindow->show();
-  pHelpWindow->activateWindow(); // bring window to foreground
+  _helpWindow->setWindowState(_helpWindow->windowState() | Qt::WindowActive);
+  _helpWindow->raise(); // make window the top most window of the application
+  _helpWindow->show();
+  _helpWindow->activateWindow(); // bring window to foreground
 }
 
-void lmcCore::showUpdate(QRect *pRect) {
-  if (!pUpdateWindow) {
-    pUpdateWindow = new lmcUpdateWindow(pRect);
-    connect(pUpdateWindow,
+void lmcCore::showUpdate(QRect rect) {
+  if (!_updateWindow) {
+    _updateWindow = new lmcUpdateWindow(rect);
+    connect(_updateWindow,
             &lmcUpdateWindow::messageSent, this, &lmcCore::sendMessage);
-    pUpdateWindow->init();
+    _updateWindow->init();
   }
 
   //	if window is minimized it, restore it to previous state
-  if (pUpdateWindow->windowState().testFlag(Qt::WindowMinimized))
-    pUpdateWindow->setWindowState(pUpdateWindow->windowState() &
+  if (_updateWindow->windowState().testFlag(Qt::WindowMinimized))
+    _updateWindow->setWindowState(_updateWindow->windowState() &
                                   ~Qt::WindowMinimized);
-  pUpdateWindow->setWindowState(pUpdateWindow->windowState() |
+  _updateWindow->setWindowState(_updateWindow->windowState() |
                                 Qt::WindowActive);
-  pUpdateWindow->raise(); // make window the top most window of the application
-  pUpdateWindow->show();
-  pUpdateWindow->activateWindow(); // bring window to foreground
+  _updateWindow->raise(); // make window the top most window of the application
+  _updateWindow->show();
+  _updateWindow->activateWindow(); // bring window to foreground
 }
 
 void lmcCore::showAbout() {
-  if (!pAboutDialog) {
-    pAboutDialog = new lmcAboutDialog(pMainWindow);
-    pAboutDialog->init();
+  if (!_aboutDialog) {
+    _aboutDialog = new lmcAboutDialog(_mainWindow);
+    _aboutDialog->init();
   }
 
-  pAboutDialog->exec();
+  _aboutDialog->exec();
 }
 
 void lmcCore::showBroadcast() {
-  if (!pBroadcastWindow) {
-    pBroadcastWindow = new lmcBroadcastWindow(pMessaging->localUser);
-    connect(pBroadcastWindow,
+  if (!_broadcastWindow) {
+    _broadcastWindow = new lmcBroadcastWindow(_messaging->localUser);
+    connect(_broadcastWindow,
             &lmcBroadcastWindow::messageSent, this,
             &lmcCore::sendMessage);
-    pBroadcastWindow->init(pMessaging->isConnected());
+    _broadcastWindow->init(_messaging->isConnected());
   }
 
-  if (pBroadcastWindow->isHidden()) {
-    QList<QTreeWidgetItem*> contactsList = pMainWindow->getContactsList();
-    QStringList users = pMainWindow->getSelectedUserIds();
+  if (_broadcastWindow->isHidden()) {
+    QList<QTreeWidgetItem*> contactsList = _mainWindow->getContactsList();
+    QStringList users = _mainWindow->getSelectedUserIds();
 
-    pBroadcastWindow->show(contactsList, users);
+    _broadcastWindow->show(contactsList, users);
   } else {
-    pBroadcastWindow->show();
+    _broadcastWindow->show();
   }
 }
 
@@ -594,35 +577,50 @@ void lmcCore::showPublicChat() {
   showPublicChatWindow(true);
 }
 
+void lmcCore::showInstantMessage(const QString &userId) {
+    User *user = _messaging->getUser(userId);
+
+    if (user) {
+        InstantMessageWindow *instantMessageWindow = new InstantMessageWindow(_messaging->localUser);
+        XmlMessage message;
+        instantMessageWindow->init(user->id, user->name, MT_InstantMessage, message);
+        connect(instantMessageWindow, &InstantMessageWindow::chatStarting, this, &lmcCore::startChat);
+        connect(instantMessageWindow, &InstantMessageWindow::messageSent, this, &lmcCore::sendMessage);
+        connect(instantMessageWindow, &InstantMessageWindow::closed, this, &lmcCore::instantMessageWindow_closed);
+
+        _instantMessageWindows.append(instantMessageWindow);
+    }
+}
+
 void lmcCore::historyCleared() {
-  if (pHistoryWindow)
-    pHistoryWindow->updateList();
+  if (_historyWindow)
+    _historyWindow->updateList();
 }
 
 void lmcCore::fileHistoryCleared() {
-  if (pTransferWindow)
-    pTransferWindow->updateList();
+  if (_transferWindow)
+    _transferWindow->updateList();
 }
 
 void lmcCore::showTrayMessage(TrayMessageType type, QString szMessage, QString chatRoomId,
                               QString szTitle, TrayMessageIcon icon) {
-  pMainWindow->showTrayMessage(type, szMessage, chatRoomId, szTitle, icon);
+  _mainWindow->showTrayMessage(type, szMessage, chatRoomId, szTitle, icon);
 }
 
 void lmcCore::updateGroup(GroupOp op, QVariant value1, QVariant value2) {
-  pMessaging->updateGroup(op, value1, value2);
+  _messaging->updateGroup(op, value1, value2);
 }
 
-void lmcCore::addContacts(QStringList *pExcludList) {
+void lmcCore::addContacts(QStringList excludeList) {
   lmcChatRoomWindow *chatRoomWindow =
       static_cast<lmcChatRoomWindow *>(sender());
   QStringList selectedContacts =
-      showSelectContacts(chatRoomWindow, UC_GroupMessage, pExcludList);
+      showSelectContacts(chatRoomWindow, UC_GroupMessage, excludeList);
 
   std::vector<User *> users;
 
   for (QString &userId : selectedContacts) {
-      User *tempUser = pMessaging->getUser(&userId);
+      User *tempUser = _messaging->getUser(userId);
       if (tempUser)
           users.push_back(tempUser);
   }
@@ -647,7 +645,7 @@ void lmcCore::saveUnsavedChatLog() {
 
 void lmcCore::saveChatLog(QString chatRoomId, bool isPath)
 {
-    bool saveHistory = pSettings->value(IDS_HISTORY, IDS_HISTORY_VAL).toBool();
+    bool saveHistory = Globals::getInstance().saveHistory();
 
     if (!saveHistory) {
         QString path = chatRoomId;
@@ -698,147 +696,163 @@ void lmcCore::saveChatLog(QString chatRoomId, bool isPath)
     file.remove();
 }
 
-void lmcCore::chatRoomWindow_closed(QString *lpszThreadId) {
-  for (int index = chatRoomWindows.count() - 1; index >= 0; --index) {
-    if (chatRoomWindows[index]->getRoomId().compare(*lpszThreadId) == 0) {
-      lmcChatRoomWindow *chatWindow = chatRoomWindows[index];
+void lmcCore::chatRoomWindow_closed(QString chatRoomId) {
+  for (int index = _chatRoomWindows.count() - 1; index >= 0; --index) {
+    if (_chatRoomWindows[index]->getRoomId().compare(chatRoomId) == 0) {
+      lmcChatRoomWindow *chatWindow = _chatRoomWindows[index];
       saveChatLog(chatWindow->getOriginalRoomId());
-      chatRoomWindows.removeAt(index);
+      _chatRoomWindows.removeAt(index);
       chatWindow->deleteLater();
       break;
     }
   }
 }
 
-void lmcCore::processMessage(MessageType type, QString *lpszUserId,
-                             XmlMessage *pMessage) {
+void lmcCore::instantMessageWindow_closed()
+{
+    InstantMessageWindow *window = static_cast<InstantMessageWindow *> (sender());
+    _instantMessageWindows.removeAll(window);
+}
+
+void lmcCore::processMessage(MessageType type, const QString &userId,
+                             const XmlMessage &message) {
   switch (type) {
   case MT_Announce:
-    pMainWindow->addUser(pMessaging->getUser(lpszUserId));
-    processPublicMessage(type, lpszUserId, pMessage);
-    routeMessage(type, lpszUserId, pMessage);
+    _mainWindow->addUser(_messaging->getUser(userId));
+    processPublicMessage(type, userId, message);
+    routeMessage(type, userId, message);
     break;
   case MT_Depart:
-    pMainWindow->removeUser(lpszUserId);
-    processPublicMessage(type, lpszUserId, pMessage);
-    routeMessage(type, lpszUserId, pMessage);
+    _mainWindow->removeUser(userId);
+    processPublicMessage(type, userId, message);
+    routeMessage(type, userId, message);
     break;
   case MT_Status:
   case MT_UserName:
   case MT_Note:
-    pMainWindow->updateUser(pMessaging->getUser(lpszUserId));
-    processPublicMessage(type, lpszUserId, pMessage);
-    routeMessage(type, lpszUserId, pMessage);
+    _mainWindow->updateUser(_messaging->getUser(userId));
+    processPublicMessage(type, userId, message);
+    routeMessage(type, userId, message);
     break;
   case MT_Avatar:
-    pMainWindow->receiveMessage(type, lpszUserId, pMessage);
-    processPublicMessage(type, lpszUserId, pMessage);
-    routeMessage(type, lpszUserId, pMessage);
+    _mainWindow->receiveMessage(type, userId, message);
+    processPublicMessage(type, userId, message);
+    routeMessage(type, userId, message);
     break;
   case MT_Message:
   case MT_GroupMessage:
   case MT_Broadcast:
+  case MT_InstantMessage:
   case MT_UserList:
   case MT_ChatState:
   case MT_Failed:
-    routeMessage(type, lpszUserId, pMessage);
+    routeMessage(type, userId, message);
     break;
   case MT_PublicMessage:
-    processPublicMessage(type, lpszUserId, pMessage);
+    processPublicMessage(type, userId, message);
     break;
   case MT_Error:
     break;
   case MT_Query:
-    showUserInfo(pMessage);
+    showUserInfo(message);
     break;
   case MT_File:
   case MT_Folder:
-    processFile(type, lpszUserId, pMessage);
+    processFile(type, userId, message);
     break;
   case MT_Version:
   case MT_WebFailed:
-    pUpdateWindow->receiveMessage(type, lpszUserId, pMessage);
+    _updateWindow->receiveMessage(type, message);
     break;
   default:
     break;
   }
 }
 
-void lmcCore::processFile(MessageType type, QString *lpszUserId,
-                          XmlMessage *pMessage) {
-  int fileOp = Helper::indexOf(FileOpNames, FO_Max, pMessage->data(XN_FILEOP));
+void lmcCore::processFile(MessageType type, const QString &userId,
+                          const XmlMessage &message) {
+  int fileOp = Helper::indexOf(FileOpNames, FO_Max, message.data(XN_FILEOP));
   int fileMode =
-      Helper::indexOf(FileModeNames, FM_Max, pMessage->data(XN_MODE));
+      Helper::indexOf(FileModeNames, FM_Max, message.data(XN_MODE));
   switch (fileOp) {
   case FO_Accept:
-    initFileTransfer(type, (FileMode)fileMode, lpszUserId, pMessage);
+    initFileTransfer(type, static_cast<FileMode>(fileMode), userId, message);
     showTransferWindow();
     break;
   default:
     break;
   }
-  if (fileOp != FO_Request && pTransferWindow)
-    pTransferWindow->receiveMessage(type, lpszUserId, pMessage);
+  if (fileOp != FO_Request && _transferWindow)
+    _transferWindow->receiveMessage(message);
 
-  routeMessage(type, lpszUserId, pMessage);
+  routeMessage(type, userId, message);
 }
 
-void lmcCore::routeMessage(MessageType type, QString *lpszUserId,
-                           XmlMessage *pMessage) {
+void lmcCore::routeMessage(MessageType type, const QString &userId,
+                           const XmlMessage &message) {
     bool windowExists = false;
     bool createWindow = type == MT_Message
             || type == MT_Broadcast
+            || type == MT_InstantMessage
             || type == MT_Failed
             || type == MT_GroupMessage
-            || ((type == MT_File || type == MT_Folder) && pMessage && pMessage->data(XN_FILEOP) == FileOpNames[FO_Request]);
-    bool setWindowToForeground = (pSettings->value(IDS_MESSAGEPOP, IDS_MESSAGEPOP_VAL).toBool() && createWindow);
+            || ((type == MT_File || type == MT_Folder) && message.isValid() && message.data(XN_FILEOP) == FileOpNames[FO_Request]);
+    bool setWindowToForeground = (Globals::getInstance().popOnNewMessage() && createWindow);
 
-  if (!lpszUserId) {
-      for (lmcChatRoomWindow *chatRoomWindow : chatRoomWindows) {
+  if (userId.isEmpty()) {
+      for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows) {
       if (type == MT_Status || type == MT_Note)
-        chatRoomWindow->updateUser(pMessaging->localUser);
-      chatRoomWindow->receiveMessage(type, lpszUserId, pMessage);
+        chatRoomWindow->updateUser(_messaging->localUser);
+      chatRoomWindow->receiveMessage(type, userId, message);
     }
   } else {
-    QString chatRoomId = pMessage ? pMessage->data(XN_THREAD) : "";
+    QString chatRoomId = message.data(XN_THREAD);
 
     switch (type) {
     case MT_Announce:
-        for(lmcChatRoomWindow* chatWindow : chatRoomWindows)
-            if(!chatWindow->getLastUserId().compare(*lpszUserId) && chatWindow->getUsers().size() == 0) {
-                User *user = pMessaging->getUser(lpszUserId);
+        for(lmcChatRoomWindow* chatWindow : _chatRoomWindows)
+            if(!chatWindow->getLastUserId().compare(userId) && chatWindow->getUsers().size() == 0) {
+                User *user = _messaging->getUser(userId);
                 if (user)
                     chatWindow->addUser(user);
             }
+
+        for (InstantMessageWindow *window : _instantMessageWindows)
+            if (!window->getPeerId().compare(userId))
+                window->peerConnectionChanged(true);
         break;
     case MT_Depart:
       // If pMessage is NULL, the user is actually offline. Remove user
       // from all chat rooms.
-      if (!pMessage) {
-          for (lmcChatRoomWindow *chatRoomWindow : chatRoomWindows)
-              if (chatRoomWindow->getUsers().contains(*lpszUserId))
-                  chatRoomWindow->removeUser(lpszUserId);
+      if (!message.isValid()) {
+          for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows)
+              if (chatRoomWindow->getUsers().contains(userId))
+                  chatRoomWindow->removeUser(userId);
       }
+
+      for (InstantMessageWindow *window : _instantMessageWindows)
+          if (!window->getPeerId().compare(userId))
+              window->peerConnectionChanged(false);
       break;
     case MT_Status:
     case MT_UserName:
     case MT_Note:
-        for (lmcChatRoomWindow *chatRoomWindow : chatRoomWindows)
-            if (chatRoomWindow->getUsers().contains(*lpszUserId)) {
-                chatRoomWindow->updateUser(pMessaging->getUser(lpszUserId));
-                chatRoomWindow->receiveMessage(type, lpszUserId, pMessage);
+        for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows)
+            if (chatRoomWindow->getUsers().contains(userId)) {
+                chatRoomWindow->updateUser(_messaging->getUser(userId));
+                chatRoomWindow->receiveMessage(type, userId, message);
         }
       break;
     case MT_Avatar:
-        for (lmcChatRoomWindow *chatRoomWindow : chatRoomWindows)
-        if (chatRoomWindow->getUsers().contains(*lpszUserId))
-          chatRoomWindow->receiveMessage(type, lpszUserId, pMessage);
+        for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows)
+        if (chatRoomWindow->getUsers().contains(userId))
+          chatRoomWindow->receiveMessage(type, userId, message);
       break;
     case MT_UserList:
     {
-        QString userList = pMessage ? pMessage->data(XN_USERID) : "";
+        QString userList = message.data(XN_USERID);
 
-        for (lmcChatRoomWindow *chatRoomWindow : chatRoomWindows)
+        for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows)
             if (!chatRoomWindow->getRoomId().compare(chatRoomId)) {
                 if (userList.isEmpty()) {
                     // Send the current list of users in the chat room
@@ -857,13 +871,13 @@ void lmcCore::routeMessage(MessageType type, QString *lpszUserId,
                     xmlMessage.addData(XN_THREAD, chatRoomId);
                     xmlMessage.addData(XN_USERID, userIds);
 
-                    sendMessage(MT_UserList, lpszUserId, &xmlMessage);
+                    sendMessage(MT_UserList, userId, xmlMessage);
                 } else {
                     // add the users to the chat room
 
                     QStringList userIds = userList.split(" | ", QString::SkipEmptyParts);
                     for (QString &userId : userIds) {
-                        User *user = pMessaging->getUser(&userId);
+                        User *user = _messaging->getUser(userId);
                         if (user)
                             chatRoomWindow->addUser(user);
                     }
@@ -872,29 +886,34 @@ void lmcCore::routeMessage(MessageType type, QString *lpszUserId,
     }
         break;
     case MT_Broadcast:
+    case MT_InstantMessage:
     {
-        broadcastDisplayWindow *broadcastWindow = new broadcastDisplayWindow(pMessaging->localUser);
-        broadcastWindow->init(*lpszUserId, pMessage->data(XN_NAME), *pMessage);
-        connect(broadcastWindow, &broadcastDisplayWindow::chatStarting, this, &lmcCore::startChat);
+        InstantMessageWindow *instantMessageWindow = new InstantMessageWindow(_messaging->localUser);
+        instantMessageWindow->init(userId, message.data(XN_NAME), type, message);
+        connect(instantMessageWindow, &InstantMessageWindow::chatStarting, this, &lmcCore::startChat);
+        connect(instantMessageWindow, &InstantMessageWindow::messageSent, this, &lmcCore::sendMessage);
+        connect(instantMessageWindow, &InstantMessageWindow::closed, this, &lmcCore::instantMessageWindow_closed);
+
+        _instantMessageWindows.append(instantMessageWindow);
     }
         break;
     default:
     {
-        if (pMessage) {
-            int op = Helper::indexOf(GroupMsgOpNames, GMO_Max, pMessage->data(XN_GROUPMSGOP));
+        if (message.isValid()) {
+            int op = Helper::indexOf(GroupMsgOpNames, GMO_Max, message.data(XN_GROUPMSGOP));
             if (op == GMO_Request or op == GMO_Join or op == GMO_Leave) {
-                QString userId = pMessage && !pMessage->data(XN_USERID).isEmpty() ? pMessage->data(XN_USERID) : *lpszUserId;
+                QString userId = !message.data(XN_USERID).isEmpty() ? message.data(XN_USERID) : userId;
 
-                for(int index = 0; index < chatRoomWindows.count(); index++) {
-                    if(!chatRoomWindows[index]->getRoomId().compare(chatRoomId)) {
+                for(int index = 0; index < _chatRoomWindows.count(); index++) {
+                    if(!_chatRoomWindows[index]->getRoomId().compare(chatRoomId)) {
                         switch(op) {
                         case GMO_Request:
                         case GMO_Join:
-                            chatRoomWindows[index]->addUser(pMessaging->getUser(&userId));
+                            _chatRoomWindows[index]->addUser(_messaging->getUser(userId));
                             return;
                             break;
                         case GMO_Leave:
-                            chatRoomWindows[index]->removeUser(&userId);
+                            _chatRoomWindows[index]->removeUser(userId);
                             return;
                             break;
                         default:
@@ -910,33 +929,33 @@ void lmcCore::routeMessage(MessageType type, QString *lpszUserId,
         }
 
         //	Check if a chat room with the thread id already exists
-        for (lmcChatRoomWindow *chatRoomWindow : chatRoomWindows) {
+        for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows) {
             if (chatRoomWindow->getRoomId().compare(chatRoomId) == 0) {
-                if (!chatRoomWindow->getUsers().contains(*lpszUserId)) {
-                    User *user = pMessaging->getUser(lpszUserId);
+                if (!chatRoomWindow->getUsers().contains(userId)) {
+                    User *user = _messaging->getUser(userId);
                     if (user)
                         chatRoomWindow->addUser(user);
                 }
-                chatRoomWindow->receiveMessage(type, lpszUserId, pMessage);
-                if((!chatRoomWindow->isPublicChat() or pubMessagePop) or !chatRoomWindow->isClosed())
+                chatRoomWindow->receiveMessage(type, userId, message);
+                if((!chatRoomWindow->isPublicChat() or Globals::getInstance().popOnNewPublicMessage()) or !chatRoomWindow->isClosed())
                     if (createWindow)
-                        showChatRoomWindow(chatRoomWindow, (messagePop and setWindowToForeground), setWindowToForeground);
+                        showChatRoomWindow(chatRoomWindow, (Globals::getInstance().popOnNewMessage() and setWindowToForeground), setWindowToForeground);
                 windowExists = true;
                 break;
             }
         }
 
-        if (!windowExists and (type == MT_Message or type == MT_Broadcast)) {
-            for (lmcChatRoomWindow *chatRoomWindow : chatRoomWindows) {
+        if (!windowExists && (type == MT_Message || type == MT_Broadcast || type == MT_InstantMessage || type == MT_ChatState)) {
+            for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows) {
                 if (chatRoomWindow->getUsers().size() == 1)
-                if (chatRoomWindow->getUsers().size() == 1 and chatRoomWindow->getUsers().contains(*lpszUserId)) {
+                if (chatRoomWindow->getUsers().size() == 1 and chatRoomWindow->getUsers().contains(userId)) {
                     if (type == MT_Message)
                         chatRoomWindow->changeRoomId(chatRoomId);
 
-                    chatRoomWindow->receiveMessage(type, lpszUserId, pMessage);
-                    if((!chatRoomWindow->isPublicChat() or pubMessagePop) or !chatRoomWindow->isClosed())
+                    chatRoomWindow->receiveMessage(type, userId, message);
+                    if((!chatRoomWindow->isPublicChat() or Globals::getInstance().popOnNewPublicMessage()) or !chatRoomWindow->isClosed())
                         if (createWindow)
-                            showChatRoomWindow(chatRoomWindow, (messagePop and setWindowToForeground), setWindowToForeground);
+                            showChatRoomWindow(chatRoomWindow, (Globals::getInstance().popOnNewMessage() and setWindowToForeground), setWindowToForeground);
 
                     windowExists = true;
                     break;
@@ -952,20 +971,20 @@ void lmcCore::routeMessage(MessageType type, QString *lpszUserId,
                 xmlMessage.addData(XN_THREAD, chatRoomId);
                 xmlMessage.addData(XN_USERID, "");
 
-                sendMessage(MT_UserList, lpszUserId, &xmlMessage);
+                sendMessage(MT_UserList, userId, xmlMessage);
             }
 
-            showChatRoomWindow(chatRoomWindows.last(), (messagePop and setWindowToForeground), setWindowToForeground);
+            showChatRoomWindow(_chatRoomWindows.last(), (Globals::getInstance().popOnNewMessage() and setWindowToForeground), setWindowToForeground);
 
-            if (type == MT_Message && pSettings->value(IDS_APPENDHISTORY, IDS_APPENDHISTORY_VAL).toBool()) {
-                chatRoomWindows.last()->setHtml(History::getUserMessageHistory(*lpszUserId, QDate::currentDate()));
+            if (type == MT_Message && Globals::getInstance().appendHistory()) {
+                _chatRoomWindows.last()->setHtml(History::getUserMessageHistory(userId, QDate::currentDate()));
             }
 
-            User *user = pMessaging->getUser(lpszUserId);
+            User *user = _messaging->getUser(userId);
             if (user)
-                chatRoomWindows.last()->addUser(user);
+                _chatRoomWindows.last()->addUser(user);
 
-            chatRoomWindows.last()->receiveMessage(type, lpszUserId, pMessage);
+            _chatRoomWindows.last()->receiveMessage(type, userId, message);
         }
 
     }
@@ -974,38 +993,38 @@ void lmcCore::routeMessage(MessageType type, QString *lpszUserId,
   }
 }
 
-void lmcCore::processPublicMessage(MessageType type, QString *lpszUserId,
-                                   XmlMessage *pMessage) {
-  if (!pPublicChatWindow)
+void lmcCore::processPublicMessage(MessageType type, const QString &userId,
+                                   const XmlMessage &message) {
+  if (!_publicChatWindow)
     return;
 
   switch (type) {
   case MT_Announce:
-    pPublicChatWindow->addUser(pMessaging->getUser(lpszUserId));
+    _publicChatWindow->addUser(_messaging->getUser(userId));
     break;
   case MT_Depart:
-    pPublicChatWindow->removeUser(lpszUserId);
+    _publicChatWindow->removeUser(userId);
     break;
   case MT_Status:
   case MT_UserName:
   case MT_Note:
     // lpszUserId can be NULL if sent by local user
-    if (lpszUserId)
-      pPublicChatWindow->updateUser(pMessaging->getUser(lpszUserId));
+    if (!userId.isEmpty())
+      _publicChatWindow->updateUser(_messaging->getUser(userId));
     else
-      pPublicChatWindow->updateUser(pMessaging->localUser);
+      _publicChatWindow->updateUser(_messaging->localUser);
     break;
   case MT_PublicMessage:
   {
-      bool showWindow = type == MT_Message || type == MT_Broadcast || type == MT_Failed || type == MT_GroupMessage
-          || ((type == MT_File || type == MT_Folder) && pMessage->data(XN_FILEOP) == FileOpNames[FO_Request]);
+      bool showWindow = type == MT_Message || type == MT_Broadcast || type == MT_InstantMessage || type == MT_Failed || type == MT_GroupMessage
+          || ((type == MT_File || type == MT_Folder) && message.data(XN_FILEOP) == FileOpNames[FO_Request]);
 
-    pPublicChatWindow->receiveMessage(type, lpszUserId, pMessage);
-    showPublicChatWindow((pubMessagePop && messagePop && showWindow), pubMessagePop, pubMessagePop);
+    _publicChatWindow->receiveMessage(type, userId, message);
+    showPublicChatWindow((Globals::getInstance().popOnNewPublicMessage() && Globals::getInstance().popOnNewMessage() && showWindow), Globals::getInstance().popOnNewPublicMessage(), Globals::getInstance().popOnNewPublicMessage());
   }
     break;
   case MT_Avatar:
-    pPublicChatWindow->receiveMessage(type, lpszUserId, pMessage);
+    _publicChatWindow->receiveMessage(type, userId, message);
     break;
   default:
     break;
@@ -1013,101 +1032,99 @@ void lmcCore::processPublicMessage(MessageType type, QString *lpszUserId,
 }
 
 void lmcCore::createTransferWindow() {
-  if (!pTransferWindow) {
-    pTransferWindow = new lmcTransferWindow();
-    connect(pTransferWindow,
+  if (!_transferWindow) {
+    _transferWindow = new lmcTransferWindow();
+    connect(_transferWindow,
             &lmcTransferWindow::messageSent, this,
             &lmcCore::sendMessage);
-    connect(pTransferWindow, &lmcTransferWindow::showTrayMessage,
+    connect(_transferWindow, &lmcTransferWindow::showTrayMessage,
             this, &lmcCore::showTrayMessage);
-    pTransferWindow->init();
+    _transferWindow->init();
   }
 }
 
 void lmcCore::showTransferWindow(bool show, QString userId) {
-  bool autoShow =
-      pSettings->value(IDS_AUTOSHOWFILE, IDS_AUTOSHOWFILE_VAL).toBool();
-  bool bringToForeground =
-      pSettings->value(IDS_FILETOP, IDS_FILETOP_VAL).toBool();
+  bool autoShow = Globals::getInstance().autoShowTransfer();
+  bool bringToForeground = Globals::getInstance().displayNewTransfers();
 
   if ((autoShow && bringToForeground) || show) {
     //	if window is minimized it, restore it to previous state
-    if (pTransferWindow->windowState().testFlag(Qt::WindowMinimized))
-      pTransferWindow->setWindowState(pTransferWindow->windowState() &
+    if (_transferWindow->windowState().testFlag(Qt::WindowMinimized))
+      _transferWindow->setWindowState(_transferWindow->windowState() &
                                       ~Qt::WindowMinimized);
-    pTransferWindow->setWindowState(pTransferWindow->windowState() |
+    _transferWindow->setWindowState(_transferWindow->windowState() |
                                     Qt::WindowActive);
-    pTransferWindow
+    _transferWindow
         ->raise(); // make main window the top most window of the application
-    pTransferWindow->show();
-    pTransferWindow->activateWindow(); // bring window to foreground
+    _transferWindow->show();
+    _transferWindow->activateWindow(); // bring window to foreground
   } else if (autoShow && !bringToForeground) {
-    if (pTransferWindow->isHidden())
-      pTransferWindow->setWindowState(pTransferWindow->windowState() |
+    if (_transferWindow->isHidden())
+      _transferWindow->setWindowState(_transferWindow->windowState() |
                                       Qt::WindowMinimized);
-    pTransferWindow->setWindowState(pTransferWindow->windowState() |
+    _transferWindow->setWindowState(_transferWindow->windowState() |
                                     Qt::WindowActive);
-    pTransferWindow->show();
-    qApp->alert(pTransferWindow);
+    _transferWindow->show();
+    qApp->alert(_transferWindow);
   }
 
-  pTransferWindow->setUserFilter(userId);
+  _transferWindow->setUserFilter(userId);
 }
 
 void lmcCore::initFileTransfer(MessageType type, FileMode mode,
-                               QString *lpszUserId, XmlMessage *pMessage) {
+                               const QString &userId, const XmlMessage &message) {
   createTransferWindow();
 
-  User *pUser = pMessaging->getUser(lpszUserId);
+  User *pUser = _messaging->getUser(userId);
   if (!pUser)
       return;
 
-  pTransferWindow->createTransfer(type, mode, lpszUserId, &pUser->name,
-                                  pMessage);
+  _transferWindow->createTransfer(type, mode, userId, pUser->name,
+                                  message);
 }
 
-void lmcCore::showUserInfo(XmlMessage *pMessage) {
-  if (!pUserInfoWindow) {
-    pUserInfoWindow = new lmcUserInfoWindow();
-    pUserInfoWindow->init();
+void lmcCore::showUserInfo(const XmlMessage &message) {
+  if (!_userInfoWindow) {
+    _userInfoWindow = new lmcUserInfoWindow();
+    _userInfoWindow->init();
   }
 
-  pUserInfoWindow->setInfo(pMessage);
+  _userInfoWindow->setInfo(message);
 
   //	if window is minimized it, restore it to previous state
-  if (pUserInfoWindow->windowState().testFlag(Qt::WindowMinimized))
-    pUserInfoWindow->setWindowState(pUserInfoWindow->windowState() &
+  if (_userInfoWindow->windowState().testFlag(Qt::WindowMinimized))
+    _userInfoWindow->setWindowState(_userInfoWindow->windowState() &
                                     ~Qt::WindowMinimized);
-  pUserInfoWindow->setWindowState(pUserInfoWindow->windowState() |
+  _userInfoWindow->setWindowState(_userInfoWindow->windowState() |
                                   Qt::WindowActive);
-  pUserInfoWindow
+  _userInfoWindow
       ->raise(); // make window the top most window of the application
-  pUserInfoWindow->show();
-  pUserInfoWindow->activateWindow(); // bring window to foreground
+  _userInfoWindow->show();
+  _userInfoWindow->activateWindow(); // bring window to foreground
 }
 
-void lmcCore::createChatRoomWindow(const QString &lpszThreadId) {
+void lmcCore::createChatRoomWindow(const QString &chatRoomId) {
   //	create a new chat room with the specified thread id
-  lmcChatRoomWindow *pChatRoomWindow = new lmcChatRoomWindow();
-  chatRoomWindows.append(pChatRoomWindow);
+  lmcChatRoomWindow *chatRoomWindow = new lmcChatRoomWindow();
+  _chatRoomWindows.append(chatRoomWindow);
 
-  connect(pChatRoomWindow, &lmcChatRoomWindow::messageSent, this,
+  connect(chatRoomWindow, &lmcChatRoomWindow::messageSent, this,
           &lmcCore::sendMessage);
-  connect(pChatRoomWindow, &lmcChatRoomWindow::contactsAdding, this,
+  connect(chatRoomWindow, &lmcChatRoomWindow::contactsAdding, this,
           &lmcCore::addContacts);
-  connect(pChatRoomWindow, &lmcChatRoomWindow::chatStarting, this,
+  connect(chatRoomWindow, &lmcChatRoomWindow::chatStarting, this,
           &lmcCore::startChat);
-  connect(pChatRoomWindow, &lmcChatRoomWindow::showHistory, this,
+  connect(chatRoomWindow, &lmcChatRoomWindow::showHistory, this,
           &lmcCore::showHistory);
-  connect(pChatRoomWindow, &lmcChatRoomWindow::showTransfers, this,
+  connect(chatRoomWindow, &lmcChatRoomWindow::showTransfers, this,
           &lmcCore::showTransfers);
-  connect(pChatRoomWindow, &lmcChatRoomWindow::showTrayMessage,
+  connect(chatRoomWindow, &lmcChatRoomWindow::showTrayMessage,
           this, &lmcCore::showTrayMessage);
-  connect(pChatRoomWindow, &lmcChatRoomWindow::closed, this,
+  connect(chatRoomWindow, &lmcChatRoomWindow::closed, this,
           &lmcCore::chatRoomWindow_closed);
 
-  User *pLocalUser = pMessaging->localUser;
-  pChatRoomWindow->init(pLocalUser, pMessaging->isConnected(), lpszThreadId);
+  User *pLocalUser = _messaging->localUser;
+  chatRoomWindow->init(pLocalUser, _messaging->isConnected(), chatRoomId);
 }
 
 void lmcCore::showChatRoomWindow(lmcChatRoomWindow *chatRoomWindow, bool show,
@@ -1134,21 +1151,21 @@ void lmcCore::showChatRoomWindow(lmcChatRoomWindow *chatRoomWindow, bool show,
 
   if (add) {
       if (selectedContacts.isEmpty()) {
-          QStringList excludeList(pMessaging->localUser->id);
+          QStringList excludeList(_messaging->localUser->id);
           selectedContacts =
-                  showSelectContacts(chatRoomWindow, UC_GroupMessage, &excludeList);
+                  showSelectContacts(chatRoomWindow, UC_GroupMessage, excludeList);
       }
 
       // if no contacts were selected, close the chat room window
       if (selectedContacts.count() == 0) {
-          chatRoomWindows.removeOne(chatRoomWindow);
+          _chatRoomWindows.removeOne(chatRoomWindow);
           chatRoomWindow->close();
           chatRoomWindow->deleteLater();
       } else {
           std::vector<User *> users;
 
           for (QString &userId : selectedContacts) {
-              User *tempUser = pMessaging->getUser(&userId);
+              User *tempUser = _messaging->getUser(userId);
               if (tempUser)
                   users.push_back(tempUser);
           }
@@ -1159,54 +1176,54 @@ void lmcCore::showChatRoomWindow(lmcChatRoomWindow *chatRoomWindow, bool show,
 
 void lmcCore::showPublicChatWindow(bool show, bool alert, bool open) {
   if (show) {
-    if (pPublicChatWindow->windowState().testFlag(Qt::WindowMinimized))
-      pPublicChatWindow->setWindowState(pPublicChatWindow->windowState() &
+    if (_publicChatWindow->windowState().testFlag(Qt::WindowMinimized))
+      _publicChatWindow->setWindowState(_publicChatWindow->windowState() &
                                         ~Qt::WindowMinimized);
-    pPublicChatWindow->show();
-    pPublicChatWindow->activateWindow();
+    _publicChatWindow->show();
+    _publicChatWindow->activateWindow();
   } else {
     if (open) {
-      if (pPublicChatWindow->isHidden())
-        pPublicChatWindow->setWindowState(pPublicChatWindow->windowState() |
+      if (_publicChatWindow->isHidden())
+        _publicChatWindow->setWindowState(_publicChatWindow->windowState() |
                                           Qt::WindowMinimized);
-      pPublicChatWindow->show();
+      _publicChatWindow->show();
     }
     if (alert)
-      qApp->alert(pPublicChatWindow);
+      qApp->alert(_publicChatWindow);
   }
 }
 
 QStringList lmcCore::showSelectContacts(QWidget *parent, uint caps,
-                                        QStringList *excludeList) {
+                                        const QStringList &excludeList) {
   QStringList selectedContacts;
-  pUserSelectDialog = new lmcUserSelectDialog(parent);
+  _userSelectDialog = new lmcUserSelectDialog(parent);
 
-  QList<QTreeWidgetItem *> contactsList = pMainWindow->getContactsList();
+  QList<QTreeWidgetItem *> contactsList = _mainWindow->getContactsList();
   for (int index = 0; index < contactsList.count(); index++) {
-    QTreeWidgetItem *pItem = contactsList.value(index);
-    for (int childIndex = 0; childIndex < pItem->childCount(); childIndex++) {
-      QTreeWidgetItem *pChildItem = pItem->child(childIndex);
+    QTreeWidgetItem *item = contactsList.value(index);
+    for (int childIndex = 0; childIndex < item->childCount(); childIndex++) {
+      QTreeWidgetItem *pChildItem = item->child(childIndex);
       QString userId = pChildItem->data(0, IdRole).toString();
-      User *pUser = pMessaging->getUser(&userId);
+      User *pUser = _messaging->getUser(userId);
       if (!pUser)
           continue;
       if ((pUser->caps & caps) != caps) {
-        pItem->removeChild(pChildItem);
+        item->removeChild(pChildItem);
         childIndex--;
         continue;
       }
-      if (excludeList->contains(userId)) {
-        pItem->removeChild(pChildItem);
+      if (excludeList.contains(userId)) {
+        item->removeChild(pChildItem);
         childIndex--;
         continue;
       }
     }
   }
 
-  pUserSelectDialog->init(&contactsList);
-  if (pUserSelectDialog->exec() != QDialog::Rejected)
-    selectedContacts = pUserSelectDialog->selectedContacts;
-  pUserSelectDialog->deleteLater();
+  _userSelectDialog->init(contactsList);
+  if (_userSelectDialog->exec() != QDialog::Rejected)
+    selectedContacts = _userSelectDialog->selectedContacts;
+  _userSelectDialog->deleteLater();
 
   return selectedContacts;
 }

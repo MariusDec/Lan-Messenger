@@ -21,18 +21,20 @@
 **
 ****************************************************************************/
 
-#include <QDesktopServices>
-#include <QTimer>
-#include <QUrl>
-#include <QMimeData>
-#include <QMessageBox>
-
 #include "mainwindow.h"
 #include "messagelog.h"
 #include "history.h"
 #include "loggermanager.h"
 #include "imageslist.h"
 #include "globals.h"
+
+#include <QDesktopServices>
+#include <QTimer>
+#include <QUrl>
+#include <QMimeData>
+#include <QDesktopWidget>
+#include <QMessageBox>
+#include <QGraphicsDropShadowEffect>
 
 lmcMainWindow::lmcMainWindow(QWidget *parent, Qt::WindowFlags flags)
     : QWidget(parent, flags) {
@@ -64,19 +66,19 @@ lmcMainWindow::lmcMainWindow(QWidget *parent, Qt::WindowFlags flags)
   ui.textBoxNote->installEventFilter(this);
   ui.treeWidgetUserList->installEventFilter(this);
 
-  windowLoaded = false;
+  _windowLoaded = false;
 }
 
 lmcMainWindow::~lmcMainWindow() {}
 
-void lmcMainWindow::init(User *pLocalUser, QList<Group> *pGroupList,
+void lmcMainWindow::init(User *localUser, const QList<Group> &groupList,
                          bool connected) {
   LoggerManager::getInstance().writeInfo(
       QStringLiteral("lmcMainWindow.init started"));
 
   setWindowIcon(QIcon(ThemeManager::getInstance().getAppIcon(QStringLiteral("messenger"))));
 
-  this->pLocalUser = pLocalUser;
+  _localUser = localUser;
 
   createMainMenu();
   createToolBar();
@@ -99,17 +101,16 @@ void lmcMainWindow::init(User *pLocalUser, QList<Group> *pGroupList,
   ui.treeWidgetUserList->header()->setStretchLastSection(false);
   ui.treeWidgetUserList->header()->setSectionResizeMode(0,
                                                         QHeaderView::Stretch);
-  buttonStatus->setIconSize(QSize(20, 20));
 
   // get current status struct
   StatusStruct *currentStatus = nullptr;
   int statusIndex;
 
   pSettings = new lmcSettings();
-  if (pSettings->value(IDS_RESTORESTATUS, IDS_RESTORESTATUS_VAL).toBool()) {
+  if (Globals::getInstance().restoreStatus()) {
       auto statuses = Globals::getInstance().getStatuses();
       for (unsigned index = 0; index < statuses.size(); ++index)
-          if (!statuses[index].description.compare(pLocalUser->status)) {
+          if (!statuses[index].description.compare(localUser->status)) {
               currentStatus = &statuses[index];
               statusIndex = index;
               break;
@@ -120,28 +121,33 @@ void lmcMainWindow::init(User *pLocalUser, QList<Group> *pGroupList,
       // set available status
       currentStatus = &Globals::getInstance().getStatuses().front();
       statusIndex = 0;
+      _localUser->status = currentStatus->description;
   }
 
-  buttonStatus->setIcon(QIcon(QPixmap(
+  _buttonStatus->setIcon(QIcon(QPixmap(
       ThemeManager::getInstance().getAppIcon(currentStatus->icon))));
-  statusGroup->actions()[statusIndex]->setChecked(true);
+  _statusGroup->actions()[statusIndex]->setChecked(true);
   QFont font = ui.labelUserName->font();
   int fontSize = ui.labelUserName->fontInfo().pixelSize();
   fontSize += (fontSize * 0.1);
   font.setPixelSize(fontSize);
   font.setBold(true);
   ui.labelUserName->setFont(font);
-  ui.labelStatus->setText(statusGroup->checkedAction()->text());
-  nAvatar = pLocalUser->avatar;
-  ui.textBoxNote->setText(pLocalUser->note);
+  ui.labelStatus->setText(_statusGroup->checkedAction()->text());
+  nAvatar = localUser->avatar;
+  ui.textBoxNote->setText(localUser->note);
 
   pSoundPlayer = new lmcSoundPlayer();
-  restoreGeometry(pSettings->value(IDS_WINDOWMAIN).toByteArray());
+  if (!Globals::getInstance().mainWindowGeometry().isEmpty())
+      restoreGeometry(Globals::getInstance().mainWindowGeometry());
+  else
+      move(50, 50);
+
   //	get saved settings
   settingsChanged(true);
   setUIText();
 
-  initGroups(pGroupList);
+  initGroups(groupList);
 
   refreshAction_triggered();
 
@@ -157,17 +163,16 @@ void lmcMainWindow::start() {
     qsrand((uint)QTime::currentTime().msec());
     nAvatar = qrand() % avatarsCount;
   }
-  // This method should only be called from here, otherwise an MT_Notify message
-  // is sent
+  // This method should only be called from here, otherwise an MT_Notify message is sent
   // and the program will connect to the network before start() is called.
   setAvatar();
-  pTrayIcon->setVisible(showSysTray);
-  if (pSettings->value(IDS_AUTOSHOW, IDS_AUTOSHOW_DEFAULT_VAL).toBool())
-    show();
+  _trayIcon->setVisible(Globals::getInstance().sysTray());
+  if (Globals::getInstance().autoShow())
+    restore();
 }
 
 void lmcMainWindow::show() {
-  windowLoaded = true;
+  _windowLoaded = true;
   QWidget::show();
 }
 
@@ -191,9 +196,8 @@ void lmcMainWindow::minimize() {
 void lmcMainWindow::stop() {
   //	These settings are saved only if the window was opened at least once by
   // the user
-  if (windowLoaded) {
-    pSettings->setValue(IDS_WINDOWMAIN, saveGeometry());
-    pSettings->setValue(IDS_MINIMIZEMSG, showMinimizeMsg);
+  if (_windowLoaded) {
+    Globals::getInstance().setMainWindowGeometry(saveGeometry());
   }
 
   pSettings->beginWriteArray(IDS_GROUPEXPHDR);
@@ -205,101 +209,140 @@ void lmcMainWindow::stop() {
   }
   pSettings->endArray();
 
-  pTrayIcon->hide();
+  _trayIcon->hide();
 }
 
-void lmcMainWindow::addUser(User *pUser) {
-  if (!pUser)
+void lmcMainWindow::addUser(User *user) {
+  if (!user)
     return;
 
   // get current status struct
   int index;
   StatusStruct *currentStatus =
-      Globals::getInstance().getStatus(pUser->status, &index);
+      Globals::getInstance().getStatus(user->status, &index);
 
-  lmcUserTreeWidgetUserItem *pItem = new lmcUserTreeWidgetUserItem();
-  pItem->setData(0, IdRole, pUser->id);
-  pItem->setData(0, TypeRole, "User");
-  pItem->setData(0, StatusRole, index);
-  pItem->setData(0, SubtextRole, pUser->note);
-  pItem->setData(0, CapsRole, pUser->caps);
-  pItem->setData(0, DataRole, pUser->lanIndex);
-  pItem->setText(0, pUser->name);
-
-  QString userTooltip = QString("<b>%1</b><br />Name: %2<br />IP: %3<br />Computer: %4<br />Version: %5").arg(currentStatus->uiDescription, pUser->name, pUser->address, pUser->hostName, pUser->version);
-  pItem->setToolTip(0, userTooltip);
+  lmcUserTreeWidgetUserItem *item = new lmcUserTreeWidgetUserItem();
+  item->setData(0, IdRole, user->id);
+  item->setData(0, TypeRole, "User");
+  item->setData(0, StatusRole, index);
+  item->setData(0, SubtextRole, user->note);
+  item->setData(0, CapsRole, user->caps);
+  item->setData(0, DataRole, user->lanIndex);
+  item->setText(0, user->name);
 
   if (currentStatus)
-    pItem->setIcon(
+    item->setIcon(
         0, QIcon(ThemeManager::getInstance().getAppIcon(
                currentStatus->icon)));
 
   lmcUserTreeWidgetGroupItem *pGroupItem =
-      (lmcUserTreeWidgetGroupItem *)getGroupItem(&pUser->group);
-  pGroupItem->addChild(pItem);
+      (lmcUserTreeWidgetGroupItem *)getGroupItem(&user->group);
+  pGroupItem->addChild(item);
   pGroupItem->sortChildren(0, Qt::AscendingOrder);
 
+  QString userTooltip = QString("<b>%1</b><br />Name: %2<br />Note: %3<br />IP: %4<br />Computer: %5<br />Version: %6").arg(currentStatus->uiDescription, user->name, user->note, user->address, user->hostName, user->version);
+  ui.treeWidgetUserList->setItemTooltip(item, getUserTooltip(userTooltip, user->avatarPath));
+
   // this should be called after item has been added to tree
-  setUserAvatar(&pUser->id, &pUser->avatarPath);
+  setUserAvatar(user->id, user->avatarPath);
 
   if (isHidden() || !isActiveWindow()) {
     QString msg = tr("%1 is online.");
-    showTrayMessage(TM_Status, msg.arg(pItem->text(0)));
+    showTrayMessage(TM_Status, msg.arg(item->text(0)));
     pSoundPlayer->play(SE_UserOnline);
   }
 
-  sendAvatar(&pUser->id);
- // sendMessage(MT_Status, &pUser->id, &pLocalUser->status); // TODO!!! should send only to the added user
+  sendAvatar(user->id);
 }
 
-void lmcMainWindow::updateUser(User *pUser) {
-  if (!pUser)
+QWidget *lmcMainWindow::getUserTooltip(QString userDetails, QString imagePath) {
+  QWidget *toolTipWidget = new QWidget();
+  toolTipWidget->setProperty("isWindow", true);
+  toolTipWidget->setStyleSheet("border: 1px outset gray; border-radius: 1px;");
+
+  toolTipWidget->setObjectName (QStringLiteral("toolTipWidget"));
+  QHBoxLayout *layout = new QHBoxLayout(toolTipWidget);
+  layout->setObjectName (QStringLiteral("layout"));
+  layout->setMargin(6);
+
+
+  QLabel *labelDescription = new QLabel(toolTipWidget);
+  labelDescription->setObjectName (QStringLiteral("labelDescription"));
+  labelDescription->setText(userDetails);
+  labelDescription->setWordWrap(true);
+  labelDescription->setMaximumWidth(220);
+  labelDescription->setStyleSheet("border: none;");
+  layout->addWidget(labelDescription, 0);
+
+  QLabel *labelImage = new QLabel(toolTipWidget);
+  labelImage->setObjectName (QStringLiteral("labelAvatar"));
+  labelImage->setPixmap(QPixmap(imagePath).scaled(64, 64, Qt::KeepAspectRatio, Qt::FastTransformation));
+  layout->addWidget(labelImage, 0, Qt::AlignTop);
+  labelImage->setStyleSheet("border: 1px solid gray; border-radius: 2px;");
+
+  QGraphicsDropShadowEffect *effect = new QGraphicsDropShadowEffect();
+  effect->setOffset(1, 1);
+  effect->setBlurRadius(3);
+  effect->setColor(qRgba(101, 101, 101, 10));
+  labelImage->setGraphicsEffect(effect);
+
+  return toolTipWidget;
+}
+
+void lmcMainWindow::updateUser(User *user) {
+  if (!user)
     return;
 
-  QTreeWidgetItem *pItem = getUserItem(&pUser->id);
-  if (pItem) {
-    updateStatusImage(pItem, &pUser->status);
+  lmcUserTreeWidgetItem *item = getUserItem(user->id);
+  if (item) {
+    updateStatusImage(item, &user->status);
 
     // get current status struct
     int index;
     StatusStruct *currentStatus =
-        Globals::getInstance().getStatus(pUser->status, &index);
+        Globals::getInstance().getStatus(user->status, &index);
 
-    pItem->setData(0, StatusRole, index);
-    pItem->setData(0, SubtextRole, pUser->note);
-    pItem->setText(0, pUser->name);
+    item->setData(0, StatusRole, index);
+    item->setData(0, SubtextRole, user->note);
+    item->setText(0, user->name);
 
-    QString userTooltip = QString("<b>%1</b><br />Name: %2<br />IP: %3<br />Computer: %4<br />Version: %5").arg(currentStatus->uiDescription, pUser->name, pUser->address, pUser->hostName, pUser->version);
-    pItem->setToolTip(0, userTooltip);
+    QString userTooltip = QString("<b>%1</b><br />Name: %2<br />Note: %3<br />IP: %4<br />Computer: %5<br />Version: %6").arg(currentStatus->uiDescription, user->name, user->note, user->address, user->hostName, user->version);
+    ui.treeWidgetUserList->setItemTooltipDetails(item, userTooltip);
 
-    QTreeWidgetItem *pGroupItem = pItem->parent();
+    QTreeWidgetItem *pGroupItem = item->parent();
     pGroupItem->sortChildren(0, Qt::AscendingOrder);
   }
 }
 
-void lmcMainWindow::removeUser(QString *lpszUserId) {
-  QTreeWidgetItem *pItem = getUserItem(lpszUserId);
-  if (!pItem)
+void lmcMainWindow::removeUser(const QString &userId) {
+  lmcUserTreeWidgetItem *item = getUserItem(userId);
+  if (!item)
     return;
 
-  QTreeWidgetItem *pGroup = pItem->parent();
-  pGroup->removeChild(pItem);
+  ui.treeWidgetUserList->removeItemTooltip(item);
+
+  QTreeWidgetItem *pGroup = item->parent();
+  pGroup->removeChild(item);
 
   if (isHidden() || !isActiveWindow()) {
     QString msg = tr("%1 is offline.");
-    showTrayMessage(TM_Status, msg.arg(pItem->text(0)));
+    showTrayMessage(TM_Status, msg.arg(item->text(0)));
     pSoundPlayer->play(SE_UserOffline);
   }
 }
 
-void lmcMainWindow::receiveMessage(MessageType type, QString *lpszUserId,
-                                   XmlMessage *pMessage) {
+void lmcMainWindow::receiveMessage(MessageType type, const QString &userId,
+                                   const XmlMessage &mssage) {
   QString filePath;
 
   switch (type) {
   case MT_Avatar:
-    filePath = pMessage->data(XN_FILEPATH);
-    setUserAvatar(lpszUserId, &filePath);
+  {
+    filePath = mssage.data(XN_FILEPATH);
+    setUserAvatar(userId, filePath);
+
+    ui.treeWidgetUserList->setItemTooltipAvatar(getUserItem(userId), filePath);
+  }
     break;
   default:
     break;
@@ -325,53 +368,33 @@ void lmcMainWindow::connectionStateChanged(bool connected) {
 }
 
 void lmcMainWindow::settingsChanged(bool init) {
-  showSysTray = pSettings->value(IDS_SYSTRAY, IDS_SYSTRAY_VAL).toBool();
-  showSysTrayMsg =
-      pSettings->value(IDS_SYSTRAYMSG, IDS_SYSTRAYMSG_VAL).toBool();
-  //	this setting should be loaded only at window init
-  if (init)
-    showMinimizeMsg =
-        pSettings->value(IDS_MINIMIZEMSG, IDS_MINIMIZEMSG_VAL).toBool();
   //	this operation should not be done when window inits
   if (!init)
-    pTrayIcon->setVisible(showSysTray);
-  minimizeHide =
-      pSettings->value(IDS_MINIMIZETRAY, IDS_MINIMIZETRAY_VAL).toBool();
-  singleClickActivation =
-      pSettings->value(IDS_SINGLECLICKTRAY, IDS_SINGLECLICKTRAY_VAL).toBool();
-  allowSysTrayMinimize =
-      pSettings->value(IDS_ALLOWSYSTRAYMIN, IDS_ALLOWSYSTRAYMIN_VAL).toBool();
-  showAlert = pSettings->value(IDS_ALERT, IDS_ALERT_VAL).toBool();
-  noBusyAlert = pSettings->value(IDS_NOBUSYALERT, IDS_NOBUSYALERT_VAL).toBool();
-  noDNDAlert = pSettings->value(IDS_NODNDALERT, IDS_NODNDALERT_VAL).toBool();
-  int viewType =
-      pSettings->value(IDS_USERLISTVIEW, IDS_USERLISTVIEW_VAL).toInt();
-  ui.treeWidgetUserList->setView((UserListView)viewType);
+    _trayIcon->setVisible(Globals::getInstance().sysTray());
+
+  ui.treeWidgetUserList->setView(Globals::getInstance().userListView());
 
   pSoundPlayer->settingsChanged();
-  ui.labelUserName->setText(
-      pLocalUser->name); // in case display name has been changed
+  ui.labelUserName->setText(_localUser->name); // in case display name has been changed
 }
 
-void lmcMainWindow::showTrayMessage(TrayMessageType type, QString szMessage, QString chatRoomId,
-                                    QString szTitle, TrayMessageIcon icon) {
-  if (!showSysTray || !showSysTrayMsg)
+void lmcMainWindow::showTrayMessage(TrayMessageType type, const QString &message, const QString &chatRoomId,
+                                    QString title, TrayMessageIcon icon) {
+  if (!Globals::getInstance().sysTray() || !Globals::getInstance().sysTrayMessages())
     return;
-
-  bool showMsg = showSysTray;
 
   switch (type) {
   case TM_Status:
-    if (!showAlert || (pLocalUser->status == "Busy" && noBusyAlert) ||
-        (pLocalUser->status == "NoDisturb" && noDNDAlert))
+    if (!Globals::getInstance().enableAlerts() || (_localUser->status == "Busy" && Globals::getInstance().noBusyAlerts()) ||
+        (_localUser->status == "NoDisturb" && Globals::getInstance().noDNDAlerts()))
       return;
     break;
   default:
     break;
   }
 
-  if (szTitle.isNull())
-    szTitle = lmcStrings::appName();
+  if (title.isNull())
+    title = lmcStrings::appName();
 
   QSystemTrayIcon::MessageIcon trayIcon = QSystemTrayIcon::Information;
   switch (icon) {
@@ -388,10 +411,10 @@ void lmcMainWindow::showTrayMessage(TrayMessageType type, QString szMessage, QSt
     break;
   }
 
-  if (showMsg) {
+  if (Globals::getInstance().sysTray()) {
     lastTrayMessageType = type;
     lastTrayMessageChatRoomId = chatRoomId;
-    pTrayIcon->showMessage(szTitle, szMessage, trayIcon);
+    _trayIcon->showMessage(title, message, trayIcon);
   }
 }
 
@@ -404,10 +427,11 @@ QList<QTreeWidgetItem *> lmcMainWindow::getContactsList() {
   return contactsList;
 }
 
-bool lmcMainWindow::eventFilter(QObject *pObject, QEvent *pEvent) {
-  Q_UNUSED(pObject);
-  if (pEvent->type() == QEvent::KeyPress) {
-    QKeyEvent *pKeyEvent = static_cast<QKeyEvent *>(pEvent);
+bool lmcMainWindow::eventFilter(QObject *object, QEvent *event) {
+  Q_UNUSED(object);
+
+  if (event->type() == QEvent::KeyPress) {
+    QKeyEvent *pKeyEvent = static_cast<QKeyEvent *>(event);
     if (pKeyEvent->key() == Qt::Key_Escape) {
       close();
       return true;
@@ -417,21 +441,20 @@ bool lmcMainWindow::eventFilter(QObject *pObject, QEvent *pEvent) {
   return false;
 }
 
-void lmcMainWindow::closeEvent(QCloseEvent *pEvent) {
+void lmcMainWindow::closeEvent(QCloseEvent *event) {
   //	close main window to system tray
-  pEvent->ignore();
+  event->ignore();
   minimize();
 }
 
-void lmcMainWindow::changeEvent(QEvent *pEvent) {
-  switch (pEvent->type()) {
+void lmcMainWindow::changeEvent(QEvent *event) {
+  switch (event->type()) {
   case QEvent::WindowStateChange:
-    if (minimizeHide) {
-      QWindowStateChangeEvent *e = (QWindowStateChangeEvent *)pEvent;
+    if (Globals::getInstance().minimizeToTray()) {
+      QWindowStateChangeEvent *e = (QWindowStateChangeEvent *)event;
       if (isMinimized() && e->oldState() != Qt::WindowMinimized) {
         QTimer::singleShot(0, this, SLOT(hide()));
-        pEvent->ignore();
-        showMinimizeMessage();
+        event->ignore();
       }
     }
     break;
@@ -442,12 +465,43 @@ void lmcMainWindow::changeEvent(QEvent *pEvent) {
     break;
   }
 
-  QWidget::changeEvent(pEvent);
+  QWidget::changeEvent(event);
 }
 
-void lmcMainWindow::sendMessage(MessageType type, QString *lpszUserId,
-                                XmlMessage *pMessage) {
-  emit messageSent(type, lpszUserId, pMessage);
+void lmcMainWindow::moveEvent(QMoveEvent *event)
+{
+    if (!Globals::getInstance().windowSnapping()) {
+        QWidget::moveEvent(event);
+        return;
+    }
+
+    const QRect screen = QApplication::desktop()->availableGeometry(this);
+
+    bool windowSnapped = false;
+
+    if (std::abs(frameGeometry().left() - screen.left()) < 25) {
+        move(screen.left(), frameGeometry().top());
+        windowSnapped = true;
+    } else if (std::abs(screen.right() - frameGeometry().right()) < 25) {
+        move((screen.right() - frameGeometry().width() + 1), frameGeometry().top());
+        windowSnapped = true;
+    }
+
+    if (std::abs(frameGeometry().top() - screen.top()) < 25) {
+        move(frameGeometry().left(), screen.top());
+        windowSnapped = true;
+    } else if (std::abs(screen.bottom() - frameGeometry().bottom()) < 25) {
+        move(frameGeometry().left(), (screen.bottom() - frameGeometry().height() + 1));
+        windowSnapped = true;
+    }
+
+    if (!windowSnapped)
+        QWidget::moveEvent(event);
+}
+
+void lmcMainWindow::sendMessage(MessageType type, QString userId,
+                                XmlMessage message) {
+  emit messageSent(type, userId, message);
 }
 
 void lmcMainWindow::trayShowAction_triggered() { restore(); }
@@ -469,31 +523,32 @@ void lmcMainWindow::statusAction_triggered(QAction *action) {
   if (currentStatus) {
     QString icon =
         ThemeManager::getInstance().getAppIcon(currentStatus->icon);
-    buttonStatus->setIcon(QIcon(icon));
+    _buttonStatus->setIcon(QIcon(icon));
     changeTrayIcon(icon);
-    ui.labelStatus->setText(statusGroup->checkedAction()->text());
-    pLocalUser->status = currentStatus->description;
-    pSettings->setValue(IDS_STATUS, pLocalUser->status);
+    ui.labelStatus->setText(_statusGroup->checkedAction()->text());
+    _localUser->status = currentStatus->description;
+    Globals::getInstance().setUserStatus(_localUser->status);
 
-    sendMessage(MT_Status, NULL, &status);
+    sendMessage(MT_Status, QString(), status);
   }
 }
 
 void lmcMainWindow::avatarAction_triggered() { setAvatar(); }
 
 void lmcMainWindow::avatarBrowseAction_triggered() {
-  QString dir = pSettings->value(IDS_OPENPATH, StdLocation::getDocumentsPath())
-                    .toString();
+  QString dir = Globals::getInstance().fileOpenPath();
   QString fileName = QFileDialog::getOpenFileName(
       this, tr("Select avatar picture"), dir,
       "Images (*.bmp *.gif *.jpg *.jpeg *.png *.tif *.tiff)");
   if (!fileName.isEmpty()) {
-    pSettings->setValue(IDS_OPENPATH, QFileInfo(fileName).dir().absolutePath());
+    Globals::getInstance().setFileOpenPath(QFileInfo(fileName).dir().absolutePath());
     setAvatar(fileName);
   }
 }
 
 void lmcMainWindow::buttonStartChat_clicked() { startChatRoom(); }
+
+void lmcMainWindow::buttonStartGroupChat_clicked() { startChatRoom(true); }
 
 void lmcMainWindow::buttonStartPublicChat_clicked() { emit showPublicChat(); }
 
@@ -501,12 +556,12 @@ void lmcMainWindow::refreshAction_triggered() {
   QString szUserId;
   QString szMessage;
 
-  sendMessage(MT_Refresh, &szUserId, &szMessage);
+  sendMessage(MT_Refresh, szUserId, szMessage);
 }
 
 void lmcMainWindow::helpAction_triggered() {
   QRect rect = geometry();
-  emit showHelp(&rect);
+  emit showHelp(rect);
 }
 
 void lmcMainWindow::homePageAction_triggered() {
@@ -515,18 +570,18 @@ void lmcMainWindow::homePageAction_triggered() {
 
 void lmcMainWindow::updateAction_triggered() {
   QRect rect = geometry();
-  emit showUpdate(&rect);
+  emit showUpdate(rect);
 }
 
 void
 lmcMainWindow::trayIcon_activated(QSystemTrayIcon::ActivationReason reason) {
   switch (reason) {
   case QSystemTrayIcon::Trigger:
-    if (singleClickActivation)
+    if (Globals::getInstance().singleClickTray())
       processTrayIconTrigger();
     break;
   case QSystemTrayIcon::DoubleClick:
-    if (!singleClickActivation)
+    if (!Globals::getInstance().singleClickTray())
       processTrayIconTrigger();
     break;
   default:
@@ -550,16 +605,20 @@ void lmcMainWindow::trayMessage_clicked() {
   }
 }
 
-void lmcMainWindow::treeWidgetUserList_itemActivated(QTreeWidgetItem *pItem,
+void lmcMainWindow::treeWidgetUserList_itemActivated(QTreeWidgetItem *item,
                                                      int column) {
-  Q_UNUSED(column);
-  if (pItem->data(0, TypeRole).toString().compare("User") == 0) {
-    startChatRoom();
-  }
+    Q_UNUSED(column);
+    if (item->data(0, TypeRole).toString().compare("User") == 0) {
+        if (Globals::getInstance().defaultNewMessageAction() == 1)
+            startChatRoom();
+        else { // if (Globals::getInstance().defaultNewMessageAction() == 2)
+            emit sendInstantMessage(item->data(0, IdRole).toString());
+        }
+    }
 }
 
 void lmcMainWindow::treeWidgetUserList_itemContextMenu(QTreeWidgetItem *pItem,
-                                                       QPoint &pos) {
+                                                       QPoint pos) {
   if (!pItem) {
     _usersListMainMenu->exec(pos);
     return;
@@ -591,7 +650,7 @@ void lmcMainWindow::treeWidgetUserList_itemDragDropped(QTreeWidgetItem *item) {
   if (dynamic_cast<lmcUserTreeWidgetUserItem *>(item)) {
     QString szUserId = item->data(0, IdRole).toString();
     QString szMessage = item->parent()->data(0, IdRole).toString();
-    sendMessage(MT_Group, &szUserId, &szMessage);
+    sendMessage(MT_Group, szUserId, szMessage);
     QTreeWidgetItem *pGroupItem = item->parent();
     pGroupItem->sortChildren(0, Qt::AscendingOrder);
   } else if (dynamic_cast<lmcUserTreeWidgetGroupItem *>(item)) {
@@ -612,7 +671,7 @@ void lmcMainWindow::treeWidgetUserList_fileDragDropped(QTreeWidgetItem *item,
 }
 
 void lmcMainWindow::treeWidgetUserList_itemSelectionChanged() {
-    buttonSendFile->setEnabled(ui.treeWidgetUserList->selectedItems().length());
+    _buttonSendFile->setEnabled(ui.treeWidgetUserList->selectedItems().length());
 }
 
 void lmcMainWindow::groupAddAction_triggered() {
@@ -679,7 +738,7 @@ void lmcMainWindow::groupDeleteAction_triggered() {
     pDefGroupItem->addChild(pUserItem);
     QString szUserId = pUserItem->data(0, IdRole).toString();
     QString szMessage = pUserItem->parent()->data(0, IdRole).toString();
-    sendMessage(MT_Group, &szUserId, &szMessage);
+    sendMessage(MT_Group, szUserId, szMessage);
   }
   pDefGroupItem->sortChildren(0, Qt::AscendingOrder);
 
@@ -689,6 +748,12 @@ void lmcMainWindow::groupDeleteAction_triggered() {
 }
 
 void lmcMainWindow::userConversationAction_triggered() { startChatRoom(); }
+
+void lmcMainWindow::userMessageAction_triggered() {
+    QTreeWidgetItem *currentItem = ui.treeWidgetUserList->currentItem();
+    if (currentItem && !currentItem->data(0, TypeRole).toString().compare("User"))
+        emit sendInstantMessage(currentItem->data(0, IdRole).toString());
+}
 
 void lmcMainWindow::buttonSendBroadcast_clicked() { emit showBroadcast(); }
 
@@ -700,9 +765,7 @@ void lmcMainWindow::buttonSendFile_clicked() { sendFile(); }
 
 void lmcMainWindow::sendFile(bool sendFolder, QTreeWidgetItem *dropTarget,
                              QStringList files) {
-  QString dir = pSettings->value(IDS_OPENPATH, StdLocation::getDocumentsPath())
-                    .toString();
-
+  QString dir = Globals::getInstance().fileOpenPath();
   bool filedDragDropped = !files.isEmpty();
 
   QStringList fileNames;
@@ -723,15 +786,14 @@ void lmcMainWindow::sendFile(bool sendFolder, QTreeWidgetItem *dropTarget,
     return;
 
   if (!filedDragDropped)
-    pSettings->setValue(IDS_OPENPATH,
-                        QFileInfo(fileNames[0]).dir().absolutePath());
+   Globals::getInstance().setFileOpenPath(QFileInfo(fileNames[0]).dir().absolutePath());
 
   QList<QTreeWidgetItem *> selectedItems = getSelectedUserTreeItems(dropTarget);
 
   MessageType messageType = sendFolder ? MT_Folder : MT_File;
   QFileInfo fileInfo;
 
-  QString chatRoomId = pLocalUser->id;
+  QString chatRoomId = _localUser->id;
   chatRoomId.append(Helper::getUuid());
 
   for (QTreeWidgetItem *item : selectedItems) {
@@ -743,13 +805,13 @@ void lmcMainWindow::sendFile(bool sendFolder, QTreeWidgetItem *dropTarget,
         messageType = fileInfo.isDir() ? MT_Folder : MT_File;
       }
 
-      sendMessage(messageType, &userId, &fileName, chatRoomId);
+      sendMessage(messageType, userId, fileName, chatRoomId);
     }
   }
 }
 
 void lmcMainWindow::startChatRoom(bool fromToolbar) {
-    QString chatRoomId = pLocalUser->id;
+    QString chatRoomId = _localUser->id;
     chatRoomId.append(Helper::getUuid());
     emit chatRoomStarting(chatRoomId, XmlMessage(),
                           !fromToolbar ? getSelectedUserIds() : QStringList());
@@ -810,7 +872,7 @@ void lmcMainWindow::userInfoAction_triggered() {
   QString userId =
       ui.treeWidgetUserList->currentItem()->data(0, IdRole).toString();
   QString message;
-  sendMessage(MT_Query, &userId, &message);
+  sendMessage(MT_Query, userId, message);
 }
 
 void lmcMainWindow::userSendScreenshotAction_triggered() {
@@ -818,7 +880,7 @@ void lmcMainWindow::userSendScreenshotAction_triggered() {
         return;
 
     QPixmap imageData = qvariant_cast<QPixmap>(_clipboard->mimeData()->imageData());
-    QString screenshotPath = QString("%1screenshot - %2.png").arg(StdLocation::getCacheDir(), pLocalUser->name);
+    QString screenshotPath = QString("%1screenshot - %2.png").arg(StdLocation::getCacheDir(), _localUser->name);
     imageData.save(screenshotPath);
     sendFile(false, nullptr, QStringList() << screenshotPath);
 }
@@ -843,9 +905,9 @@ void lmcMainWindow::textBoxNote_returnPressed() {
 
 void lmcMainWindow::textBoxNote_lostFocus() {
   QString note = ui.textBoxNote->text();
-  pSettings->setValue(IDS_NOTE, note);
-  pLocalUser->note = note;
-  sendMessage(MT_Note, NULL, &note);
+  Globals::getInstance().setUserNote(note);
+  _localUser->note = note;
+  sendMessage(MT_Note, QString(), note);
 }
 
 void lmcMainWindow::createMainMenu() {
@@ -912,7 +974,7 @@ void lmcMainWindow::createTrayMenu() {
           ThemeManager::getInstance().getAppIcon("messenger")),
       text.arg(lmcStrings::appName()), this, SLOT(trayShowAction_triggered()));
   pTrayMenu->addSeparator();
-  trayStatusAction = pTrayMenu->addMenu(pStatusMenu);
+  trayStatusAction = pTrayMenu->addMenu(_statusMenu);
   trayStatusAction->setText("&Change Status");
   pTrayMenu->addSeparator();
   trayHistoryAction = pTrayMenu->addAction(
@@ -939,27 +1001,27 @@ void lmcMainWindow::createTrayMenu() {
 }
 
 void lmcMainWindow::createTrayIcon() {
-  pTrayIcon = new QSystemTrayIcon(this);
-  pTrayIcon->setIcon(
+  _trayIcon = new QSystemTrayIcon(this);
+  _trayIcon->setIcon(
       QIcon(ThemeManager::getInstance().getAppIcon("logosmall")));
-  pTrayIcon->setContextMenu(pTrayMenu);
+  _trayIcon->setContextMenu(pTrayMenu);
 
-  connect(pTrayIcon, SIGNAL(activated(QSystemTrayIcon::ActivationReason)), this,
-          SLOT(trayIcon_activated(QSystemTrayIcon::ActivationReason)));
-  connect(pTrayIcon, SIGNAL(messageClicked()), this,
-          SLOT(trayMessage_clicked()));
+  connect(_trayIcon, &QSystemTrayIcon::activated, this,
+          &lmcMainWindow::trayIcon_activated);
+  connect(_trayIcon, &QSystemTrayIcon::messageClicked, this,
+          &lmcMainWindow::trayMessage_clicked);
 }
 
 void lmcMainWindow::changeTrayIcon(QString icon) {
-  pTrayIcon->setIcon(
+  _trayIcon->setIcon(
       QIcon(icon));
 }
 
 void lmcMainWindow::createStatusMenu() {
-  pStatusMenu = new QMenu(this);
-  statusGroup = new QActionGroup(this);
-  connect(statusGroup, SIGNAL(triggered(QAction *)), this,
-          SLOT(statusAction_triggered(QAction *)));
+  _statusMenu = new QMenu(this);
+  _statusGroup = new QActionGroup(this);
+  connect(_statusGroup, &QActionGroup::triggered, this,
+          &lmcMainWindow::statusAction_triggered);
 
   std::vector<StatusStruct> statuses = Globals::getInstance().getStatuses();
   for (unsigned index = 0; index < statuses.size(); index++) {
@@ -969,11 +1031,11 @@ void lmcMainWindow::createStatusMenu() {
         statuses[index].uiDescription, this);
     pAction->setData(statuses[index].description);
     pAction->setCheckable(true);
-    statusGroup->addAction(pAction);
-    pStatusMenu->addAction(pAction);
+    _statusGroup->addAction(pAction);
+    _statusMenu->addAction(pAction);
   }
 
-  buttonStatus->setMenu(pStatusMenu);
+  _buttonStatus->setMenu(_statusMenu);
 }
 
 void lmcMainWindow::createAvatarMenu() {
@@ -985,7 +1047,7 @@ void lmcMainWindow::createAvatarMenu() {
 
   lmcImagePickerAction *pAction = new lmcImagePickerAction(
       pAvatarMenu, ImagesList::getInstance().getAvatars(),
-      ImagesList::getInstance().getTabs(ImagesList::Avatars), 60, 60, 6,
+      ImagesList::getInstance().getTabs(ImagesList::Avatars), 64, 64, 6,
       &nAvatar);
   connect(pAction, &lmcImagePickerAction::imageSelected, this, &lmcMainWindow::avatarAction_triggered);
   pAvatarMenu->addAction(pAction);
@@ -1046,6 +1108,10 @@ void lmcMainWindow::createUserMenu() {
       QIcon(
           ThemeManager::getInstance().getAppIcon("newchatroom")),
       "Start &Conversation", this, SLOT(userConversationAction_triggered()));
+  _userMessageAction = pUserMenu->addAction(
+      QIcon(
+          ThemeManager::getInstance().getAppIcon("chat")),
+      "Send &Message", this, SLOT(userMessageAction_triggered()));
   _userFileAction = pUserMenu->addAction(
       QIcon(
           ThemeManager::getInstance().getAppIcon("sendfile")),
@@ -1053,7 +1119,7 @@ void lmcMainWindow::createUserMenu() {
   _userFolderAction = pUserMenu->addAction(
       QIcon(
           ThemeManager::getInstance().getAppIcon("sendfolder")),
-      "Send a Fol&der", this, SLOT(userFolderAction_triggered()));
+      "Send Fol&der", this, SLOT(userFolderAction_triggered()));
   pUserMenu->addSeparator();
   _userBroadcastAction = pUserMenu->addAction(
       QIcon(
@@ -1105,65 +1171,78 @@ QFrame *lmcMainWindow::createSeparator(QWidget *parent) {
 void lmcMainWindow::createToolBar() {
    ui.widgetToolBarContainer->setProperty("isToolbar", true);
 
-  buttonStatus = new ThemedButton(ui.widgetStatus);
-  buttonStatus->setPopupMode(QToolButton::InstantPopup);
-  buttonStatus->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  buttonStatus->setAutoRaise(true);
-  ui.widgetstatus_layout->insertWidget(0, buttonStatus);
+  _buttonStatus = new ThemedButton(ui.widgetStatus);
+  _buttonStatus->setPopupMode(QToolButton::InstantPopup);
+  _buttonStatus->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  _buttonStatus->setIconSize(QSize(24, 24));
+  _buttonStatus->setAutoRaise(true);
+  ui.widgetstatus_layout->insertWidget(0, _buttonStatus);
 
-  buttonStartChat = new ThemedButton(ui.widgetToolBar);
-  buttonStartChat->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  buttonStartChat->setAutoRaise(true);
-  buttonStartChat->setIconSize(QSize(17, 17));
-  buttonStartChat->setFixedWidth(45);
-  buttonStartChat->setIcon(QIcon(
-      ThemeManager::getInstance().getAppIcon(QStringLiteral("chat"))));
+  _buttonStartChat = new ThemedButton(ui.widgetToolBar);
+  _buttonStartChat->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  _buttonStartChat->setAutoRaise(true);
+  _buttonStartChat->setIconSize(QSize(17, 17));
+  _buttonStartChat->setFixedWidth(45);
+  _buttonStartChat->setIcon(QIcon(
+      ThemeManager::getInstance().getAppIcon(QStringLiteral("chatroom"))));
 
-  connect(buttonStartChat, &ThemedButton::clicked, this,
+  connect(_buttonStartChat, &ThemedButton::clicked, this,
           &lmcMainWindow::buttonStartChat_clicked);
 
-  buttonSendFile = new ThemedButton(ui.widgetToolBar);
-  buttonSendFile->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  buttonSendFile->setAutoRaise(true);
-  buttonSendFile->setIconSize(QSize(17, 17));
-  buttonSendFile->setFixedWidth(45);
-  buttonSendFile->setIcon(QIcon(
-      ThemeManager::getInstance().getAppIcon(QStringLiteral("file"))));
-  buttonSendFile->setEnabled(false);
+  _buttonStartGroupChat = new ThemedButton(ui.widgetToolBar);
+  _buttonStartGroupChat->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  _buttonStartGroupChat->setAutoRaise(true);
+  _buttonStartGroupChat->setIconSize(QSize(17, 17));
+  _buttonStartGroupChat->setFixedWidth(45);
+  _buttonStartGroupChat->setIcon(QIcon(
+      ThemeManager::getInstance().getAppIcon(QStringLiteral("newchatroom"))));
 
-  connect(buttonSendFile, &ThemedButton::clicked, this,
+  connect(_buttonStartGroupChat, &ThemedButton::clicked, this,
+          &lmcMainWindow::buttonStartGroupChat_clicked);
+
+  _buttonSendFile = new ThemedButton(ui.widgetToolBar);
+  _buttonSendFile->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  _buttonSendFile->setAutoRaise(true);
+  _buttonSendFile->setIconSize(QSize(17, 17));
+  _buttonSendFile->setFixedWidth(45);
+  _buttonSendFile->setIcon(QIcon(
+      ThemeManager::getInstance().getAppIcon(QStringLiteral("file"))));
+  _buttonSendFile->setEnabled(false);
+
+  connect(_buttonSendFile, &ThemedButton::clicked, this,
           &lmcMainWindow::buttonSendFile_clicked);
 
-  buttonSendBroadcast = new ThemedButton(ui.widgetToolBar);
-  buttonSendBroadcast->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  buttonSendBroadcast->setAutoRaise(true);
-  buttonSendBroadcast->setIconSize(QSize(17, 17));
-  buttonSendBroadcast->setFixedWidth(45);
-  buttonSendBroadcast->setIcon(
+  _buttonSendBroadcast = new ThemedButton(ui.widgetToolBar);
+  _buttonSendBroadcast->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  _buttonSendBroadcast->setAutoRaise(true);
+  _buttonSendBroadcast->setIconSize(QSize(17, 17));
+  _buttonSendBroadcast->setFixedWidth(45);
+  _buttonSendBroadcast->setIcon(
       QIcon(ThemeManager::getInstance().getAppIcon(
           QStringLiteral("broadcastmsg"))));
 
-  connect(buttonSendBroadcast, &ThemedButton::clicked, this,
+  connect(_buttonSendBroadcast, &ThemedButton::clicked, this,
           &lmcMainWindow::buttonSendBroadcast_clicked);
 
-  buttonStartPublicChat = new ThemedButton(ui.widgetToolBar);
-  buttonStartPublicChat->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  buttonStartPublicChat->setAutoRaise(true);
-  buttonStartPublicChat->setIconSize(QSize(17, 17));
-  buttonStartPublicChat->setFixedWidth(45);
-  buttonStartPublicChat->setIcon(
+  _buttonStartPublicChat = new ThemedButton(ui.widgetToolBar);
+  _buttonStartPublicChat->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  _buttonStartPublicChat->setAutoRaise(true);
+  _buttonStartPublicChat->setIconSize(QSize(17, 17));
+  _buttonStartPublicChat->setFixedWidth(45);
+  _buttonStartPublicChat->setIcon(
       QIcon(ThemeManager::getInstance().getAppIcon(
           QStringLiteral("chatroom"))));
 
-  connect(buttonStartPublicChat, &ThemedButton::clicked, this,
+  connect(_buttonStartPublicChat, &ThemedButton::clicked, this,
           &lmcMainWindow::buttonStartPublicChat_clicked);
 
-  ui.widgetToolBar_layout->addWidget(buttonStartChat);
-  ui.widgetToolBar_layout->addWidget(buttonSendFile);
+  ui.widgetToolBar_layout->addWidget(_buttonStartChat);
+  ui.widgetToolBar_layout->addWidget(_buttonStartGroupChat);
+  ui.widgetToolBar_layout->addWidget(_buttonSendFile);
   ui.widgetToolBar_layout->addWidget(createSeparator(ui.widgetToolBar));
-  ui.widgetToolBar_layout->addWidget(buttonSendBroadcast);
+  ui.widgetToolBar_layout->addWidget(_buttonSendBroadcast);
   ui.widgetToolBar_layout->addWidget(createSeparator(ui.widgetToolBar));
-  ui.widgetToolBar_layout->addWidget(buttonStartPublicChat);
+  ui.widgetToolBar_layout->addWidget(_buttonStartPublicChat);
 }
 
 void lmcMainWindow::setUIText() {
@@ -1197,28 +1276,30 @@ void lmcMainWindow::setUIText() {
   groupAddAction->setText(tr("Add &New Group"));
   groupRenameAction->setText(tr("&Rename This Group"));
   groupDeleteAction->setText(tr("&Delete This Group"));
-  _userChatAction->setText(tr("&Conversation"));
+  _userChatAction->setText(tr("Start &Conversation"));
   _userBroadcastAction->setText(tr("Send &Broadcast Message"));
   _userFileAction->setText(tr("Send &File"));
   _userFolderAction->setText(tr("Send Fol&der"));
   _userInfoAction->setText(tr("Get &Information"));
   _avatarBrowseAction->setText(tr("&Browse for more pictures..."));
-  buttonStartChat->setText("Start &Conversation");
-  buttonStartChat->setToolTip("Start Conversation");
-  buttonSendFile->setText("Send &File");
-  buttonSendFile->setToolTip("Send File");
-  buttonSendBroadcast->setText("Send &Broadcast Message");
-  buttonSendBroadcast->setToolTip("Send Broadcast Message");
-  buttonStartPublicChat->setText("&Public Chat");
-  buttonStartPublicChat->setToolTip("Public Chat");
+  _buttonStartChat->setText("Start &Conversation");
+  _buttonStartChat->setToolTip("Start Conversation");
+  _buttonStartGroupChat->setText("Start Group &Conversation");
+  _buttonStartGroupChat->setToolTip("Start Group Conversation");
+  _buttonSendFile->setText("Send &File");
+  _buttonSendFile->setToolTip("Send File");
+  _buttonSendBroadcast->setText("Send &Broadcast Message");
+  _buttonSendBroadcast->setToolTip("Send Broadcast Message");
+  _buttonStartPublicChat->setText("&Public Chat");
+  _buttonStartPublicChat->setToolTip("Public Chat");
 
   auto statuses = Globals::getInstance().getStatuses();
-  for (int index = 0; index < statusGroup->actions().count(); index++)
-    statusGroup->actions()[index]->setText(statuses[index].uiDescription);
+  for (int index = 0; index < _statusGroup->actions().count(); index++)
+    _statusGroup->actions()[index]->setText(statuses[index].uiDescription);
 
-  ui.labelUserName->setText(pLocalUser->name); // in case of retranslation
-  if (statusGroup->checkedAction())
-    ui.labelStatus->setText(statusGroup->checkedAction()->text());
+  ui.labelUserName->setText(_localUser->name); // in case of retranslation
+  if (_statusGroup->checkedAction())
+    ui.labelStatus->setText(_statusGroup->checkedAction()->text());
 
   for (int index = 0; index < ui.treeWidgetUserList->topLevelItemCount();
        index++) {
@@ -1233,26 +1314,17 @@ void lmcMainWindow::setUIText() {
   setTrayTooltip();
 }
 
-void lmcMainWindow::showMinimizeMessage() {
-  if (showMinimizeMsg) {
-    QString msg = tr("%1 will continue to run in the background. Activate this "
-                     "icon to restore the application window.");
-    showTrayMessage(TM_Minimize, msg.arg(lmcStrings::appName()));
-    showMinimizeMsg = false;
-  }
-}
-
-void lmcMainWindow::initGroups(QList<Group> *pGroupList) {
+void lmcMainWindow::initGroups(const QList<Group> &groupList) {
   LoggerManager::getInstance().writeInfo(
       QStringLiteral("lmcMainWindow.initGroups started"));
 
-  for (int index = 0; index < pGroupList->count(); index++) {
-    lmcUserTreeWidgetGroupItem *pItem = new lmcUserTreeWidgetGroupItem();
-    pItem->setData(0, IdRole, pGroupList->value(index).id);
-    pItem->setData(0, TypeRole, "Group");
-    pItem->setText(0, pGroupList->value(index).name);
-    pItem->setSizeHint(0, QSize(0, 22));
-    ui.treeWidgetUserList->addTopLevelItem(pItem);
+  for (int index = 0; index < groupList.count(); index++) {
+    lmcUserTreeWidgetGroupItem *item = new lmcUserTreeWidgetGroupItem();
+    item->setData(0, IdRole, groupList.value(index).id);
+    item->setData(0, TypeRole, "Group");
+    item->setText(0, groupList.value(index).name);
+    item->setSizeHint(0, QSize(0, 22));
+    ui.treeWidgetUserList->addTopLevelItem(item);
   }
 
   ui.treeWidgetUserList->expandAll();
@@ -1298,21 +1370,22 @@ void lmcMainWindow::setAvatar(QString fileName) {
   avatar = QPixmap(avatarPath);
 
   ui.buttonAvatar->setIcon(QIcon(avatar));
-  pLocalUser->avatar = nAvatar;
-  pLocalUser->avatarPath = avatarPath;
-  sendAvatar(NULL);
+  _localUser->avatar = nAvatar;
+  Globals::getInstance().setUserAvatarIndex(nAvatar);
+  _localUser->avatarPath = avatarPath;
+  sendAvatar(QString::null);
 }
 
-QTreeWidgetItem *lmcMainWindow::getUserItem(QString *lpszUserId) {
+lmcUserTreeWidgetItem *lmcMainWindow::getUserItem(const QString &userId) {
   for (int topIndex = 0; topIndex < ui.treeWidgetUserList->topLevelItemCount();
        topIndex++) {
     for (int index = 0;
          index < ui.treeWidgetUserList->topLevelItem(topIndex)->childCount();
          index++) {
-      QTreeWidgetItem *pItem =
+      QTreeWidgetItem *item =
           ui.treeWidgetUserList->topLevelItem(topIndex)->child(index);
-      if (pItem->data(0, IdRole).toString().compare(*lpszUserId) == 0)
-        return pItem;
+      if (item->data(0, IdRole).toString().compare(userId) == 0)
+        return static_cast<lmcUserTreeWidgetItem *> (item);
     }
   }
 
@@ -1341,33 +1414,33 @@ QTreeWidgetItem *lmcMainWindow::getGroupItemByName(QString *lpszGroupName) {
   return NULL;
 }
 
-void lmcMainWindow::sendMessage(MessageType type, QString *lpszUserId,
-                                QString *lpszMessage, QString chatRoomId) {
+void lmcMainWindow::sendMessage(MessageType type, const QString &userId,
+                                const QString &message, const QString &chatRoomId) {
   XmlMessage xmlMessage;
 
   switch (type) {
   case MT_Status:
-    xmlMessage.addData(XN_STATUS, *lpszMessage);
+    xmlMessage.addData(XN_STATUS, message);
     break;
   case MT_Note:
-    xmlMessage.addData(XN_NOTE, *lpszMessage);
+    xmlMessage.addData(XN_NOTE, message);
     break;
   case MT_Refresh:
     break;
   case MT_Group:
-    xmlMessage.addData(XN_GROUP, *lpszMessage);
+    xmlMessage.addData(XN_GROUP, message);
     break;
   case MT_File:
   case MT_Folder:
     xmlMessage.addData(XN_FILETYPE, FileTypeNames[FT_Normal]);
     xmlMessage.addData(XN_FILEOP, FileOpNames[FO_Request]);
-    xmlMessage.addData(XN_FILEPATH, *lpszMessage);
+    xmlMessage.addData(XN_FILEPATH, message);
     xmlMessage.addData(XN_THREAD, chatRoomId);
     break;
   case MT_Avatar:
     xmlMessage.addData(XN_FILETYPE, FileTypeNames[FT_Avatar]);
     xmlMessage.addData(XN_FILEOP, FileOpNames[FO_Request]);
-    xmlMessage.addData(XN_FILEPATH, *lpszMessage);
+    xmlMessage.addData(XN_FILEPATH, message);
     break;
   case MT_Query:
     xmlMessage.addData(XN_QUERYOP, QueryOpNames[QO_Get]);
@@ -1376,27 +1449,27 @@ void lmcMainWindow::sendMessage(MessageType type, QString *lpszUserId,
     break;
   }
 
-  sendMessage(type, lpszUserId, &xmlMessage);
+  sendMessage(type, userId, xmlMessage);
 }
 
-void lmcMainWindow::sendAvatar(QString *lpszUserId) {
-  QString filePath = ImagesList::getInstance().getAvatar(pLocalUser->avatar);
+void lmcMainWindow::sendAvatar(const QString &userId) {
+  QString filePath = ImagesList::getInstance().getAvatar(_localUser->avatar);
   if (!QFile::exists(filePath))
     return;
 
-  sendMessage(MT_Avatar, lpszUserId, &filePath);
+  sendMessage(MT_Avatar, userId, filePath);
 }
 
-void lmcMainWindow::setUserAvatar(QString *lpszUserId, QString *lpszFilePath) {
-  QTreeWidgetItem *pUserItem = getUserItem(lpszUserId);
+void lmcMainWindow::setUserAvatar(const QString &userId, const QString &filePath) {
+  lmcUserTreeWidgetItem *pUserItem = getUserItem(userId);
   if (!pUserItem)
     return;
 
   QPixmap avatar;
-  if (!lpszFilePath || !QFile::exists(*lpszFilePath))
+  if (filePath.isEmpty() || !QFile::exists(filePath))
     avatar.load(ImagesList::getInstance().getDefaultAvatar());
   else
-    avatar.load(*lpszFilePath);
+    avatar.load(filePath);
 
   if (!avatar.isNull()) {
       avatar = avatar.scaled(QSize(32, 32), Qt::IgnoreAspectRatio,
@@ -1408,7 +1481,7 @@ void lmcMainWindow::setUserAvatar(QString *lpszUserId, QString *lpszFilePath) {
 void lmcMainWindow::processTrayIconTrigger() {
   // If system tray minimize is disabled, restore() will be called every time.
   // Otherwise, window is restored or minimized
-  if (!allowSysTrayMinimize || isHidden() || isMinimized())
+  if (!Globals::getInstance().sysTrayMinimize() || isHidden() || isMinimized())
     restore();
   else
     minimize();
@@ -1416,9 +1489,9 @@ void lmcMainWindow::processTrayIconTrigger() {
 
 void lmcMainWindow::setTrayTooltip() {
   if (bConnected)
-    pTrayIcon->setToolTip(lmcStrings::appName());
+    _trayIcon->setToolTip(lmcStrings::appName());
   else {
     QString msg = tr("%1 - Not Connected");
-    pTrayIcon->setToolTip(msg.arg(lmcStrings::appName()));
+    _trayIcon->setToolTip(msg.arg(lmcStrings::appName()));
   }
 }

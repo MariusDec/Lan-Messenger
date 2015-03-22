@@ -24,6 +24,8 @@
 #ifndef USERTREEWIDGET_H
 #define USERTREEWIDGET_H
 
+#include "uidefinitions.h"
+
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QTreeWidget>
 #include <QMouseEvent>
@@ -31,7 +33,8 @@
 #include <QString>
 #include <QtWidgets/QStyledItemDelegate>
 #include <QPainter>
-#include "uidefinitions.h"
+#include <QHash>
+#include <QPointer>
 
 class lmcUserTreeWidgetItem : public QTreeWidgetItem {
 public:
@@ -73,7 +76,7 @@ class lmcUserTreeWidget : public QTreeWidget {
 
 public:
   lmcUserTreeWidget(QWidget *parent);
-  ~lmcUserTreeWidget() {}
+  ~lmcUserTreeWidget();
 
   bool checkable();
   void setCheckable(bool enable);
@@ -86,10 +89,15 @@ public:
         {"text/uri-list", "application/x-qabstractitemmodeldatalist"});
   }
 
+  void setItemTooltip(lmcUserTreeWidgetItem *item, QWidget *tooltip);
+  void setItemTooltipAvatar(lmcUserTreeWidgetItem *item, const QString &avatarPath);
+  void setItemTooltipDetails(lmcUserTreeWidgetItem *item, const QString &details);
+  void removeItemTooltip(lmcUserTreeWidgetItem *item);
+
 signals:
   void fileDragDropped(QTreeWidgetItem *item, QStringList fileNames);
   void itemDragDropped(QTreeWidgetItem *item);
-  void itemContextMenu(QTreeWidgetItem *item, QPoint &pos);
+  void itemContextMenu(QTreeWidgetItem *item, QPoint pos);
   void selectedItemsChanged(unsigned count);
 
 protected:
@@ -100,6 +108,8 @@ protected:
   void mouseReleaseEvent(QMouseEvent *event);
   void keyPressEvent(QKeyEvent *event);
   void dragEnterEvent(QDragEnterEvent *ev);
+  void mouseMoveEvent(QMouseEvent * event);
+  void leaveEvent(QEvent *event);
 
 private:
   void handleItemChanged(QTreeWidgetItem *item, int column);
@@ -114,6 +124,9 @@ private:
   bool isCheckable;
   UserListView viewType;
   unsigned _selectedCount = 0;
+  lmcUserTreeWidgetItem *_hoveredItem = nullptr;
+
+  QHash<lmcUserTreeWidgetItem *, QPointer<QWidget>> _tooltips;
 };
 
 #endif // USERTREEWIDGET_H

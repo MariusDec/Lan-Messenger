@@ -1,11 +1,11 @@
 /****************************************************************************
 **
 ** This file is part of LAN Messenger.
-** 
+**
 ** Copyright (c) 2010 - 2012 Qualia Digital Solutions.
-** 
+**
 ** Contact:  qualiatech@gmail.com
-** 
+**
 ** LAN Messenger is free software: you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation, either version 3 of the License, or
@@ -33,25 +33,25 @@
 
 class lmcHelpWindow : public QWidget
 {
-	Q_OBJECT
+    Q_OBJECT
 
 public:
-	lmcHelpWindow(QRect* pRect, QWidget *parent = 0);
-	~lmcHelpWindow();
+    lmcHelpWindow(const QRect &pRect, QWidget *parent = 0);
+    ~lmcHelpWindow();
 
-	void init();
-	void stop();
-	void settingsChanged();
+    void init();
+    void stop();
+    void settingsChanged();
 
 protected:
     bool eventFilter(QObject* pObject, QEvent* pEvent);
-	void changeEvent(QEvent* pEvent);
+    void changeEvent(QEvent* pEvent);
+    void moveEvent(QMoveEvent *event);
 
 private:
-	void setUIText();
+    void setUIText();
 
-	Ui::HelpWindow ui;
-	lmcSettings* pSettings;
+    Ui::HelpWindow ui;
 };
 
 #endif // HELPWINDOW_H

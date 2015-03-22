@@ -43,47 +43,46 @@ public:
     void init(int nPort = 0);
     void start();
     void stop();
-    void setLocalId(QString* lpszLocalId);
-    void addConnection(QString* lpszUserId, QString* lpszAddress);
-    void sendMessage(QString* lpszReceiverId, QString* lpszData);
-    void sendHandShake(QString *lpszUserId);
-    void initSendFile(QString* lpszReceiverId, QString *lpszReceiverName, QString* lpszAddress, QString* lpszData);
-    void initReceiveFile(QString* lpszSenderId, QString *lpszSenderName, QString* lpszAddress, QString* lpszData);
-    void fileOperation(FileMode mode, QString* lpszUserId, QString* lpszData);
+    void setLocalId(const QString &_localId);
+    void addConnection(const QString &userId, const QString &address);
+    void sendMessage(const QString &receiverId, const QString &data);
+    void sendHandShake(const QString &userId);
+    void initSendFile(const QString &receiverId, const QString &receiverName, const QString &address, const QString &data);
+    void initReceiveFile(const QString &senderId, const QString &senderName, const QString &address, const QString &data);
+    void fileOperation(FileMode mode, const QString &userId, const QString &data);
     void settingsChanged();
-    void setIPAddress(const QString& szAddress);
+    void setIPAddress(const QString &szAddress);
 
 signals:
-    void newConnection(QString* lpszUserId, QString* lpszAddress);
-    void connectionLost(QString* lpszUserId);
-    void messageReceived(DatagramHeader* pHeader, QString* lpszData);
-    void progressReceived(QString* lpszUserId, QString *lpszUserName, QString* lpszData);
+    void newConnection(QString userId, QString address);
+    void connectionLost(QString userId);
+    void messageReceived(DatagramHeader header, QString data);
+    void progressReceived(QString userId, QString userName, QString data);
 
 private slots:
     void server_newConnection();
     void socket_readyRead();
-    void msgStream_connectionLost(QString* lpszUserId);
-    void update(FileMode mode, FileOp op, FileType type, QString* lpszId, QString* lpszUserId, QString *lpszUserName, QString* lpszData);
-    void receiveMessage(QString* lpszUserId, QString* lpszAddress, QByteArray& data);
+    void msgStream_connectionLost(QString userId);
+    void update(FileMode mode, FileOp op, FileType type, QString id, QString userId, QString lpszUserName, QString data);
+    void receiveMessage(QString userId, QString address, QByteArray data);
 
 private:
-    void addFileSocket(QString* lpszId, QString *lpszUserId, QTcpSocket *pSocket);
-    void addMsgSocket(QString* lpszUserId, QTcpSocket* pSocket);
+    void addFileSocket(const QString &Id, const QString userId, QTcpSocket *socket);
+    void addMsgSocket(const QString &userId, QTcpSocket* socket);
     FileSender* getSender(QString id, QString userId);
     FileReceiver* getReceiver(QString id, QString userId);
     void removeSender(FileSender* pSender);
     void removeReceiver(FileReceiver* pReceiver);
 
-    QTcpServer*				  _server;
-    QList<FileSender*>		  sendList;
-    QList<FileReceiver*>	  receiveList;
-    QMap<QString, MsgStream*> messageMap;
-    MsgStream*				  locMsgStream;
-    lmcSettings*			  pSettings;
-    bool					  isRunning;
-    int						  tcpPort;
-    QString					  localId;
-    QHostAddress			  ipAddress;
+    QTcpServer				  _server;
+    QList<FileSender*>		  _sendList;
+    QList<FileReceiver*>	  _receiveList;
+    QMap<QString, MsgStream*> _messageMap;
+    MsgStream*				  _localMsgStream = nullptr;
+    bool					  _isRunning;
+    int						  _tcpPort;
+    QString					  _localId;
+    QHostAddress			  _ipAddress = QHostAddress::Null;
 };
 
 #endif // TCPNETWORK_H

@@ -21,10 +21,12 @@
 **
 ****************************************************************************/
 
-
-#include <QMessageBox>
 #include "broadcastwindow.h"
 #include "thememanager.h"
+#include "globals.h"
+
+#include <QMessageBox>
+#include <QDesktopWidget>
 
 //	constructor
 lmcBroadcastWindow::lmcBroadcastWindow(User *localUser, QWidget *parent) : QWidget(parent) {
@@ -48,6 +50,7 @@ lmcBroadcastWindow::lmcBroadcastWindow(User *localUser, QWidget *parent) : QWidg
     connect(ui.treeWidgetUserList, &lmcUserTreeWidget::selectedItemsChanged,
         this, &lmcBroadcastWindow::treeWidgetUserList_selectedItemsChanged);
     connect(ui.buttonSend, &ThemedButton::clicked, this, &lmcBroadcastWindow::buttonSend_clicked);
+    connect(ui.buttonCancel, &ThemedButton::clicked, this, &lmcBroadcastWindow::close);
 
     //	event filters for handling keyboard input
     ui.textBoxMessage->installEventFilter(this);
@@ -80,14 +83,15 @@ void lmcBroadcastWindow::init(bool connected) {
     ui.treeWidgetUserList->setCheckable(true);
 
     //	load settings
-    pSettings = new lmcSettings();
-    restoreGeometry(pSettings->value(IDS_WINDOWBROADCAST).toByteArray());
-    ui.splitter->restoreState(pSettings->value(IDS_SPLITTERBROADCAST).toByteArray());
-    showSmiley = pSettings->value(IDS_EMOTICON, IDS_EMOTICON_VAL).toBool();
-    sendKeyMod = pSettings->value(IDS_SENDKEYMOD, IDS_SENDKEYMOD_VAL).toBool();
-    //_groupActionFont->actions()[fontSizeVal]->setChecked(true);
-    int viewType = pSettings->value(IDS_USERLISTVIEW, IDS_USERLISTVIEW_VAL).toInt();
-    ui.treeWidgetUserList->setView((UserListView)viewType);
+    if (!Globals::getInstance().broadcastWindowGeometry().isEmpty())
+        restoreGeometry(Globals::getInstance().broadcastWindowGeometry());
+    else
+        move(50, 50);
+
+    if (!Globals::getInstance().broadcastSplitterGeometry().isEmpty())
+        ui.splitter->restoreState(Globals::getInstance().broadcastSplitterGeometry());
+
+    ui.treeWidgetUserList->setView(Globals::getInstance().userListView());
 
     //	show a message if not connected
     bConnected = connected;
@@ -102,8 +106,8 @@ void lmcBroadcastWindow::init(bool connected) {
 
 void lmcBroadcastWindow::stop() {
     //	save window geometry and splitter panel sizes
-    pSettings->setValue(IDS_WINDOWBROADCAST, saveGeometry());
-    pSettings->setValue(IDS_SPLITTERBROADCAST, ui.splitter->saveState());
+    Globals::getInstance().setBroadcastWindowGeometry(saveGeometry());
+    Globals::getInstance().setBroadcastSplitterGeometry(ui.splitter->saveState());
 }
 
 void lmcBroadcastWindow::show(const QList<QTreeWidgetItem *> &pGroupList, const QStringList &selectedUsers) {
@@ -141,29 +145,26 @@ void lmcBroadcastWindow::connectionStateChanged(bool connected) {
 }
 
 void lmcBroadcastWindow::settingsChanged() {
-    showSmiley = pSettings->value(IDS_EMOTICON, IDS_EMOTICON_VAL).toBool();
-    sendKeyMod = pSettings->value(IDS_SENDKEYMOD, IDS_SENDKEYMOD_VAL).toBool();
-    int viewType = pSettings->value(IDS_USERLISTVIEW, IDS_USERLISTVIEW_VAL).toInt();
-    ui.treeWidgetUserList->setView((UserListView)viewType);
+    ui.treeWidgetUserList->setView(Globals::getInstance().userListView());
 }
 
 //	this method receives keyboard events and check if Enter key or Escape key were pressed
 //	if so, corresponding functions are called
-bool lmcBroadcastWindow::eventFilter(QObject* pObject, QEvent* pEvent) {
-    if(pEvent->type() == QEvent::KeyPress) {
-        QKeyEvent* pKeyEvent = static_cast<QKeyEvent*>(pEvent);
+bool lmcBroadcastWindow::eventFilter(QObject* object, QEvent* event) {
+    if(event->type() == QEvent::KeyPress) {
+        QKeyEvent* pKeyEvent = static_cast<QKeyEvent*>(event);
         if(pKeyEvent->key() == Qt::Key_Escape) {
             close();
             return true;
-        } else if((pKeyEvent->key() == Qt::Key_Return || pKeyEvent->key() == Qt::Key_Enter) && pObject == ui.textBoxMessage) {
-            bool keyMod = ((pKeyEvent->modifiers() & Qt::ControlModifier) == Qt::ControlModifier);
-            if(keyMod == sendKeyMod) {
+        } else if((pKeyEvent->key() == Qt::Key_Return || pKeyEvent->key() == Qt::Key_Enter) && object == ui.textBoxMessage) {
+            bool sendByEnter = ((pKeyEvent->modifiers() & Qt::ControlModifier) == Qt::NoModifier);
+            if(sendByEnter == Globals::getInstance().sendByEnter()) {
                 sendMessage();
                 return true;
             }
             // The TextEdit widget does not insert new line when Ctrl+Enter is pressed
             // So we insert a new line manually
-            if(keyMod)
+            if(!sendByEnter)
                 ui.textBoxMessage->insertPlainText("\n");
         }
     }
@@ -171,8 +172,8 @@ bool lmcBroadcastWindow::eventFilter(QObject* pObject, QEvent* pEvent) {
     return false;
 }
 
-void lmcBroadcastWindow::changeEvent(QEvent* pEvent) {
-    switch(pEvent->type()) {
+void lmcBroadcastWindow::changeEvent(QEvent* event) {
+    switch(event->type()) {
     case QEvent::LanguageChange:
         setUIText();
         break;
@@ -180,14 +181,45 @@ void lmcBroadcastWindow::changeEvent(QEvent* pEvent) {
         break;
     }
 
-    QWidget::changeEvent(pEvent);
+    QWidget::changeEvent(event);
 }
 
-void lmcBroadcastWindow::closeEvent(QCloseEvent* pEvent) {
+void lmcBroadcastWindow::closeEvent(QCloseEvent* event) {
     ui.textBoxMessage->clear();
     buttonSelectNone_clicked();
 
-    QWidget::closeEvent(pEvent);
+    QWidget::closeEvent(event);
+}
+
+void lmcBroadcastWindow::moveEvent(QMoveEvent *event)
+{
+    if (!Globals::getInstance().windowSnapping()) {
+        QWidget::moveEvent(event);
+        return;
+    }
+
+    const QRect screen = QApplication::desktop()->availableGeometry(this);
+
+    bool windowSnapped = false;
+
+    if (std::abs(frameGeometry().left() - screen.left()) < 25) {
+        move(screen.left(), frameGeometry().top());
+        windowSnapped = true;
+    } else if (std::abs(screen.right() - frameGeometry().right()) < 25) {
+        move((screen.right() - frameGeometry().width() + 1), frameGeometry().top());
+        windowSnapped = true;
+    }
+
+    if (std::abs(frameGeometry().top() - screen.top()) < 25) {
+        move(frameGeometry().left(), screen.top());
+        windowSnapped = true;
+    } else if (std::abs(screen.bottom() - frameGeometry().bottom()) < 25) {
+        move(frameGeometry().left(), (screen.bottom() - frameGeometry().height() + 1));
+        windowSnapped = true;
+    }
+
+    if (!windowSnapped)
+        QWidget::moveEvent(event);
 }
 
 //	insert a smiley into the text box
@@ -312,18 +344,18 @@ void lmcBroadcastWindow::sendMessage() {
         int sendCount = 0;
         XmlMessage xmlMessage;
         xmlMessage.addHeader(XN_TIME, QString::number(QDateTime::currentDateTime().toMSecsSinceEpoch()));
-        xmlMessage.addData(XN_BROADCAST, szMessage);
+        xmlMessage.addData(XN_MESSAGE, szMessage);
         xmlMessage.addData(XN_STATUS, localUser->status);
         xmlMessage.addData(XN_NAME, localUser->name);
-        xmlMessage.addData(XN_FONT, pSettings->value(IDS_FONT, IDS_FONT_VAL).toString());
-        xmlMessage.addData(XN_COLOR, pSettings->value(IDS_COLOR, IDS_COLOR_VAL).toString());
+        xmlMessage.addData(XN_FONT, Globals::getInstance().messagesFontString());
+        xmlMessage.addData(XN_COLOR, Globals::getInstance().messagesColor());
 
         for(int index = 0; index < ui.treeWidgetUserList->topLevelItemCount(); index++) {
             for(int childIndex = 0; childIndex < ui.treeWidgetUserList->topLevelItem(index)->childCount(); childIndex++) {
                 QTreeWidgetItem* item = ui.treeWidgetUserList->topLevelItem(index)->child(childIndex);
                 if(item->checkState(0) == Qt::Checked) {
                     QString szUserId = item->data(0, IdRole).toString();
-                    emit messageSent(MT_Broadcast, &szUserId, &xmlMessage);
+                    emit messageSent(MT_Broadcast, szUserId, xmlMessage);
                     sendCount++;
                 }
             }

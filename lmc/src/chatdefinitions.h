@@ -27,10 +27,6 @@
 
 #include "uidefinitions.h"
 
-const int HTMLESC_COUNT = 4; // 5
-const QString htmlSymbol[] = {"&", "\"", "<", ">"}; // " "
-const QString htmlEscape[] = {"&amp;", "&quot;", "&lt;", "&gt;"};
-
 enum InfoType {
     IT_Ok			= 0x00,
     IT_Busy			= 0x01,
@@ -50,6 +46,7 @@ enum ChatState {
     CS_Paused,
     CS_Inactive,
     CS_Gone,
+    CS_Read,
     CS_Max
 };
 
@@ -59,7 +56,8 @@ const QString ChatStateNames[] = {
     "composing",
     "paused",
     "inactive",
-    "gone"
+    "gone",
+    "read"
 };
 
 #endif // CHATDEFINITIONS_H

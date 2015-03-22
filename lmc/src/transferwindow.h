@@ -51,18 +51,19 @@ public:
     void init();
     void updateList();
     void stop();
-    void createTransfer(MessageType type, FileMode mode, QString* lpszUserId, QString* lpszUserName, XmlMessage* pMessage);
-    void receiveMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
+    void createTransfer(MessageType type, FileMode mode, const QString &userId, const QString &userName, const XmlMessage &message);
+    void receiveMessage(const XmlMessage &message);
     void settingsChanged();
     void setUserFilter(const QString &userName);
 
 signals:
-    void messageSent(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
+    void messageSent(MessageType type, QString lpszUserId, XmlMessage pMessage);
     void showTrayMessage(TrayMessageType type, QString szMessage, QString chatRoomId, QString szTitle, TrayMessageIcon icon);
 
 protected:
     bool eventFilter(QObject* pObject, QEvent* pEvent);
     void changeEvent(QEvent* pEvent);
+    void moveEvent(QMoveEvent *event);
 
 private slots:
     void listWidgetTransferList_currentRowChanged(int currentRow);
@@ -87,7 +88,6 @@ private:
     void saveHistory(const FileView *transfer = nullptr);
 
     Ui::TransferWindow ui;
-    lmcSettings* pSettings;
     lmcSoundPlayer* pSoundPlayer;
     ThemedButton *_buttonCancel;
     ThemedButton *_buttonShowFolder;

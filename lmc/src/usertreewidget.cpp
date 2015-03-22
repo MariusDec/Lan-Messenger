@@ -21,10 +21,12 @@
 **
 ****************************************************************************/
 
-
 #include "usertreewidget.h"
 
+#include <QLabel>
 #include <QMimeData>
+#include <QMovie>
+#include <QDesktopWidget>
 
 lmcUserTreeWidgetItem::lmcUserTreeWidgetItem() : QTreeWidgetItem(UserType + 1) {
     //	make item not user checkable
@@ -49,7 +51,7 @@ QRect lmcUserTreeWidgetItem::checkBoxRect(const QRect& itemRect) {
 }
 
 void lmcUserTreeWidgetGroupItem::addChild(QTreeWidgetItem* child) {
-    lmcUserTreeWidget* treeWidget = static_cast<lmcUserTreeWidget*>(this->treeWidget());
+    lmcUserTreeWidget* treeWidget = static_cast<lmcUserTreeWidget *>(this->treeWidget());
     child->setSizeHint(0, QSize(0, itemViewHeight[treeWidget->view()]));
     QTreeWidgetItem::addChild(child);
 }
@@ -57,17 +59,13 @@ void lmcUserTreeWidgetGroupItem::addChild(QTreeWidgetItem* child) {
 bool lmcUserTreeWidgetUserItem::operator < (const QTreeWidgetItem& other) const {
     int column = treeWidget()->sortColumn();
     if(column == 0) {
-        // TODO add option in settings to sort by text or by IP
-
-        //	sort based on status and user name
-        if(data(column, StatusRole).toInt() < other.data(column, StatusRole).toInt())
+        //	sort based on IP and username
+        if (data(column, DataRole).toInt() < other.data(column, DataRole).toInt())
             return true;
-        else if(data(column, StatusRole).toInt() > other.data(column, StatusRole).toInt())
+        else if (data(column, DataRole).toInt() > other.data(column, DataRole).toInt())
             return false;
-        else {
-            //return text(column).toLower() < other.text(column).toLower(); // if (sort by text)
-            return data(column, DataRole).toInt() < other.data(column, DataRole).toInt();
-        }
+        else
+            return text(column).toLower() < other.text(column).toLower();
     }
 
     return text(column).toLower() < other.text(column).toLower();
@@ -163,7 +161,7 @@ void lmcUserTreeWidgetDelegate::paint(QPainter* painter, const QStyleOptionViewI
         if(pTreeWidget->view() == ULV_Detailed) {
             QVariant avatar = pItem->data(0, AvatarRole);
             if(!avatar.isNull()) {
-                QPixmap avatarImage = ((QIcon)pItem->data(0, AvatarRole).value<QIcon>()).pixmap(32, 32);
+                QPixmap avatarImage = ((QIcon)pItem->data(0, AvatarRole).value<QIcon>()).pixmap(40, 40);
                 avatarRect.setLeft(avatarRect.right() - avatarImage.width() - padding);
                 avatarRect.setSize(avatarImage.size());
                 painter->drawPixmap(avatarRect, avatarImage);
@@ -215,11 +213,19 @@ void lmcUserTreeWidgetDelegate::drawCheckBox(QPainter *painter, const QPalette& 
 lmcUserTreeWidget::lmcUserTreeWidget(QWidget* parent) : QTreeWidget(parent), dragGroup(false), dragUser(false), dragFile(false) {
     itemDelegate = new lmcUserTreeWidgetDelegate();
     setItemDelegate(itemDelegate);
+    setMouseTracking(true);
 
     isCheckable = false;
     viewType = ULV_Detailed;
 
     connect(this, &lmcUserTreeWidget::itemChanged, this, &lmcUserTreeWidget::handleItemChanged);
+}
+
+lmcUserTreeWidget::~lmcUserTreeWidget() {
+    for (lmcUserTreeWidgetItem *item : _tooltips.keys()) {
+        delete _tooltips[item];
+        _tooltips.remove(item);
+    }
 }
 
 bool lmcUserTreeWidget::checkable() {
@@ -245,7 +251,57 @@ void lmcUserTreeWidget::setView(UserListView view) {
     }
 }
 
+void lmcUserTreeWidget::setItemTooltip(lmcUserTreeWidgetItem *item, QWidget *tooltip)
+{
+    tooltip->setAttribute(Qt::WA_ShowWithoutActivating);
+    tooltip->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowSystemMenuHint);
+    if (!_tooltips.contains(item))
+        _tooltips.insert(item, tooltip);
+    else {
+        delete _tooltips[item];
+        _tooltips[item] = tooltip;
+    }
+}
+
+void lmcUserTreeWidget::setItemTooltipAvatar(lmcUserTreeWidgetItem *item, const QString &avatarPath)
+{
+    if (item && _tooltips.contains(item)){
+        _tooltips[item].data()->hide();
+
+        QLabel *label = _tooltips[item].data()->findChild<QLabel *>(QStringLiteral("labelAvatar"));
+        if (label)
+            label->setPixmap(QPixmap(avatarPath).scaled(64, 64, Qt::KeepAspectRatio, Qt::FastTransformation));
+    }
+}
+
+void lmcUserTreeWidget::setItemTooltipDetails(lmcUserTreeWidgetItem *item, const QString &details)
+{
+    if (item && _tooltips.contains(item)){
+        _tooltips[item].data()->hide();
+        QLabel *label = _tooltips[item].data()->findChild<QLabel *>(QStringLiteral("labelDescription"));
+        if (label)
+            label->setText(details);
+    }
+}
+
+void lmcUserTreeWidget::removeItemTooltip(lmcUserTreeWidgetItem *item)
+{
+    if (_tooltips.contains(item)) {
+        delete _tooltips[item];
+        _tooltips.remove(item);
+    }
+}
+
 void lmcUserTreeWidget::mousePressEvent(QMouseEvent* event) {
+    if (_hoveredItem && _tooltips.contains(_hoveredItem)){
+        _tooltips[_hoveredItem].data()->hide();
+      /*
+        QLabel *label = _tooltips[_hoveredItem].data()->findChild<QLabel *>(QStringLiteral("labelAvatar"));
+        if (label && label->movie ())
+            label->movie ()->stop();
+      */
+    }
+
     if(event->button() == Qt::LeftButton) {
         QTreeWidgetItem* item = itemAt(event->pos());
 
@@ -352,7 +408,7 @@ void lmcUserTreeWidget::mouseReleaseEvent(QMouseEvent* event) {
 
     QPoint pos = event->pos();
     lmcUserTreeWidgetItem* item = static_cast<lmcUserTreeWidgetItem*>(itemAt(pos));
-    if(item && checkable()) {
+    if(item && checkable() && (item->data(0, TypeRole).toString().compare("Group") != 0 || item->checkBoxRect(visualItemRect(item)).contains(pos))) {
         if(item->checkState(0) == Qt::Checked)
             item->setCheckState(0, Qt::Unchecked);
         else
@@ -361,6 +417,7 @@ void lmcUserTreeWidget::mouseReleaseEvent(QMouseEvent* event) {
     dragUser = false;
     dragGroup = false;
     dragFile = false;
+    dragItem = nullptr;
 }
 
 void lmcUserTreeWidget::handleItemChanged(QTreeWidgetItem *item, int column) {
@@ -396,6 +453,15 @@ void lmcUserTreeWidget::handleItemChanged(QTreeWidgetItem *item, int column) {
 void lmcUserTreeWidget::keyPressEvent(QKeyEvent* event) {
     QTreeWidget::keyPressEvent(event);
 
+    if (_hoveredItem && _tooltips.contains(_hoveredItem)){
+        _tooltips[_hoveredItem].data()->hide();
+      /*
+        QLabel *label = _tooltips[_hoveredItem].data()->findChild<QLabel *>(QStringLiteral("labelAvatar"));
+        if (label && label->movie ())
+            label->movie ()->stop();
+      */
+    }
+
     if(event->key() == Qt::Key_Space && selectedItems().count() > 0) {
         lmcUserTreeWidgetItem* item = static_cast<lmcUserTreeWidgetItem*>(selectedItems().at(0));
         if(item && checkable()) {
@@ -419,4 +485,65 @@ void lmcUserTreeWidget::dragEnterEvent(QDragEnterEvent *ev)
         ev->acceptProposedAction();
     } else if (dragGroup || dragUser)
         ev->acceptProposedAction();
+}
+
+void lmcUserTreeWidget::mouseMoveEvent(QMouseEvent *event)
+{
+    if (dragGroup || dragFile || dragUser)
+        return;
+
+    lmcUserTreeWidgetItem *item = static_cast<lmcUserTreeWidgetItem *> (itemAt(event->pos()));
+
+    if (item && _tooltips.contains(item)) {
+        if (!_hoveredItem) {
+            // TODO !!! show the tooltip only after the timeout expires (150ms ? 250ms ?)
+        }
+
+        QPoint pos = event->globalPos() + QPoint(12, 15);
+        QWidget *tooltip = _tooltips[item].data();
+
+        const QRect screen = QApplication::desktop()->availableGeometry(this);
+        if (pos.x() + tooltip->width() > screen.right())
+            pos.setX(screen.right() - tooltip->width() + 1);
+        if (pos.y() + tooltip->height() > screen.bottom())
+            pos.setY(event->globalPos().y() - tooltip->height());
+
+        if (_hoveredItem && _hoveredItem != item && _tooltips.contains(_hoveredItem)) {
+            _tooltips[_hoveredItem].data()->hide();
+        }
+
+        _hoveredItem = item;
+        tooltip->move(pos);
+        tooltip->show();
+
+      /*
+        QLabel *label = tooltip->findChild<QLabel *>(QStringLiteral("labelAvatar"));
+        if (label && label->movie ())
+            label->movie ()->start ();
+      */
+    } else if (_hoveredItem && _tooltips.contains(_hoveredItem)){
+        _tooltips[_hoveredItem].data()->hide();
+      /*
+        QLabel *label = _tooltips[_hoveredItem].data()->findChild<QLabel *>(QStringLiteral("labelAvatar"));
+        if (label && label->movie ())
+            label->movie ()->stop();
+      */
+
+        _hoveredItem = nullptr;
+    }
+
+    QTreeWidget::mouseMoveEvent(event);
+}
+
+void lmcUserTreeWidget::leaveEvent(QEvent  *event)
+{if (_hoveredItem && _tooltips.contains(_hoveredItem)){
+        _tooltips[_hoveredItem].data()->hide();
+      /*
+        QLabel *label = _tooltips[_hoveredItem].data()->findChild<QLabel *>(QStringLiteral("labelAvatar"));
+        if (label && label->movie ())
+            label->movie ()->stop();
+      */
+    }
+
+    QTreeWidget::leaveEvent(event);
 }

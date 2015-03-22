@@ -41,8 +41,8 @@ class FileSender : public QObject {
 
 public:
     FileSender();
-    FileSender(const QString &szId, const QString &szLocalId, const QString &szPeerId, const QString &szPeerName, const QString &szFilePath, const QString &szFileName, qint64 nFileSize,
-        const QString &szAddress, int nPort, const FileType &nType);
+    FileSender(const QString &id, const QString &_localId, const QString &peerId, const QString &peerName, const QString &_filePath, const QString &_fileName, qint64 _fileSize,
+        const QString &_address, int _port, const FileType &type);
     ~FileSender();
 
     void init();
@@ -54,7 +54,7 @@ public:
     FileType type;
 
 signals:
-    void progressUpdated(FileMode mode, FileOp fileOp, FileType type, QString* lpszId, QString* lpszUserId, QString* lpszUserName, QString* lpszData);
+    void progressUpdated(FileMode mode, FileOp fileOp, FileType type, QString id, QString userId, QString userName, QString data);
 
 private slots:
     void connected();
@@ -66,20 +66,20 @@ private slots:
 private:
     void sendFile();
 
-    QString localId;
-    QString filePath;
-    QString fileName;
-    qint64 fileSize;
-    QString address;
-    int port;
-    qint64 sentBytes;
-    QTcpSocket* socket;
-    QFile* file;
-    char* buffer;
-    bool active;
-    qint64 milestone;
-    qint64 mile;
-    QTimer* timer;
+    QString _localId;
+    QString _filePath;
+    QString _fileName;
+    qint64 _fileSize;
+    QString _address;
+    int _port;
+    qint64 _sentBytes;
+    QTcpSocket _socket;
+    QFile _file;
+    char* _buffer = nullptr;
+    bool _active = false;
+    qint64 _milestone;
+    qint64 _mile;
+    QTimer _timer;
 };
 
 /****************************************************************************
@@ -91,11 +91,11 @@ class FileReceiver : public QObject {
 
 public:
     FileReceiver();
-    FileReceiver(const QString &szId, const QString &szPeerId, const QString &szPeerName, const QString &szFilePath, const QString &szFileName, qint64 nFileSize,
-        const QString &szAddress, int nPort, const FileType &nType);
+    FileReceiver(const QString &id, const QString &peerId, const QString &peerName, const QString &_filePath, const QString &_fileName, qint64 _fileSize,
+        const QString &_address, int _port, const FileType &type);
     ~FileReceiver();
 
-    void init(QTcpSocket* socket);
+    void init(QTcpSocket *_socket);
     void stop();
 
     QString id;
@@ -104,7 +104,7 @@ public:
     FileType type;
 
 signals:
-    void progressUpdated(FileMode mode, FileOp fileOp, FileType type, QString* lpszId, QString* lpszUserId, QString* lpszUserName, QString* lpszData);
+    void progressUpdated(FileMode mode, FileOp fileOp, FileType type, QString id, QString userId, QString userName, QString data);
 
 private slots:
     void disconnected();
@@ -114,21 +114,21 @@ private slots:
 private:
     void receiveFile();
 
-    QString filePath;
-    QString fileName;
-    qint64 fileSize;
-    QString address;
-    int port;
-    qint64 sentBytes;
-    QTcpSocket* socket;
-    QFile* file;
-    char* buffer;
-    bool active;
-    qint64 milestone;
-    qint64 mile;
-    QTimer* timer;
-    int numTimeOuts;
-    qint64 lastPosition;
+    QString _filePath;
+    QString _fileName;
+    qint64 _fileSize;
+    QString _address;
+    int _port;
+    qint64 _sentBytes;
+    QTcpSocket *_socket = nullptr;
+    QFile _file;
+    char* _buffer = nullptr;
+    bool _active = false;
+    qint64 _milestone;
+    qint64 _mile;
+    QTimer _timer;
+    int _numTimeOuts = 0;
+    qint64 _lastPosition = 0;
 };
 
 /****************************************************************************
@@ -139,18 +139,18 @@ class MsgStream : public QObject {
     Q_OBJECT
 
 public:
-    MsgStream();
-    MsgStream(QString szLocalId, QString szPeerId, QString szPeerAddress, int nPort);
-    ~MsgStream();
+    MsgStream() { }
+    MsgStream(const QString &localId, const QString &peerId, const QString &peerAddress, int port)  : _port(port), _localId(localId), _peerId(peerId), _peerAddress(peerAddress) { }
+    ~MsgStream() { }
 
     void init();
-    void init(QTcpSocket* _socket);
+    void init(QTcpSocket *_socket);
     void stop();
-    void sendMessage(QByteArray& data);
+    void sendMessage(QByteArray &data);
 
 signals:
-    void connectionLost(QString* lpszUserId);
-    void messageReceived(QString* lpszUserId, QString* lpszAddress, QByteArray& data);
+    void connectionLost(QString userId);
+    void messageReceived(QString userId, QString address, QByteArray data);
 
 private slots:
     void connected();
@@ -159,16 +159,16 @@ private slots:
     void bytesWritten(qint64 bytes);
 
 private:
-    QTcpSocket* _socket;
-    int port;
-    QString localId;
-    QString peerId;
-    QString peerAddress;
-    QByteArray outData;
-    QByteArray inData;
-    qint32 outDataLen;
-    qint32 inDataLen;
-    bool reading;
+    QTcpSocket* _socket = nullptr;
+    int _port;
+    QString _localId;
+    QString _peerId;
+    QString _peerAddress;
+    QByteArray _outData;
+    QByteArray _inData;
+    qint32 _outDataLen = 0;
+    qint32 _inDataLen = 0;
+    bool _reading = false;
 };
 
 #endif // NETSTREAMER_H

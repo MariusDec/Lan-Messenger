@@ -21,11 +21,12 @@
 **
 ****************************************************************************/
 
-
 #include "userinfowindow.h"
 #include "globals.h"
 #include "imageslist.h"
 #include "thememanager.h"
+
+#include <QDesktopWidget>
 
 lmcUserInfoWindow::lmcUserInfoWindow(QWidget *parent) : QDialog(parent) {
     ui.setupUi(this);
@@ -54,12 +55,11 @@ void lmcUserInfoWindow::init() {
     font.setBold(true);
     ui.labelUserName->setFont(font);
 
-    pSettings = new lmcSettings();
     setUIText();
 }
 
-void lmcUserInfoWindow::setInfo(XmlMessage* pMessage) {
-    userInfo = *pMessage;
+void lmcUserInfoWindow::setInfo(const XmlMessage &message) {
+    userInfo.setContent(message.toString());
     setUIText();
     ui.tabWidget->setCurrentIndex(0);
 }
@@ -79,6 +79,37 @@ void lmcUserInfoWindow::changeEvent(QEvent* pEvent) {
     QDialog::changeEvent(pEvent);
 }
 
+void lmcUserInfoWindow::moveEvent(QMoveEvent *event)
+{
+    if (!Globals::getInstance().windowSnapping()) {
+        QWidget::moveEvent(event);
+        return;
+    }
+
+    const QRect screen = QApplication::desktop()->availableGeometry(this);
+
+    bool windowSnapped = false;
+
+    if (std::abs(frameGeometry().left() - screen.left()) < 25) {
+        move(screen.left(), frameGeometry().top());
+        windowSnapped = true;
+    } else if (std::abs(screen.right() - frameGeometry().right()) < 25) {
+        move((screen.right() - frameGeometry().width() + 1), frameGeometry().top());
+        windowSnapped = true;
+    }
+
+    if (std::abs(frameGeometry().top() - screen.top()) < 25) {
+        move(frameGeometry().left(), screen.top());
+        windowSnapped = true;
+    } else if (std::abs(screen.bottom() - frameGeometry().bottom()) < 25) {
+        move(frameGeometry().left(), (screen.bottom() - frameGeometry().height() + 1));
+        windowSnapped = true;
+    }
+
+    if (!windowSnapped)
+        QWidget::moveEvent(event);
+}
+
 void lmcUserInfoWindow::setUIText() {
     ui.retranslateUi(this);
     setWindowTitle(tr("User Information"));
@@ -90,7 +121,7 @@ void lmcUserInfoWindow::setUIText() {
     //	if image not found, use the default avatar image for this user
     if(!QFile::exists(filePath))
         filePath = ImagesList::getInstance().getDefaultAvatar();
-    ui.lblAvatar->setPixmap(QPixmap(filePath));
+    ui.lblAvatar->setPixmap(QPixmap(filePath).scaled(64, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     ui.labelUserName->setText(userInfo.data(XN_NAME));
 
     StatusStruct *status = Globals::getInstance ().getStatus (userInfo.data(XN_STATUS));

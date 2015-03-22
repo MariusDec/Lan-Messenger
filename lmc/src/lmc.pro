@@ -8,7 +8,8 @@ QT       += core gui network xml webkit
 QTPLUGIN += qjpeg qgif
 
 QT += widgets multimedia webkitwidgets xmlpatterns
-CONFIG   += c++11
+#CONFIG  += c++14
+QMAKE_CXXFLAGS += -std=c++1y
 
 win32: TARGET = lmc
 unix: TARGET = lan-messenger
@@ -41,7 +42,6 @@ SOURCES += \
     helpwindow.cpp \
     filemodelview.cpp \
     datagram.cpp \
-    crypto.cpp \
     broadcastwindow.cpp \
     aboutdialog.cpp \
     xmlmessage.cpp \
@@ -61,7 +61,8 @@ SOURCES += \
     imageslist.cpp \
     globals.cpp \
     qxttooltip.cpp \
-    broadcastdisplaywindow.cpp
+    stdlocation.cpp \
+    instantmessagewindow.cpp
 
 HEADERS  += \
     usertreewidget.h \
@@ -94,7 +95,6 @@ HEADERS  += \
     stdlocation.h \
     definitions.h \
     datagram.h \
-    crypto.h \
     aboutdialog.h \
     xmlmessage.h \
     chathelper.h \
@@ -113,7 +113,7 @@ HEADERS  += \
     globals.h \
     qxttooltip.h \
     qxttooltip_p.h \
-    broadcastdisplaywindow.h
+    instantmessagewindow.h
 
 FORMS += \
     transferwindow.ui \
@@ -127,7 +127,7 @@ FORMS += \
     userinfowindow.ui \
     chatroomwindow.ui \
     userselectdialog.ui \
-    broadcastdisplaywindow.ui
+    instantmessagewindow.ui
 
 TRANSLATIONS += \
         en_US.ts \

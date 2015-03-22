@@ -57,6 +57,7 @@ signals:
 
 protected:
   void changeEvent(QEvent* pEvent);
+  void moveEvent(QMoveEvent *event);
 
 private slots:
   void listWidgetCategories_currentRowChanged(int currentRow);

@@ -56,7 +56,7 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="QWidget" name="wgtLog" native="true">
+         <widget class="QWidget" name="widgetLog" native="true">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -69,7 +69,7 @@
             <height>54</height>
            </size>
           </property>
-          <layout class="QHBoxLayout" name="horizontalLayout_4">
+          <layout class="QVBoxLayout" name="widgetLog_layout">
            <property name="spacing">
             <number>0</number>
            </property>
@@ -85,13 +85,6 @@
            <property name="bottomMargin">
             <number>0</number>
            </property>
-           <item>
-            <layout class="QVBoxLayout" name="logLayout">
-             <property name="spacing">
-              <number>0</number>
-             </property>
-            </layout>
-           </item>
           </layout>
          </widget>
         </item>
@@ -107,12 +100,9 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="layoutWidget1_4">
-       <layout class="QVBoxLayout" name="vLayoutMsgBox">
-        <property name="spacing">
-         <number>0</number>
-        </property>
-        <item>
+      <widget class="QWidget" name="widgetForm" native="true">
+       <layout class="QGridLayout" name="gridLayout">
+        <item row="0" column="0" colspan="2">
          <widget class="QLabel" name="labelDividerTop">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -134,7 +124,7 @@
           </property>
          </widget>
         </item>
-        <item>
+        <item row="1" column="0" colspan="2">
          <widget class="QWidget" name="widgetToolBar" native="true">
           <property name="minimumSize">
            <size>
@@ -164,7 +154,7 @@
           </layout>
          </widget>
         </item>
-        <item>
+        <item row="2" column="0" colspan="2">
          <widget class="QLabel" name="labelDividerBottom">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -186,7 +176,7 @@
           </property>
          </widget>
         </item>
-        <item>
+        <item row="3" column="0" colspan="2">
          <widget class="QTextEdit" name="textBoxMessage">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
@@ -208,6 +198,40 @@
           </property>
           <property name="acceptRichText">
            <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0">
+         <widget class="QLabel" name="labelSendKey">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="MinimumExpanding" vsizetype="Maximum">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">color: rgb(120, 130, 175);
+font: italic;</string>
+          </property>
+          <property name="text">
+           <string>Send message using Enter</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1" alignment="Qt::AlignRight">
+         <widget class="QLabel" name="labelCountChars">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">color: rgb(120, 130, 175);
+font: italic;</string>
+          </property>
+          <property name="text">
+           <string>0 characters</string>
           </property>
          </widget>
         </item>

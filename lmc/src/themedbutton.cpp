@@ -198,14 +198,12 @@ void ThemedButton::paintEvent(QPaintEvent *e) {
   // draw the text
   if (!text().isNull() and (toolButtonStyle() != Qt::ToolButtonIconOnly or
       icon().isNull())) {
-    int iconWidth = 0; // to reserve space for the icon to be drawn
-    if (!icon().isNull() and
-        toolButtonStyle() != Qt::ToolButtonTextOnly) // if it has an icon, and
-                                                     // the button style is not
-                                                     // 'show only text'
-      iconWidth = iconSize().width();
+      int iconWidth = 0; // to reserve space for the icon to be drawn
+      if (!icon().isNull() and
+              toolButtonStyle() != Qt::ToolButtonTextOnly) // if it has an icon, and the button style is not 'show only text'
+          iconWidth = iconSize().width();
 
-    painter.setFont(this->font());
+      painter.setFont(this->font());
 
     QFontMetrics fontMetrics = painter.fontMetrics(); // used to calculate the
                                                       // width and height of the
@@ -224,14 +222,14 @@ void ThemedButton::paintEvent(QPaintEvent *e) {
 
   // draw the icon
   if (!icon().isNull() and
-      (!text().isNull() or toolButtonStyle() != Qt::ToolButtonTextOnly)) {
+      (text().isNull() or toolButtonStyle() != Qt::ToolButtonTextOnly)) {
       QSize pxSize = iconSize();
       if (_iconFitSize && toolButtonStyle() == Qt::ToolButtonIconOnly)
           pxSize = QSize(height() - 8, width() - 8);
 
-    QPixmap pixmap =
-        icon().pixmap(pxSize, isEnabled() ? QIcon::Normal : QIcon::Disabled,
-                      isChecked() ? QIcon::On : QIcon::Off);
+      QPixmap pixmap =
+          icon().pixmap(pxSize, isEnabled() ? QIcon::Normal : QIcon::Disabled,
+                        isChecked() ? QIcon::On : QIcon::Off);
 
     if (toolButtonStyle() != Qt::ToolButtonIconOnly)
       painter.drawPixmap(2, ((height() - pixmap.height()) / 2), pixmap);

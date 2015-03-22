@@ -57,33 +57,29 @@ lmcMessaging::lmcMessaging() {
 lmcMessaging::~lmcMessaging() {
 }
 
-void lmcMessaging::init(XmlMessage *pInitParams) {
+void lmcMessaging::init(const XmlMessage &initParams) {
     LoggerManager::getInstance ().writeInfo (QStringLiteral("lmcMessaging.init started"));
 
-    pNetwork->init(pInitParams);
+    pNetwork->init(initParams);
 
     QString userId = pNetwork->IPAddress();
 
-    pNetwork->setLocalId(&userId);
+    pNetwork->setLocalId(userId);
 
-    pSettings = new lmcSettings();
-    QString userStatus = pSettings->value(IDS_STATUS, IDS_STATUS_VAL).toString();
+    QString userStatus = Globals::getInstance().userStatus();
     //	if status not recognized, default to available
     if(!Globals::getInstance ().statusExists (userStatus))
         userStatus = "Available";
     QString userName = getUserName();
 
-    int nAvatar = pSettings->value(IDS_AVATAR, IDS_AVATAR_VAL).toInt();
-    QString userNote = pSettings->value(IDS_NOTE, IDS_NOTE_VAL).toString();
+    int nAvatar = Globals::getInstance().userAvatarIndex();
+    QString userNote = Globals::getInstance().userNote();
     uint userCaps = UC_File | UC_GroupMessage | UC_Folder;
     localUser = new User(userId, IDA_VERSION, pNetwork->ipAddress, userName, userStatus,
                          QString::null, nAvatar, userNote, ImagesList::getInstance ().getAvatar (nAvatar),
                          QString::number(userCaps), Helper::getHostName());
 
     loadGroups();
-
-    nTimeout = pSettings->value(IDS_TIMEOUT, IDS_TIMEOUT_VAL).toInt() * 1000;
-    nMaxRetry = pSettings->value(IDS_MAXRETRIES, IDS_MAXRETRIES_VAL).toInt();
 
     pTimer = new QTimer(this);
     connect(pTimer, &QTimer::timeout, this, &lmcMessaging::timer_timeout);
@@ -98,21 +94,18 @@ void lmcMessaging::start() {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.start started"));
     pNetwork->start();
 
-    sendBroadcast(MT_Announce, NULL);
+    sendBroadcast(MT_Announce);
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.start ended"));
 }
 
 void lmcMessaging::update() {
-    sendBroadcast(MT_Announce, NULL);
+    sendBroadcast(MT_Announce);
 }
 
 void lmcMessaging::stop() {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.stop started"));
-    sendBroadcast(MT_Depart, NULL);
+    sendBroadcast(MT_Depart);
     pNetwork->stop();
-
-    pSettings->setValue(IDS_STATUS, localUser->status);
-    pSettings->setValue(IDS_AVATAR, localUser->avatar);
 
     saveGroups();
 
@@ -131,37 +124,33 @@ void lmcMessaging::setLoopback(bool on) {
     loopback = on;
 }
 
-User* lmcMessaging::getUser(const QString* userId) {
+User *lmcMessaging::getUser(const QString &userId) {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.getUser started"));
 
-    if (!userId) {
-        LoggerManager::getInstance().writeWarning(QStringLiteral("lmcMessaging.getUser -|- User id is null"));
+    if (userId.isEmpty()) {
+        LoggerManager::getInstance().writeWarning(QStringLiteral("lmcMessaging.getUser -|- User ID is empty"));
         return nullptr;
     }
 
     for(int index = 0; index < userList.count(); index++)
-        if(userList[index].id.compare(*userId) == 0)
+        if(userList[index].id.compare(userId) == 0)
             return &userList[index];
 
-    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.getUser ended -|- The user with the id %1 doesn't exist").arg(*userId));
+    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.getUser ended -|- The user with the id %1 doesn't exist").arg(userId));
     return nullptr;
 }
 
 void lmcMessaging::settingsChanged() {
-    nTimeout = pSettings->value(IDS_TIMEOUT, IDS_TIMEOUT_VAL).toInt() * 1000;
-    nMaxRetry = pSettings->value(IDS_MAXRETRIES, IDS_MAXRETRIES_VAL).toInt();
     pNetwork->settingsChanged();
 
     QString userName = getUserName();
     if(localUser->name.compare(userName) != 0) {
-        localUser->name = userName;
-
-        if (!localUser->name.startsWith(QString("C%1 - ").arg(localUser->lanIndex)))
-            localUser->name.prepend(QString("C%1 - ").arg(localUser->lanIndex));
+        localUser->setName(userName);
 
         XmlMessage xmlMessage;
         xmlMessage.addData(XN_NAME, userName);
-        sendMessage(MT_UserName, NULL, &xmlMessage);
+        QString nullString = QString::null;
+        sendMessage(MT_UserName, nullString, xmlMessage);
     }
 }
 
@@ -212,7 +201,6 @@ void lmcMessaging::updateGroupMap(QString oldGroup, QString newGroup) {
 
 //	save groups and group mapping
 void lmcMessaging::saveGroups() {
-    // TODO save groups after every modification
     QSettings groupSettings(StdLocation::writableGroupsFile(), QSettings::IniFormat);
     groupSettings.beginWriteArray(IDS_GROUPHDR);
     for(int index = 0; index < groupList.count(); index++) {
@@ -239,7 +227,7 @@ void lmcMessaging::saveGroups() {
     // make sure the correct version is set in the preferences file
     // so the group settings will not be wrongly migrated next time
     // application starts
-    pSettings->setValue(IDS_VERSION, IDA_VERSION);
+    Globals::getInstance().setVersion(IDA_VERSION);
 }
 
 int lmcMessaging::userCount() {
@@ -252,7 +240,7 @@ void lmcMessaging::network_connectionStateChanged() {
         if(localUser->id.isNull()) {
             QString userId = pNetwork->IPAddress();
             localUser->id = userId;
-            pNetwork->setLocalId(&userId);
+            pNetwork->setLocalId(userId);
         }
     }
     emit connectionStateChanged();
@@ -273,7 +261,7 @@ QString lmcMessaging::createUserId(const QString &lpszAddress, const QString &lp
 }
 
 QString lmcMessaging::getUserName() {
-    QString userName = pSettings->value(IDS_USERNAME, IDS_USERNAME_VAL).toString();
+    QString userName = Globals::getInstance().userName();
     if(userName.isEmpty())
         userName = Helper::getLogonName();
     return userName;
@@ -309,124 +297,123 @@ void lmcMessaging::loadGroups() {
     groupSettings.endArray();
 }
 
-void lmcMessaging::getUserInfo(XmlMessage* pMessage) {
-    QString firstName = pSettings->value(IDS_USERFIRSTNAME, IDS_USERFIRSTNAME_VAL).toString();
-    QString lastName = pSettings->value(IDS_USERLASTNAME, IDS_USERLASTNAME_VAL).toString();
-    QString about = pSettings->value(IDS_USERABOUT, IDS_USERABOUT_VAL).toString();
+void lmcMessaging::getUserInfo(XmlMessage &message) {
+    QString firstName = Globals::getInstance().userFirstName();
+    QString lastName = Globals::getInstance().userLastName();
+    QString about = Globals::getInstance().userAbout();
     firstName = firstName.isEmpty() ? "N/A" : firstName;
     lastName = lastName.isEmpty() ? "N/A" : lastName;
     about = about.isEmpty() ? "N/A" : about;
 
-    pMessage->addData(XN_USERID, localUser->id);
-    pMessage->addData(XN_NAME, localUser->name);
-    pMessage->addData(XN_ADDRESS, localUser->address);
-    pMessage->addData(XN_VERSION, localUser->version);
-    pMessage->addData(XN_STATUS, localUser->status);
-    pMessage->addData(XN_NOTE, localUser->note);
-    pMessage->addData(XN_LOGON, Helper::getLogonName());
-    pMessage->addData(XN_HOST, Helper::getHostName());
-    pMessage->addData(XN_OS, Helper::getOSName());
-    pMessage->addData(XN_FIRSTNAME, firstName);
-    pMessage->addData(XN_LASTNAME, lastName);
-    pMessage->addData(XN_ABOUT, about);
+    message.addData(XN_USERID, localUser->id);
+    message.addData(XN_NAME, localUser->name);
+    message.addData(XN_ADDRESS, localUser->address);
+    message.addData(XN_VERSION, localUser->version);
+    message.addData(XN_STATUS, localUser->status);
+    message.addData(XN_NOTE, localUser->note);
+    message.addData(XN_LOGON, Helper::getLogonName());
+    message.addData(XN_HOST, Helper::getHostName());
+    message.addData(XN_OS, Helper::getOSName());
+    message.addData(XN_FIRSTNAME, firstName);
+    message.addData(XN_LASTNAME, lastName);
+    message.addData(XN_ABOUT, about);
 }
 
-bool lmcMessaging::addUser(QString szUserId, const QString &szVersion, const QString &userIP, const QString &szName, const QString &szStatus, const QString &szAvatar, const QString &szNote, const QString &szCaps, const QString &hostName) {
+bool lmcMessaging::addUser(QString userId, const QString &szVersion, const QString &userIP, const QString &szName, const QString &szStatus, const QString &szAvatar, const QString &szNote, const QString &szCaps, const QString &hostName) {
     for(int index = 0; index < userList.count(); index++)
-        if(userList[index].id.compare(szUserId) == 0) {
+        if(userList[index].id.compare(userId) == 0) {
             return false;
         }
 
-    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.addUser started -|- Adding new user: %1, %2, %3").arg(szUserId, szVersion, userIP));
+    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.addUser started -|- Adding new user: %1, %2, %3").arg(userId, szVersion, userIP));
 
-    if(!userGroupMap.contains(szUserId) || !groupList.contains(Group(userGroupMap.value(szUserId))))
-        userGroupMap.insert(szUserId, GRP_DEFAULT_ID);
+    if(!userGroupMap.contains(userId) || !groupList.contains(Group(userGroupMap.value(userId))))
+        userGroupMap.insert(userId, GRP_DEFAULT_ID);
 
     uint nAvatar = szAvatar.isNull() ? -1 : szAvatar.toInt();
 
-    userList.append(User(szUserId, szVersion, userIP, szName, szStatus, userGroupMap[szUserId],
+    userList.append(User(userId, szVersion, userIP, szName, szStatus, userGroupMap[userId],
                          nAvatar, szNote, ImagesList::getInstance ().getAvatar (nAvatar), szCaps, hostName));
     if(!szStatus.isNull()) {
         XmlMessage xmlMessage;
-        xmlMessage.addHeader(XN_FROM, szUserId);
+        xmlMessage.addHeader(XN_FROM, userId);
         xmlMessage.addData(XN_STATUS, szStatus);
         //	send a status message to app layer, this is different from announce message
-        emit messageReceived(MT_Status, &szUserId, &xmlMessage);
+        emit messageReceived(MT_Status, userId, xmlMessage);
         if(Globals::getInstance ().getStatusType (szStatus) == StatusTypeEnum::StatusOffline) { // offline status
             LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.addUser ended-|- User was not added: user is offline"));
             return false;	//	no need to send a new user message to app layer
         }
     }
 
-    emit messageReceived(MT_Announce, &szUserId, NULL);
+    emit messageReceived(MT_Announce, userId, XmlMessage());
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.addUser ended"));
     return true;
 }
 
-void lmcMessaging::updateUser(MessageType type, QString &szUserId, const QString &szUserData) {
-    User* pUser = getUser(&szUserId);
-    if(!pUser)
+void lmcMessaging::updateUser(MessageType type, const QString &userId, const QString &userData) {
+    User *user = getUser(userId);
+    if(!user)
         return;
 
     XmlMessage updateMsg;
     switch(type) {
     case MT_Status:
-        if(pUser->status.compare(szUserData) != 0) {
-            QString oldStatus = pUser->status;
-            pUser->status = szUserData;
+        if(user->status.compare(userData) != 0) {
+            QString oldStatus = user->status;
+            user->status = userData;
 
             if(Globals::getInstance ().getStatusType (oldStatus) == StatusTypeEnum::StatusOffline) // old status is offline
-                emit messageReceived(MT_Announce, &szUserId, NULL);
+                emit messageReceived(MT_Announce, userId, XmlMessage());
 
-            updateMsg.addData(XN_STATUS, pUser->status);
-            emit messageReceived(MT_Status, &szUserId, &updateMsg);
+            updateMsg.addData(XN_STATUS, user->status);
+            emit messageReceived(MT_Status, userId, updateMsg);
 
-            if(Globals::getInstance ().getStatusType (pUser->status) == StatusTypeEnum::StatusOffline) { // new status is offline
+            if(Globals::getInstance ().getStatusType (user->status) == StatusTypeEnum::StatusOffline) { // new status is offline
                 // Send a dummy xml message. A non null xml message implies that the
                 // user is only in offline status, and not actually offline.
 
-                LoggerManager::getInstance().writeWarning(QString("User %1 has offline status (%2)").arg(pUser->name, pUser->status));
-                XmlMessage xmlMessage;
-                emit messageReceived(MT_Depart, &szUserId, &xmlMessage);
+                LoggerManager::getInstance().writeWarning(QString("User %1 has offline status (%2)").arg(user->name, user->status));
+                emit messageReceived(MT_Depart, userId, XmlMessage());
             }
         }
         break;
     case MT_UserName:
-        if(pUser->name.compare(szUserData) != 0) {
-            pUser->name = szUserData;
-            updateMsg.addData(XN_NAME, pUser->name);
-            emit messageReceived(MT_UserName, &szUserId, &updateMsg);
+        if(user->name.compare(userData) != 0) {
+            user->setName(userData);
+            updateMsg.addData(XN_NAME, user->name);
+            emit messageReceived(MT_UserName, userId, updateMsg);
         }
         break;
     case MT_Note:
-        if(pUser->note.compare(szUserData) != 0) {
-            pUser->note = szUserData;
-            updateMsg.addData(XN_NOTE, pUser->note);
-            emit messageReceived(MT_Note, &szUserId, &updateMsg);
+        if(user->note.compare(userData) != 0) {
+            user->note = userData;
+            updateMsg.addData(XN_NOTE, user->note);
+            emit messageReceived(MT_Note, userId, updateMsg);
         }
         break;
     case MT_Group:
-        pUser->group = szUserData;
-        userGroupMap.insert(pUser->id, pUser->group);
+        user->group = userData;
+        userGroupMap.insert(user->id, user->group);
         saveGroups();
         break;
     case MT_Avatar:
-        pUser->avatarPath = szUserData;
+        user->avatarPath = userData;
         break;
     default:
         break;
     }
 }
 
-void lmcMessaging::removeUser(QString &userId) {
+void lmcMessaging::removeUser(const QString &userId) {
     LoggerManager::getInstance().writeInfo(QString("lmcMessaging.removeUser started -|- Removing user %1").arg(userId));
 
     for(int index = 0; index < userList.count(); index++)
         if(userList.value(index).id.compare(userId) == 0) {
             XmlMessage statusMsg;
             statusMsg.addData(XN_STATUS, Globals::getInstance ().getStatuses ().back ().description);
-            emit messageReceived(MT_Status, &userId, &statusMsg);
-            emit messageReceived(MT_Depart, &userId, NULL);
+            emit messageReceived(MT_Status, userId, statusMsg);
+            emit messageReceived(MT_Depart, userId, XmlMessage());
             userList.removeAt(index);
             LoggerManager::getInstance().writeInfo(QString("lmcMessaging.removeUser ended -|- User %1 removed").arg(userId));
             return;
@@ -445,11 +432,8 @@ bool lmcMessaging::addReceivedMsg(qint64 msgId, const QString &userId) {
     return true;
 }
 
-void lmcMessaging::addPendingMsg(qint64 msgId, MessageType type, QString* lpszUserId, XmlMessage* pMessage) {
-    XmlMessage xmlMessage;
-    if(pMessage)
-        xmlMessage = pMessage->clone();
-    pendingList.append(PendingMsg(msgId, true, QDateTime::currentDateTime(), type, *lpszUserId, xmlMessage, 1));
+void lmcMessaging::addPendingMsg(qint64 msgId, MessageType type, const QString &userId, XmlMessage &message) {
+    pendingList.append(PendingMsg(msgId, true, QDateTime::currentDateTime(), type, userId, message, 1));
 }
 
 void lmcMessaging::removePendingMsg(qint64 msgId) {
@@ -474,19 +458,21 @@ void lmcMessaging::removeAllPendingMsg(QString* lpszUserId) {
 void lmcMessaging::checkPendingMsg() {
     for(int index = 0; index < pendingList.count(); index++) {
         //	check if message has timed out
-        if(pendingList[index].active && pendingList[index].timeStamp.msecsTo(QDateTime::currentDateTime()) > pendingList[index].retry * nTimeout) {
-            if(pendingList[index].retry < nMaxRetry) {
+        if(pendingList[index].active && pendingList[index].timeStamp.msecsTo(QDateTime::currentDateTime()) > pendingList[index].retry * Globals::getInstance().connectionTimeout()) {
+            if(pendingList[index].retry < Globals::getInstance().connectionRetries()) {
                 //	send the message once more
                 pendingList[index].retry++;
                 pendingList[index].timeStamp = QDateTime::currentDateTime();
                 resendMessage(pendingList[index]);
             }
             else {
-                XmlMessage statusMsg;
                 //	max retries exceeded. mark message as failed.
                 switch(pendingList[index].type) {
                 case MT_Message:
-                    emit messageReceived(MT_Failed, &pendingList[index].userId, &pendingList[index].xmlMessage);
+                {
+                    XmlMessage statusMsg(pendingList[index].xmlMessage.toString());
+                    emit messageReceived(MT_Failed, pendingList[index].userId, statusMsg);
+                }
                     break;
                 default:
                     break;
@@ -499,18 +485,18 @@ void lmcMessaging::checkPendingMsg() {
     }
 }
 
-void lmcMessaging::resendMessage(MessageType type, qint64 msgId, QString* lpszUserId, XmlMessage* pMessage) {
-    if(lpszUserId && !getUser(lpszUserId))
+void lmcMessaging::resendMessage(MessageType type, qint64 msgId, const QString &userId, XmlMessage &pMessage) {
+    if(!getUser(userId))
         return;
 
-    prepareMessage(type, msgId, true, lpszUserId, pMessage);
+    prepareMessage(type, msgId, true, userId, pMessage);
 }
 
 void lmcMessaging::resendMessage(PendingMsg msg) {
     // type, pendingList[index].msgId, &pendingList[index].userId, &pendingList[index].xmlMessage
 
-    if(msg.userId != QString::null && !getUser(&msg.userId))
+    if(msg.userId != QString::null && !getUser(msg.userId))
         return;
 
-    prepareMessage(msg.type, msg.msgId, true, &msg.userId, &msg.xmlMessage);
+    prepareMessage(msg.type, msg.msgId, true, msg.userId, msg.xmlMessage);
 }

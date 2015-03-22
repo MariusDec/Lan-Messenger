@@ -23,6 +23,7 @@
 
 #include "userselectdialog.h"
 #include "thememanager.h"
+#include "globals.h"
 
 lmcUserSelectDialog::lmcUserSelectDialog(QWidget *parent) : QDialog(parent) {
     ui.setupUi(this);
@@ -40,7 +41,7 @@ lmcUserSelectDialog::lmcUserSelectDialog(QWidget *parent) : QDialog(parent) {
 lmcUserSelectDialog::~lmcUserSelectDialog() {
 }
 
-void lmcUserSelectDialog::init(QList<QTreeWidgetItem *> *pContactsList) {
+void lmcUserSelectDialog::init(const QList<QTreeWidgetItem *> &contactsList) {
     ui.treeWidgetUserList->setIconSize(QSize(16, 16));
     ui.treeWidgetUserList->header()->setDragEnabled (false);
     ui.treeWidgetUserList->header()->setStretchLastSection(false);
@@ -48,8 +49,8 @@ void lmcUserSelectDialog::init(QList<QTreeWidgetItem *> *pContactsList) {
     ui.treeWidgetUserList->setCheckable(true);
 
     ui.treeWidgetUserList->clear();
-    for(int index = 0; index < pContactsList->count(); index++) {
-        QTreeWidgetItem* pItem = pContactsList->value(index)->clone();
+    for(int index = 0; index < contactsList.count(); index++) {
+        QTreeWidgetItem* pItem = contactsList.value(index)->clone();
         pItem->setCheckState(0, Qt::Unchecked);
         for(int childIndex = 0; childIndex < pItem->childCount(); childIndex++)
             pItem->child(childIndex)->setCheckState(0, Qt::Unchecked);
@@ -57,10 +58,7 @@ void lmcUserSelectDialog::init(QList<QTreeWidgetItem *> *pContactsList) {
     }
     ui.treeWidgetUserList->expandAll();
 
-    //	load settings
-    pSettings = new lmcSettings();
-    int viewType = pSettings->value(IDS_USERLISTVIEW, IDS_USERLISTVIEW_VAL).toInt();
-    ui.treeWidgetUserList->setView((UserListView)viewType);
+    ui.treeWidgetUserList->setView(Globals::getInstance().userListView());
 
     ui.buttonOK->setEnabled(false);
 

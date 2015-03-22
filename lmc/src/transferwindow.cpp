@@ -23,6 +23,8 @@
 
 #include "transferwindow.h"
 #include "thememanager.h"
+#include "globals.h"
+#include "loggermanager.h"
 
 #include <QDesktopServices>
 #include <QtWidgets/QDesktopWidget>
@@ -67,11 +69,14 @@ void lmcTransferWindow::init() {
   createToolBar();
   setButtonState(FileView::TS_Max);
 
-  pSettings = new lmcSettings();
-  restoreGeometry(pSettings->value(IDS_WINDOWTRANSFERS).toByteArray());
+  if (!Globals::getInstance().transferWindowGeometry().isEmpty())
+      restoreGeometry(Globals::getInstance().transferWindowGeometry());
+  else
+      move(50, 50);
+
   setUIText();
 
-  ui.listWidgetTransferList->loadData(StdLocation::transferHistoryFilePath());
+  ui.listWidgetTransferList->loadData(Globals::getInstance().fileHistorySavePath());
   if (ui.listWidgetTransferList->count() > 0)
     ui.listWidgetTransferList->setCurrentRow(0);
 
@@ -102,10 +107,8 @@ void lmcTransferWindow::saveHistory(const FileView *transfer)
     LoggerManager::getInstance().writeInfo(
         QStringLiteral("lmcTransferWindow.saveHistory started"));
 
-    bool saveHistory =
-        pSettings->value(IDS_FILEHISTORY, IDS_FILEHISTORY_VAL).toBool();
-    if (saveHistory) {
-      QString transferHistoryPath = StdLocation::transferHistoryFilePath();
+    if (Globals::getInstance().saveFileHistory()) {
+      QString transferHistoryPath = Globals::getInstance().fileHistorySavePath();
       if (!transferHistoryPath.isEmpty())
         ui.listWidgetTransferList->saveData(transferHistoryPath, transfer);
     }
@@ -131,33 +134,33 @@ void lmcTransferWindow::stop() {
       xmlMessage.addData(XN_FILETYPE, FileTypeNames[FT_Normal]);
       xmlMessage.addData(XN_FILEOP, FileOpNames[FO_Cancel]);
       xmlMessage.addData(XN_FILEID, view->id);
-      emit messageSent((MessageType)view->type, &view->userId, &xmlMessage);
+      emit messageSent((MessageType)view->type, view->userId, xmlMessage);
 
       view->state = FileView::TS_Cancel;
       saveHistory(view);
     }
   }
 
-  pSettings->setValue(IDS_WINDOWTRANSFERS, saveGeometry());
+  Globals::getInstance().setTransferWindowGeometry(saveGeometry());
 
   LoggerManager::getInstance().writeInfo(
       QStringLiteral("lmcTransferWindow.stop ended"));
 }
 
 void lmcTransferWindow::createTransfer(MessageType type, FileMode mode,
-                                       QString *lpszUserId,
-                                       QString *lpszUserName,
-                                       XmlMessage *pMessage) {
+                                       const QString &userId,
+                                       const QString &userName,
+                                       const XmlMessage &message) {
     LoggerManager::getInstance().writeInfo(
         QStringLiteral("lmcTransferWindow.createTransfer started"));
 
-  FileView fileView(pMessage->data(XN_FILEID));
-  fileView.fileSize = pMessage->data(XN_FILESIZE).toLongLong();
+  FileView fileView(message.data(XN_FILEID));
+  fileView.fileSize = message.data(XN_FILESIZE).toLongLong();
   fileView.sizeDisplay = Helper::formatSize(fileView.fileSize);
-  fileView.userId = *lpszUserId;
-  fileView.userName = *lpszUserName;
-  fileView.fileName = pMessage->data(XN_FILENAME);
-  fileView.filePath = pMessage->data(XN_FILEPATH);
+  fileView.userId = userId;
+  fileView.userName = userName;
+  fileView.fileName = message.data(XN_FILENAME);
+  fileView.filePath = message.data(XN_FILEPATH);
   fileView.type = type;
   if (mode == FM_Send) {
     fileView.mode = FileView::TM_Send;
@@ -183,15 +186,11 @@ void lmcTransferWindow::createTransfer(MessageType type, FileMode mode,
       QStringLiteral("lmcTransferWindow.createTransfer ended"));
 }
 
-void lmcTransferWindow::receiveMessage(MessageType type, QString *lpszUserId,
-                                       XmlMessage *pMessage) {
-  Q_UNUSED(type);
-  Q_UNUSED(lpszUserId);
-
+void lmcTransferWindow::receiveMessage(const XmlMessage &message) {
   int fileMode =
-      Helper::indexOf(FileModeNames, FM_Max, pMessage->data(XN_MODE));
-  int fileOp = Helper::indexOf(FileOpNames, FO_Max, pMessage->data(XN_FILEOP));
-  QString id = pMessage->data(XN_FILEID);
+      Helper::indexOf(FileModeNames, FM_Max, message.data(XN_MODE));
+  int fileOp = Helper::indexOf(FileOpNames, FO_Max, message.data(XN_FILEOP));
+  QString id = message.data(XN_FILEID);
 
   FileView *view = NULL;
   FileView::TransferMode transferMode =
@@ -220,7 +219,7 @@ void lmcTransferWindow::receiveMessage(MessageType type, QString *lpszUserId,
     if (!view)
       return;
     itemIndex = ui.listWidgetTransferList->itemIndex(id, transferMode);
-    updateProgress(view, pMessage->data(XN_FILESIZE).toLongLong());
+    updateProgress(view, message.data(XN_FILESIZE).toLongLong());
     break;
   case FO_Error:
     view = ui.listWidgetTransferList->item(id, transferMode);
@@ -255,7 +254,7 @@ void lmcTransferWindow::receiveMessage(MessageType type, QString *lpszUserId,
       if (!view)
         return;
       itemIndex = ui.listWidgetTransferList->itemIndex(id, FileView::TM_Receive);
-      view->filePath = QDir::fromNativeSeparators(pMessage->data(XN_FILEPATH));
+      view->filePath = QDir::fromNativeSeparators(message.data(XN_FILEPATH));
       view->icon = getIcon(view->filePath);
       _buttonShowFolder->setEnabled(QFile::exists(view->filePath));
       view->state = FileView::TS_Complete;
@@ -326,12 +325,42 @@ void lmcTransferWindow::changeEvent(QEvent *pEvent) {
   QWidget::changeEvent(pEvent);
 }
 
+void lmcTransferWindow::moveEvent(QMoveEvent *event)
+{
+    if (!Globals::getInstance().windowSnapping()) {
+        QWidget::moveEvent(event);
+        return;
+    }
+
+    const QRect screen = QApplication::desktop()->availableGeometry(this);
+
+    bool windowSnapped = false;
+
+    if (std::abs(frameGeometry().left() - screen.left()) < 25) {
+        move(screen.left(), frameGeometry().top());
+        windowSnapped = true;
+    } else if (std::abs(screen.right() - frameGeometry().right()) < 25) {
+        move((screen.right() - frameGeometry().width() + 1), frameGeometry().top());
+        windowSnapped = true;
+    }
+
+    if (std::abs(frameGeometry().top() - screen.top()) < 25) {
+        move(frameGeometry().left(), screen.top());
+        windowSnapped = true;
+    } else if (std::abs(screen.bottom() - frameGeometry().bottom()) < 25) {
+        move(frameGeometry().left(), (screen.bottom() - frameGeometry().height() + 1));
+        windowSnapped = true;
+    }
+
+    if (!windowSnapped)
+        QWidget::moveEvent(event);
+}
+
 void lmcTransferWindow::listWidgetTransferList_currentRowChanged(int currentRow) {
   if (currentRow < 0) {
     setButtonState(FileView::TS_Max);
     return;
   }
-  // TODO check if row index changes when there are hidden rows
   FileView *pFileView = ui.listWidgetTransferList->item(currentRow);
   setButtonState(pFileView->state);
   _buttonShowFolder->setEnabled(QFile::exists(pFileView->filePath));
@@ -355,7 +384,7 @@ void lmcTransferWindow::buttonCancel_clicked() {
   xmlMessage.addData(XN_FILETYPE, FileTypeNames[FT_Normal]);
   xmlMessage.addData(XN_FILEOP, FileOpNames[FO_Cancel]);
   xmlMessage.addData(XN_FILEID, view->id);
-  emit messageSent((MessageType)view->type, &view->userId, &xmlMessage);
+  emit messageSent((MessageType)view->type, view->userId, xmlMessage);
 
   view->state = FileView::TS_Cancel;
 
@@ -376,7 +405,7 @@ void lmcTransferWindow::buttonRemove_clicked() {
 }
 
 void lmcTransferWindow::buttonClear_clicked() {
-  QFile::remove(StdLocation::transferHistoryFilePath());
+  QFile::remove(Globals::getInstance().fileHistorySavePath());
   clearList();
 }
 

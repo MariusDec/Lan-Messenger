@@ -41,6 +41,7 @@
 #include "userselectdialog.h"
 #include "aboutdialog.h"
 #include "broadcastwindow.h"
+#include "instantmessagewindow.h"
 
 #include <QObject>
 #include <QTimer>
@@ -64,66 +65,66 @@ private slots:
     void exitApp();
     void timer_timeout();
     void startChat(QString roomId, XmlMessage message = XmlMessage(), QStringList contacts = QStringList());
-    void sendMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
-    void receiveMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
+    void sendMessage(MessageType type, QString lpszUserId, XmlMessage pMessage);
+    void receiveMessage(MessageType type, QString userId, XmlMessage message);
     void connectionStateChanged();
     void showTransfers(QString userId = QString());
     void showMessage(QString chatRoomId);
     void showHistory(QString userId = QString());
     void showSettings();
-    void showHelp(QRect* pRect);
-    void showUpdate(QRect* pRect);
+    void showHelp(QRect rect);
+    void showUpdate(QRect rect);
     void showAbout();
     void showBroadcast();
     void showPublicChat();
+    void showInstantMessage(const QString &userId);
     void historyCleared();
     void fileHistoryCleared();
     void showTrayMessage(TrayMessageType type, QString szMessage, QString chatRoomId, QString szTitle = QString::null, TrayMessageIcon icon = TMI_Info);
     void updateGroup(GroupOp op, QVariant value1, QVariant value2);
-    void addContacts(QStringList *pExcludList);
-    void chatRoomWindow_closed(QString* lpszThreadId);
+    void addContacts(QStringList ExcludeList);
+    void chatRoomWindow_closed(QString chatRoomId);
+    void instantMessageWindow_closed();
 
 private:
     void stop();
     void loadSettings();
     void settingsChanged();
-    void processMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
-    void processFile(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
-    void routeMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
-    void processPublicMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
+    void processMessage(MessageType type, const QString &userId, const XmlMessage &message);
+    void processFile(MessageType type, const QString &userId, const XmlMessage &message);
+    void routeMessage(MessageType type, const QString &userId, const XmlMessage &message);
+    void processPublicMessage(MessageType type, const QString &userId, const XmlMessage &message);
     void createTransferWindow();
     void showTransferWindow(bool show = false, QString userId = QString());
-    void initFileTransfer(MessageType type, FileMode mode, QString* lpszUserId, XmlMessage* pMessage);
-    void showUserInfo(XmlMessage* pMessage);
-    void createChatRoomWindow(const QString &lpszThreadId);
+    void initFileTransfer(MessageType type, FileMode mode, const QString &userId, const XmlMessage &message);
+    void showUserInfo(const XmlMessage &message);
+    void createChatRoomWindow(const QString &chatRoomId);
     void showChatRoomWindow(lmcChatRoomWindow* chatRoomWindow, bool show, bool alert = false, bool add = false, QStringList selectedContacts = QStringList());
     void showPublicChatWindow(bool show, bool alert = false, bool open = false);
-    QStringList showSelectContacts(QWidget* parent, uint caps, QStringList* excludeList);
+    QStringList showSelectContacts(QWidget* parent, uint caps, const QStringList &excludeList);
     void showPortConflictMessage();
     void saveChatLog(QString charRoomId, bool isPath = false);
     void saveUnsavedChatLog();
 
-    lmcSettings*					pSettings;
-    QTimer*							pTimer;
-    lmcMessaging*					pMessaging;
-    lmcMainWindow*					pMainWindow;
-    QList<lmcChatRoomWindow*>		chatRoomWindows;
-    lmcTransferWindow*				pTransferWindow;
-    QPointer<lmcHistoryWindow>		pHistoryWindow;
-    QPointer<lmcSettingsDialog>		pSettingsDialog;
-    QPointer<lmcUserInfoWindow>		pUserInfoWindow;
-    QPointer<lmcHelpWindow>			pHelpWindow;
-    lmcUpdateWindow*				pUpdateWindow;
-    QPointer<lmcChatRoomWindow>		pPublicChatWindow;
-    QPointer<lmcUserSelectDialog>	pUserSelectDialog;
-    QPointer<lmcAboutDialog>		pAboutDialog;
-    QPointer<lmcBroadcastWindow>	pBroadcastWindow;
-    bool							messagePop;
-    bool							pubMessagePop;
-    QString							lang;
-    bool							adaptiveRefresh;
-    int								refreshTime;
-    XmlMessage*						pInitParams;
+    // TODO !!! For all windows, add a close event and reset the pointer there
+    QTimer							_timer;
+    lmcMessaging*					_messaging = nullptr;
+    lmcMainWindow*					_mainWindow = nullptr;
+    QList<lmcChatRoomWindow*>		_chatRoomWindows;
+    QList<InstantMessageWindow*>	_instantMessageWindows;
+    lmcTransferWindow*				_transferWindow = nullptr;
+    QPointer<lmcHistoryWindow>		_historyWindow = nullptr;
+    QPointer<lmcSettingsDialog>		_settingsDialog = nullptr;
+    QPointer<lmcUserInfoWindow>		_userInfoWindow = nullptr;
+    QPointer<lmcHelpWindow>			_helpWindow = nullptr;
+    lmcUpdateWindow*				_updateWindow = nullptr;
+    QPointer<lmcChatRoomWindow>		_publicChatWindow = nullptr;
+    QPointer<lmcUserSelectDialog>	_userSelectDialog = nullptr;
+    QPointer<lmcAboutDialog>		_aboutDialog = nullptr;
+    QPointer<lmcBroadcastWindow>	_broadcastWindow = nullptr;
+    QString							_language;
+    bool							_adaptiveRefresh;
+    XmlMessage						_initParams;
 };
 
 #endif // LMC_H

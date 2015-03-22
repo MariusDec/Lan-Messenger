@@ -24,6 +24,7 @@
 #include "historywindow.h"
 #include "thememanager.h"
 #include "loggermanager.h"
+#include "globals.h"
 
 #include <QDesktopWidget>
 
@@ -76,9 +77,13 @@ void lmcHistoryWindow::init() {
 
     pMessageLog->setAutoScroll(false);
 
-    pSettings = new lmcSettings();
-    restoreGeometry(pSettings->value(IDS_WINDOWHISTORY).toByteArray());
-    ui.splitter->restoreState(pSettings->value(IDS_SPLITTERHISTORY).toByteArray());
+    if (!Globals::getInstance().historyWindowGeometry().isEmpty())
+        restoreGeometry(Globals::getInstance().historyWindowGeometry());
+    else
+        move(50, 50);
+
+    if (!Globals::getInstance().historySplitterGeometry().isEmpty())
+        ui.splitter->restoreState(Globals::getInstance().historySplitterGeometry());
     setUIText();
 
     displayList();
@@ -92,8 +97,8 @@ void lmcHistoryWindow::updateList() {
 }
 
 void lmcHistoryWindow::stop() {
-    pSettings->setValue(IDS_WINDOWHISTORY, saveGeometry());
-    pSettings->setValue(IDS_SPLITTERHISTORY, ui.splitter->saveState());
+    Globals::getInstance().setHistoryWindowGeometry(saveGeometry());
+    Globals::getInstance().setHistorySplitterGeometry(ui.splitter->saveState());
 }
 
 void lmcHistoryWindow::settingsChanged() {
@@ -161,6 +166,37 @@ void lmcHistoryWindow::changeEvent(QEvent* pEvent) {
     QWidget::changeEvent(pEvent);
 }
 
+void lmcHistoryWindow::moveEvent(QMoveEvent *event)
+{
+    if (!Globals::getInstance().windowSnapping()) {
+        QWidget::moveEvent(event);
+        return;
+    }
+
+    const QRect screen = QApplication::desktop()->availableGeometry(this);
+
+    bool windowSnapped = false;
+
+    if (std::abs(frameGeometry().left() - screen.left()) < 25) {
+        move(screen.left(), frameGeometry().top());
+        windowSnapped = true;
+    } else if (std::abs(screen.right() - frameGeometry().right()) < 25) {
+        move((screen.right() - frameGeometry().width() + 1), frameGeometry().top());
+        windowSnapped = true;
+    }
+
+    if (std::abs(frameGeometry().top() - screen.top()) < 25) {
+        move(frameGeometry().left(), screen.top());
+        windowSnapped = true;
+    } else if (std::abs(screen.bottom() - frameGeometry().bottom()) < 25) {
+        move(frameGeometry().left(), (screen.bottom() - frameGeometry().height() + 1));
+        windowSnapped = true;
+    }
+
+    if (!windowSnapped)
+        QWidget::moveEvent(event);
+}
+
 void lmcHistoryWindow::treeWidgetMsgList_currentItemChanged(QTreeWidgetItem* current, QTreeWidgetItem* previous) {
     LoggerManager::getInstance().writeInfo(
         QStringLiteral("lmcMainWindow.treeWidgetMsgList_currentItemChanged started"));
@@ -222,14 +258,14 @@ void lmcHistoryWindow::displayList() {
     msgList = History::getList();
 
     for(const MsgInfo &msg : msgList) {
-        lmcHistoryTreeWidgetItem* pItem = new lmcHistoryTreeWidgetItem();
-        pItem->setText(0, msg.name);
-        pItem->setToolTip(0, msg.name);
-        pItem->setData(0, DataRole, msg.fileName);
-        pItem->setText(1, msg.date.toString(Qt::SystemLocaleDate));
-        pItem->setData(1, DataRole, msg.tstamp);
-        pItem->setSizeHint(0, QSize(0, 20));
-        ui.treeWidgetMsgList->addTopLevelItem(pItem);
+        lmcHistoryTreeWidgetItem* item = new lmcHistoryTreeWidgetItem();
+        item->setText(0, msg.name);
+        item->setToolTip(0, msg.name);
+        item->setData(0, DataRole, msg.fileName);
+        item->setText(1, msg.date.toString(Qt::SystemLocaleDate));
+        item->setData(1, DataRole, msg.tstamp);
+        item->setSizeHint(0, QSize(0, 20));
+        ui.treeWidgetMsgList->addTopLevelItem(item);
     }
 
     ui.treeWidgetMsgList->sortByColumn(1, Qt::DescendingOrder);

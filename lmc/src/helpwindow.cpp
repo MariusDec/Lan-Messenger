@@ -21,12 +21,13 @@
 **
 ****************************************************************************/
 
-
-#include <QDesktopWidget>
 #include "helpwindow.h"
 #include "thememanager.h"
+#include "globals.h"
 
-lmcHelpWindow::lmcHelpWindow(QRect* pRect, QWidget *parent) : QWidget(parent) {
+#include <QDesktopWidget>
+
+lmcHelpWindow::lmcHelpWindow(const QRect &pRect, QWidget *parent) : QWidget(parent) {
     ui.setupUi(this);
 
     setProperty("isWindow", true);
@@ -34,7 +35,7 @@ lmcHelpWindow::lmcHelpWindow(QRect* pRect, QWidget *parent) : QWidget(parent) {
     //	Destroy the window when it closes
     setAttribute(Qt::WA_DeleteOnClose, true);
 
-    move(pRect->center() - rect().center());
+    move(pRect.center() - rect().center());
     QRect screenRect = QApplication::desktop()->screenGeometry();
     if(!screenRect.contains(geometry(), true)) {
         QRect windowRect = geometry();
@@ -61,13 +62,16 @@ lmcHelpWindow::~lmcHelpWindow() {
 void lmcHelpWindow::init() {
     setWindowIcon(QIcon(ThemeManager::getInstance().getAppIcon(QStringLiteral("messenger"))));
 
-    pSettings = new lmcSettings();
-    restoreGeometry(pSettings->value(IDS_WINDOWHELP).toByteArray());
+    if (!Globals::getInstance().helpWindowGeometry().isEmpty())
+        restoreGeometry(Globals::getInstance().helpWindowGeometry());
+    else
+        move(50, 50);
+
     setUIText();
 }
 
 void lmcHelpWindow::stop() {
-    pSettings->setValue(IDS_WINDOWHELP, saveGeometry());
+    Globals::getInstance().setHelpWindowGeometry(saveGeometry());
 }
 
 void lmcHelpWindow::settingsChanged() {
@@ -96,6 +100,37 @@ void lmcHelpWindow::changeEvent(QEvent* pEvent) {
     }
 
     QWidget::changeEvent(pEvent);
+}
+
+void lmcHelpWindow::moveEvent(QMoveEvent *event)
+{
+    if (!Globals::getInstance().windowSnapping()) {
+        QWidget::moveEvent(event);
+        return;
+    }
+
+    const QRect screen = QApplication::desktop()->availableGeometry(this);
+
+    bool windowSnapped = false;
+
+    if (std::abs(frameGeometry().left() - screen.left()) < 25) {
+        move(screen.left(), frameGeometry().top());
+        windowSnapped = true;
+    } else if (std::abs(screen.right() - frameGeometry().right()) < 25) {
+        move((screen.right() - frameGeometry().width() + 1), frameGeometry().top());
+        windowSnapped = true;
+    }
+
+    if (std::abs(frameGeometry().top() - screen.top()) < 25) {
+        move(frameGeometry().left(), screen.top());
+        windowSnapped = true;
+    } else if (std::abs(screen.bottom() - frameGeometry().bottom()) < 25) {
+        move(frameGeometry().left(), (screen.bottom() - frameGeometry().height() + 1));
+        windowSnapped = true;
+    }
+
+    if (!windowSnapped)
+        QWidget::moveEvent(event);
 }
 
 void lmcHelpWindow::setUIText() {

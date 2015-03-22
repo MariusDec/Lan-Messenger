@@ -25,13 +25,15 @@
 #ifndef MESSAGING_H
 #define MESSAGING_H
 
-#include <QObject>
-#include <QTimer>
 #include "shared.h"
 #include "message.h"
 #include "network.h"
 #include "settings.h"
 #include "xmlmessage.h"
+
+#include <QObject>
+#include <QTimer>
+#include <experimental/optional>
 
 
 struct PendingMsg {
@@ -44,15 +46,7 @@ struct PendingMsg {
     int retry;
 
     PendingMsg() {}
-    PendingMsg(qint64 nMsgId, bool bActive, QDateTime timeStamp, MessageType mtType, QString szUserId, XmlMessage xmlMessage, int nRetry) {
-        this->msgId = nMsgId;
-        this->active = bActive;
-        this->timeStamp = timeStamp;
-        this->type = mtType;
-        this->userId = szUserId;
-        this->xmlMessage = xmlMessage;
-        this->retry = nRetry;
-    }
+    PendingMsg(qint64 msgId, bool active, const QDateTime &timeStamp, MessageType type, const QString &userId, const XmlMessage &xmlMessage, int retry) : msgId(msgId), active(active), timeStamp(timeStamp), type(type), userId(userId), xmlMessage(xmlMessage), retry(retry) { }
 };
 
 struct ReceivedMsg {
@@ -136,17 +130,17 @@ public:
     lmcMessaging();
     ~lmcMessaging();
 
-    void init(XmlMessage* pInitParams);
+    void init(const XmlMessage &initParams);
     void start();
     void update();
     void stop();
     bool isConnected();
     bool canReceive();
     void setLoopback(bool on);
-    User* getUser(const QString *lpszUserId);
-    void sendBroadcast(MessageType type, XmlMessage* pMessage);
-    void sendMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
-    void sendWebMessage(MessageType type, XmlMessage* pMessage);
+    User *getUser(const QString &lpszUserId);
+    void sendBroadcast(MessageType type);
+    void sendMessage(MessageType type, const QString &userId, XmlMessage &message);
+    void sendWebMessage(MessageType type);
     void settingsChanged();
     void updateGroup(GroupOp op, QVariant value1, QVariant value2);
     void updateGroupMap(QString oldGroup, QString newGroup);
@@ -158,16 +152,16 @@ public:
     QList<Group> groupList;
 
 signals:
-    void messageReceived(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
+    void messageReceived(MessageType type, QString userId, XmlMessage message);
     void connectionStateChanged();
 
 private slots:
-    void receiveBroadcast(DatagramHeader* pHeader, QString* lpszData);
-    void receiveMessage(DatagramHeader* pHeader, QString* lpszData);
-    void receiveWebMessage(QString* lpszData);
-    void newConnection(QString* lpszUserId, QString* lpszAddress);
-    void connectionLost(QString* lpszUserId);
-    void receiveProgress(QString* lpszUserId, QString *lpszUserName, QString* lpszData);
+    void receiveBroadcast(const DatagramHeader &header, const QString &data);
+    void receiveMessage(const DatagramHeader &header, const QString &lpszData);
+    void receiveWebMessage(const QString &data);
+    void newConnection(QString userId, QString address);
+    void connectionLost(QString userId);
+    void receiveProgress(QString userId, QString userName, QString data);
     void network_connectionStateChanged();
     void timer_timeout();
 
@@ -175,45 +169,42 @@ private:
     QString createUserId(const QString &lpszAddress, const QString &lpszUserName);
     QString getUserName();
     void loadGroups();
-    void getUserInfo(XmlMessage* pMessage);
-    void sendUserData(MessageType type, QueryOp op, QString* lpszUserId, QString* lpszAddress);
-    void prepareBroadcast(MessageType type, XmlMessage* pMessage);
-    void prepareMessage(MessageType type, qint64 msgId, bool retry, QString* lpszUserId, XmlMessage *pMessage);
-    void prepareFile(MessageType type, qint64 msgId, bool retry, QString* lpszUserId, XmlMessage* pMessage);
-    void prepareFolder(MessageType type, qint64 msgId, bool retry, QString* lpszUserId, XmlMessage* pMessage);
-    void processBroadcast(MessageHeader* pHeader, XmlMessage* pMessage);
-    void processMessage(MessageHeader* pHeader, XmlMessage* pMessage);
-    void processFile(MessageHeader* pHeader, XmlMessage* pMessage);
-    void processFolder(MessageHeader* pHeader, XmlMessage* pMessage);
-    void processWebMessage(MessageHeader* pHeader, XmlMessage* pMessage);
+    void getUserInfo(XmlMessage &message);
+    void sendUserData(MessageType type, QueryOp op, const QString &userId);
+    void prepareBroadcast(MessageType type);
+    void prepareMessage(MessageType type, qint64 msgId, bool retry, const QString &userId, XmlMessage &message);
+    void prepareFile(const QString &userId, XmlMessage &message);
+    void prepareFolder(const QString &userId, XmlMessage &message);
+    void processBroadcast(const MessageHeader &header);
+    void processMessage(const MessageHeader &header, XmlMessage &message);
+    void processFile(const MessageHeader &header, XmlMessage &message);
+    void processFolder(const MessageHeader &header, XmlMessage &message);
+    void processWebMessage(const MessageHeader &header, const XmlMessage &message);
     bool addUser(QString szUserId, const QString &szVersion, const QString &userIP, const QString &szName, const QString &szStatus, const QString &szAvatar, const QString &szNote, const QString &szCaps, const QString &hostName);
-    void updateUser(MessageType type, QString &szUserId, const QString &szUserData);
-    void removeUser(QString &szUserId);
+    void updateUser(MessageType type, const QString &userId, const QString &userData);
+    void removeUser(const QString &szUserId);
     bool addReceivedMsg(qint64 msgId, const QString &userId);
-    void addPendingMsg(qint64 msgId, MessageType type, QString* lpszUserId, XmlMessage* pMessage);
+    void addPendingMsg(qint64 msgId, MessageType type, const QString &userId, XmlMessage &message);
     void removePendingMsg(qint64);
     void removeAllPendingMsg(QString* lpszUserId);
     void checkPendingMsg();
-    void resendMessage(MessageType type, qint64 msgId, QString* lpszUserId, XmlMessage* pMessage);
+    void resendMessage(MessageType type, qint64 msgId, const QString &lpszUserId, XmlMessage &pMessage);
     void resendMessage(PendingMsg msg);
-    bool addFileTransfer(FileMode fileMode, QString *lpszUserId, XmlMessage *pMessage);
-    bool updateFileTransfer(FileMode fileMode, FileOp fileOp, QString *lpszUserId, QString *lpszUserName, XmlMessage *pMessage);
-    QString getFreeFileName(QString fileName);
-    bool addFolderTransfer(FileMode folderMode, QString* lpszUserId, XmlMessage* pMessage);
-    bool updateFolderTransfer(FileMode folderMode, FileOp folderOp, QString* lpszUserId, XmlMessage* pMessage);
-    QString getFreeFolderName(QString folderName);
-    QString getFolderPath(QString folderId, QString userId, FileMode mode);
+    bool addFileTransfer(FileMode fileMode, const QString &userId, XmlMessage &message);
+    bool updateFileTransfer(FileMode fileMode, FileOp fileOp, const QString &userId, const QString &userName, XmlMessage &pMessage);
+    QString getFreeFileName(const QString &fileName);
+    bool addFolderTransfer(FileMode folderMode, const QString &userId, XmlMessage &message);
+    bool updateFolderTransfer(FileMode folderMode, FileOp folderOp, const QString &userId, XmlMessage &message);
+    QString getFreeFolderName(const QString &folderName);
+    QString getFolderPath(const QString &folderId, const QString &userId, FileMode mode);
 
     lmcNetwork*			pNetwork;
-    lmcSettings*		pSettings;
     QTimer*				pTimer;
     qint64				msgId;
     QList<ReceivedMsg>	receivedList;
     QList<PendingMsg>	pendingList;
     QList<TransFile>    fileList;
     QList<TransFolder>  folderList;
-    int					nTimeout;
-    int					nMaxRetry;
     bool				loopback;
     QMap<QString, QString> userGroupMap;
 };

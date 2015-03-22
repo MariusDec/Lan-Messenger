@@ -51,6 +51,7 @@ public:
 protected:
     bool eventFilter(QObject* pObject, QEvent* pEvent);
     void changeEvent(QEvent* pEvent);
+    void moveEvent(QMoveEvent *event);
 
 private slots:
     void treeWidgetMsgList_currentItemChanged(QTreeWidgetItem* current, QTreeWidgetItem* previous);
@@ -64,8 +65,7 @@ private:
     QList<QString> getUniqueUsers();
 
     Ui::HistoryWindow ui;
-    lmcSettings* pSettings;
-    lmcMessageLog* pMessageLog;
+    lmcMessageLog *pMessageLog;
     QList<MsgInfo> msgList;
 };
 

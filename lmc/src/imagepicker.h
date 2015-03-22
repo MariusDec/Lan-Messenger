@@ -46,8 +46,8 @@ public:
     const QVariant &getData() { return _data; }
 
 protected:
-    void enterEvent (QEvent *) { _hovered = true; }
-    void leaveEvent (QEvent *) { _hovered = false; }
+    void enterEvent (QEvent *) { _hovered = true; update(); }
+    void leaveEvent (QEvent *) { _hovered = false; update(); }
     void paintEvent (QPaintEvent *);
 };
 

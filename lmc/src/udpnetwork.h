@@ -44,41 +44,41 @@ public:
     void init(int port = 0);
     void start();
     void stop();
-    void setLocalId(QString* lpszLocalId);
-    void sendBroadcast(QString* lpszData);
+    void setLocalId(const QString &_localId);
+    void sendBroadcast(const QString &data);
     void settingsChanged();
     void setMulticastInterface(const QNetworkInterface& networkInterface);
     void setIPAddress(const QString& szAddress, const QString& szSubnet);
 
-    bool isConnected;
-    bool canReceive;
+    const bool &canReceive() const { return _canReceive; }
 
 signals:
-    void broadcastReceived(DatagramHeader* pHeader, QString* lpszData);
+    void broadcastReceived(DatagramHeader pHeader, QString lpszData);
     void connectionStateChanged();
 
 private slots:
     void processPendingDatagrams();
 
 private:
-    void sendDatagram(QHostAddress remoteAddress, QByteArray& baDatagram);
+    void sendDatagram(const QHostAddress &remoteAddress, const QByteArray &baDatagram);
     bool startReceiving();
-    void parseDatagram(QString* lpszAddress, QByteArray& baDatagram);
+    void parseDatagram(const QString &address, QByteArray& datagram);
     void setDefaultBroadcast();
 
-    lmcSettings*		pSettings;
-    QUdpSocket*			pUdpReceiver;
-    QUdpSocket*			pUdpSender;
+    lmcSettings		    _settings;
+    QUdpSocket			_udpReceiver;
+    QUdpSocket			_udpSender;
 
-    bool				isRunning;
-    int					nUdpPort;
-    QHostAddress		multicastAddress;
-    QString				localId;
-    QNetworkInterface	multicastInterface;
-    QHostAddress		ipAddress;
-    QHostAddress		subnetMask;
-    QList<QHostAddress>	broadcastList;
-    QHostAddress		defBroadcast;
+    bool                _canReceive = false;
+    bool				_isRunning = false;
+    int					_udpPort;
+    QString				_localId;
+    QHostAddress		_multicastAddress;
+    QNetworkInterface	_multicastInterface;
+    QHostAddress		_ipAddress = QHostAddress::AnyIPv4;
+    QHostAddress		_subnetMask = QHostAddress::AnyIPv4;
+    QHostAddress		_defaultBroadcast = QHostAddress::Broadcast;
+    QList<QHostAddress>	_broadcastList;
 };
 
 #endif // UDPNETWORK_H

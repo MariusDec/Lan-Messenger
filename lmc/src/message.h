@@ -40,9 +40,9 @@ enum MessagHeaderMember {
 
 class Message {
 public:
-    static QString addHeader(MessageType type, qint64 id, QString* lpszLocalId, QString* lpszPeerId, XmlMessage* pMessage);
-    static void removeHeader(XmlMessage *pMessage);
-    static bool getHeader(QString* lpszMessage, MessageHeader** ppHeader, XmlMessage** ppMessage);
+    static QString addHeader(MessageType type, qint64 id, const QString &localId, const QString &peerId, XmlMessage &message);
+    static void removeHeader(XmlMessage &pMessage);
+    static bool getHeader(const QString &message, MessageHeader &header, XmlMessage &xmlMessage);
 };
 
 #endif // MESSAGE_H

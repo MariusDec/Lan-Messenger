@@ -21,20 +21,13 @@
 **
 ****************************************************************************/
 
-
 #include "udpnetwork.h"
 #include "loggermanager.h"
+#include "globals.h"
 
 lmcUdpNetwork::lmcUdpNetwork() {
-    pUdpReceiver = new QUdpSocket(this);
-    pUdpSender = new QUdpSocket(this);
-    localId = QString::null;
-    canReceive = false;
-    isRunning = false;
-    ipAddress = QHostAddress::AnyIPv4;
-    subnetMask = QHostAddress::AnyIPv4;
-    defBroadcast = QHostAddress::Broadcast;
-    broadcastList.clear();
+    _udpReceiver.setParent(this);
+    _udpSender.setParent(this);
 }
 
 lmcUdpNetwork::~lmcUdpNetwork() {
@@ -43,19 +36,18 @@ lmcUdpNetwork::~lmcUdpNetwork() {
 void lmcUdpNetwork::init(int port) {
     LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.init started-|- port: %1").arg(port));
 
-    pSettings = new lmcSettings();
-    nUdpPort = port > 0 ? port : pSettings->value(IDS_UDPPORT, IDS_UDPPORT_VAL).toInt();
-    multicastAddress = QHostAddress(pSettings->value(IDS_MULTICAST, IDS_MULTICAST_VAL).toString());
+    _udpPort = port > 0 ? port : Globals::getInstance().udpPort();
+    _multicastAddress = QHostAddress(Globals::getInstance().multicastAddress());
 
-    LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.init -|- port: %1, multicast address: %2").arg(QString::number(port), multicastAddress.toString()));
-    int size = pSettings->beginReadArray(IDS_BROADCASTHDR);
+    LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.init -|- port: %1, multicast address: %2").arg(QString::number(port), _multicastAddress.toString()));
+    int size = _settings.beginReadArray(IDS_BROADCASTHDR);
     for(int index = 0; index < size; index++) {
-        pSettings->setArrayIndex(index);
-        QHostAddress address = QHostAddress(pSettings->value(IDS_BROADCAST).toString());
-        if(!broadcastList.contains(address))
-            broadcastList.append(address);
+        _settings.setArrayIndex(index);
+        QHostAddress address = QHostAddress(_settings.value(IDS_BROADCAST).toString());
+        if(!_broadcastList.contains(address))
+            _broadcastList.append(address);
     }
-    pSettings->endArray();
+    _settings.endArray();
 
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.init ended"));
 }
@@ -64,8 +56,8 @@ void lmcUdpNetwork::start() {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.start started"));
 
     //	start receiving datagrams
-    canReceive = startReceiving();
-    isRunning = true;
+    _canReceive = startReceiving();
+    _isRunning = true;
 
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.start ended"));
 }
@@ -73,66 +65,67 @@ void lmcUdpNetwork::start() {
 void lmcUdpNetwork::stop() {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.stop started"));
 
-    disconnect(pUdpReceiver, SIGNAL(readyRead()), this, SLOT(processPendingDatagrams()));
-    if(pUdpReceiver->state() == QAbstractSocket::BoundState) {
-        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.stop-|- Leaving multicast group %1 on interface %2 - started").arg(multicastAddress.toString(), multicastInterface.humanReadableName()));
+    disconnect(&_udpReceiver, &QUdpSocket::readyRead, this, &lmcUdpNetwork::processPendingDatagrams);
+    if(_udpReceiver.state() == QAbstractSocket::BoundState) {
+        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.stop-|- Leaving multicast group %1 on interface %2 - started").arg(_multicastAddress.toString(), _multicastInterface.humanReadableName()));
 
-        bool left = pUdpReceiver->leaveMulticastGroup(multicastAddress, multicastInterface);
-        pUdpReceiver->close();
+        bool left = _udpReceiver.leaveMulticastGroup(_multicastAddress, _multicastInterface);
+        _udpReceiver.close();
 
-        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.stop-|- Leaving multicast group  %1 on interface %2 - %3").arg(multicastAddress.toString(), multicastInterface.humanReadableName(), left ? "Success" : "Failed"));
+        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.stop-|- Leaving multicast group  %1 on interface %2 - %3").arg(_multicastAddress.toString(), _multicastInterface.humanReadableName(), left ? "Success" : "Failed"));
     }
-    isRunning = false;
+    _isRunning = false;
 
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.stop ended"));
 }
 
-void lmcUdpNetwork::setLocalId(QString* lpszLocalId) {
-    localId = *lpszLocalId;
+void lmcUdpNetwork::setLocalId(const QString &localId) {
+    _localId = localId;
 }
 
-void lmcUdpNetwork::sendBroadcast(QString* lpszData) {
-    if(!isRunning) {
+void lmcUdpNetwork::sendBroadcast(const QString &data) {
+    if(!_isRunning) {
         LoggerManager::getInstance().writeError(QStringLiteral("lmcUdpNetwork.sendBroadcast -|- UDP server not running. Broadcast not sent"));
         return;
     }
 
-    QByteArray datagram = lpszData->toUtf8();
-    sendDatagram(multicastAddress, datagram);
-    for(int index = 0; index < broadcastList.count(); index++) {
-        sendDatagram(broadcastList.at(index), datagram);
+    QByteArray datagram = data.toUtf8();
+    sendDatagram(_multicastAddress, datagram);
+    for(int index = 0; index < _broadcastList.count(); index++) {
+        sendDatagram(_broadcastList.at(index), datagram);
     }
 }
 
 void lmcUdpNetwork::settingsChanged() {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.settingsChanged ended"));
 
-    QHostAddress address = QHostAddress(pSettings->value(IDS_MULTICAST, IDS_MULTICAST_VAL).toString());
-    if(multicastAddress != address) {
-        if(pUdpReceiver->state() == QAbstractSocket::BoundState) {
-            LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.settingsChanged-|- Leaving multicast group %1 on interface %2 - started").arg(multicastAddress.toString(), multicastInterface.humanReadableName()));
+    QHostAddress address = QHostAddress(Globals::getInstance().multicastAddress());
+    if(_multicastAddress != address) {
+        if(_udpReceiver.state() == QAbstractSocket::BoundState) {
+            LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.settingsChanged-|- Leaving multicast group %1 on interface %2 - started").arg(_multicastAddress.toString(), _multicastInterface.humanReadableName()));
 
-            bool left = pUdpReceiver->leaveMulticastGroup(multicastAddress, multicastInterface);
+            bool left = _udpReceiver.leaveMulticastGroup(_multicastAddress, _multicastInterface);
 
-            LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.settingsChanged-|- Leaving multicast group  %1 on interface %2 - %3").arg(multicastAddress.toString(), multicastInterface.humanReadableName(), left ? "Success" : "Failed"));
+            LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.settingsChanged-|- Leaving multicast group  %1 on interface %2 - %3").arg(_multicastAddress.toString(), _multicastInterface.humanReadableName(), left ? "Success" : "Failed"));
         }
-        multicastAddress = address;
-        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.settingsChanged-|- Joining multicast group %1 on interface %2 - started").arg(multicastAddress.toString(), multicastInterface.humanReadableName()));
+        _multicastAddress = address;
+        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.settingsChanged-|- Joining multicast group %1 on interface %2 - started").arg(_multicastAddress.toString(), _multicastInterface.humanReadableName()));
 
-        bool joined = pUdpReceiver->joinMulticastGroup(multicastAddress, multicastInterface);
+        bool joined = _udpReceiver.joinMulticastGroup(_multicastAddress, _multicastInterface);
 
-        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.settingsChanged-|- Joining multicast group  %1 on interface %2 - %3").arg(multicastAddress.toString(), multicastInterface.humanReadableName(), joined ? "Success" : "Failed"));
+        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.settingsChanged-|- Joining multicast group  %1 on interface %2 - %3").arg(_multicastAddress.toString(), _multicastInterface.humanReadableName(), joined ? "Success" : "Failed"));
     }
-    broadcastList.clear();
-    broadcastList.append(defBroadcast);
-    int size = pSettings->beginReadArray(IDS_BROADCASTHDR);
+
+    _broadcastList.clear();
+    _broadcastList.append(_defaultBroadcast);
+    int size = _settings.beginReadArray(IDS_BROADCASTHDR);
     for(int index = 0; index < size; index++) {
-        pSettings->setArrayIndex(index);
-        QHostAddress address = QHostAddress(pSettings->value(IDS_BROADCAST).toString());
-        if(!broadcastList.contains(address))
-            broadcastList.append(address);
+        _settings.setArrayIndex(index);
+        QHostAddress address = QHostAddress(_settings.value(IDS_BROADCAST).toString());
+        if(!_broadcastList.contains(address))
+            _broadcastList.append(address);
     }
-    pSettings->endArray();
+    _settings.endArray();
 
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.settingsChanged ended"));
 }
@@ -140,7 +133,7 @@ void lmcUdpNetwork::settingsChanged() {
 void lmcUdpNetwork::setMulticastInterface(const QNetworkInterface& networkInterface) {
     LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.setMulticastInterface started-|- Interface: %1").arg(networkInterface.humanReadableName()));
 
-    multicastInterface = networkInterface;
+    _multicastInterface = networkInterface;
 
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.setMulticastInterface ended"));
 }
@@ -148,80 +141,72 @@ void lmcUdpNetwork::setMulticastInterface(const QNetworkInterface& networkInterf
 void lmcUdpNetwork::setIPAddress(const QString& szAddress, const QString& szSubnet) {
     LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.setIPAddress started-|- IP: %1, SubnetMask: %2").arg(szAddress, szSubnet));
 
-    ipAddress = QHostAddress(szAddress);
-    subnetMask = QHostAddress(szSubnet);
+    _ipAddress = QHostAddress(szAddress);
+    _subnetMask = QHostAddress(szSubnet);
     setDefaultBroadcast();
-    if(!broadcastList.contains(defBroadcast))
-        broadcastList.append(defBroadcast);
+    if(!_broadcastList.contains(_defaultBroadcast))
+        _broadcastList.append(_defaultBroadcast);
 
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.setIPAddress ended"));
 }
 
 void lmcUdpNetwork::processPendingDatagrams() {
-    LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.processPendingDatagrams started"));
-
-    while(pUdpReceiver->hasPendingDatagrams()) {
+    while(_udpReceiver.hasPendingDatagrams()) {
         QByteArray datagram;
-        datagram.resize(pUdpReceiver->pendingDatagramSize());
-        QHostAddress address;
-        pUdpReceiver->readDatagram(datagram.data(), datagram.size(), &address);
-        QString szAddress = address.toString();
-        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.processPendingDatagrams-|- address: %1").arg(szAddress));
-        parseDatagram(&szAddress, datagram);
+        datagram.resize(_udpReceiver.pendingDatagramSize());
+        QHostAddress hostAddress;
+        _udpReceiver.readDatagram(datagram.data(), datagram.size(), &hostAddress);
+        QString address = hostAddress.toString();
+        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.processPendingDatagrams-|- address: %1").arg(address));
+        parseDatagram(address, datagram);
     }
-
-    LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.processPendingDatagrams ended"));
 }
 
-void lmcUdpNetwork::sendDatagram(QHostAddress remoteAddress, QByteArray& datagram) {
-    if(!isRunning) {
-        LoggerManager::getInstance().writeError(QString("lmcUdpNetwork.sendDatagram-|- Sending UDP datagram failed to %1: %2 - network stopped").arg(remoteAddress.toString(), QString::number(nUdpPort)));
+void lmcUdpNetwork::sendDatagram(const QHostAddress &remoteAddress, const QByteArray& datagram) {
+    if(!_isRunning) {
+        LoggerManager::getInstance().writeError(QString("lmcUdpNetwork.sendDatagram-|- Sending UDP datagram failed to %1: %2 - network stopped").arg(remoteAddress.toString(), QString::number(_udpPort)));
         return;
     }
 
-    pUdpSender->writeDatagram(datagram.data(), datagram.size(), remoteAddress, nUdpPort);
+    _udpSender.writeDatagram(datagram.data(), datagram.size(), remoteAddress, _udpPort);
 }
 
 bool lmcUdpNetwork::startReceiving() {
-    LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.startReceiving started-|- Binding UDP listener to port %1").arg(QString::number(nUdpPort)));
+    LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.startReceiving started-|- Binding UDP listener to port %1").arg(QString::number(_udpPort)));
 
-    if(pUdpReceiver->bind(QHostAddress::AnyIPv4, nUdpPort)) {
-        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.startReceiving-|- Joining multicast group %1 on interface %2").arg(multicastAddress.toString(), multicastInterface.humanReadableName()));
+    if(_udpReceiver.bind(QHostAddress::AnyIPv4, _udpPort)) {
+        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.startReceiving-|- Joining multicast group %1 on interface %2").arg(_multicastAddress.toString(), _multicastInterface.humanReadableName()));
 
-        bool joined = pUdpReceiver->joinMulticastGroup(multicastAddress, multicastInterface);
-        connect(pUdpReceiver, &QUdpSocket::readyRead, this, &lmcUdpNetwork::processPendingDatagrams);
+        bool joined = _udpReceiver.joinMulticastGroup(_multicastAddress, _multicastInterface);
+        connect(&_udpReceiver, &QUdpSocket::readyRead, this, &lmcUdpNetwork::processPendingDatagrams);
 
-        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.startReceiving ended-|- Binding UDP listener to port %1: %2").arg(QString::number(nUdpPort), joined ? "Success" : "Failed"));
+        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.startReceiving ended-|- Binding UDP listener to port %1: %2").arg(QString::number(_udpPort), joined ? "Success" : "Failed"));
         return true;
     }
 
-    LoggerManager::getInstance().writeError(QString("lmcUdpNetwork.startReceiving-|- Binding UDP listener to port %1 Failed").arg(QString::number(nUdpPort)));
+    LoggerManager::getInstance().writeError(QString("lmcUdpNetwork.startReceiving-|- Binding UDP listener to port %1 Failed").arg(QString::number(_udpPort)));
     return false;
 }
 
-void lmcUdpNetwork::parseDatagram(QString* lpszAddress, QByteArray& baDatagram) {
-    LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.parseDatagram started-|- UDP datagram received from %1").arg(*lpszAddress));
-
-    DatagramHeader* pHeader = new DatagramHeader(DT_Broadcast, QString(), *lpszAddress);
-    QString szData = QString::fromUtf8(baDatagram.data(), baDatagram.length());
-    emit broadcastReceived(pHeader, &szData);
-
-    LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.parseDatagram ended"));
+void lmcUdpNetwork::parseDatagram(const QString &address, QByteArray &datagram) {
+    DatagramHeader header (DT_Broadcast, QString(), address);
+    QString data = QString::fromUtf8(datagram.data(), datagram.length());
+    emit broadcastReceived(header, data);
 }
 
 void lmcUdpNetwork::setDefaultBroadcast() {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.setDefaultBroadcast started"));
 
-    if(ipAddress.protocol() != QAbstractSocket::IPv4Protocol) {
+    if(_ipAddress.protocol() != QAbstractSocket::IPv4Protocol) {
         LoggerManager::getInstance().writeError(QStringLiteral("lmcUdpNetwork.setDefaultBroadcast failed-|- protocol is not IPv4"));
         return;
     }
 
     //	The network broadcast address is obtained by ORing the host address and
     //	bit inversed subnet mask
-    quint32 ipv4 = ipAddress.toIPv4Address();
-    quint32 invMask = ~(subnetMask.toIPv4Address());
-    defBroadcast = QHostAddress((ipv4 | invMask));
+    quint32 ipv4 = _ipAddress.toIPv4Address();
+    quint32 invMask = ~(_subnetMask.toIPv4Address());
+    _defaultBroadcast = QHostAddress((ipv4 | invMask));
 
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcUdpNetwork.setDefaultBroadcast ended"));
 }

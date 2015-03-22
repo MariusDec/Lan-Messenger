@@ -54,21 +54,21 @@ public:
   lmcMainWindow(QWidget *parent = 0, Qt::WindowFlags flags = 0);
   ~lmcMainWindow();
 
-  void init(User *pLocalUser, QList<Group> *pGroupList, bool connected);
+  void init(User *localUser, const QList<Group> &groupList, bool connected);
   void start();
   void show();
   void restore();
   void minimize();
   void stop();
-  void addUser(User *pUser);
-  void updateUser(User *pUser);
-  void removeUser(QString *lpszUserId);
-  void receiveMessage(MessageType type, QString *lpszUserId,
-                      XmlMessage *pMessage);
+  void addUser(User *user);
+  void updateUser(User *user);
+  void removeUser(const QString &userId);
+  void receiveMessage(MessageType type, const QString &userId,
+                      const XmlMessage &mssage);
   void connectionStateChanged(bool connected);
   void settingsChanged(bool init = false);
-  void showTrayMessage(TrayMessageType type, QString szMessage, QString chatRoomId = QString(),
-                       QString szTitle = QString::null,
+  void showTrayMessage(TrayMessageType type, const QString &message, const QString &chatRoomId = QString::null,
+                       QString title = QString::null,
                        TrayMessageIcon icon = TMI_Info);
   QList<QTreeWidgetItem *> getContactsList();
   QList<QTreeWidgetItem *> getSelectedUserTreeItems(QTreeWidgetItem *dropTarget = nullptr);
@@ -76,27 +76,29 @@ public:
 
 signals:
   void appExiting();
-  void messageSent(MessageType type, QString *lpszUserId, XmlMessage *pMessage);
-  void chatStarting(QString *lpszUserId);
-  void chatRoomStarting(QString lpszThreadId, XmlMessage message, QStringList contacts);
+  void messageSent(MessageType type, QString userId, XmlMessage message);
+  void chatStarting(QString userId);
+  void chatRoomStarting(QString chatRoomId, XmlMessage message, QStringList contacts);
   void showTransfers(QString userId);
   void showMessage(QString chatRoomId);
   void showHistory(QString userId);
   void showSettings();
-  void showHelp(QRect *pRect);
-  void showUpdate(QRect *pRect);
+  void showHelp(QRect rect);
+  void showUpdate(QRect rect);
   void showAbout();
   void showBroadcast();
+  void sendInstantMessage(QString userId);
   void showPublicChat();
   void groupUpdated(GroupOp op, QVariant value1, QVariant value2);
 
 protected:
-  bool eventFilter(QObject *pObject, QEvent *pEvent);
-  void closeEvent(QCloseEvent *pEvent);
-  void changeEvent(QEvent *pEvent);
+  bool eventFilter(QObject *object, QEvent *event);
+  void closeEvent(QCloseEvent *event);
+  void changeEvent(QEvent *event);
+  void moveEvent(QMoveEvent *event);
 
 private slots:
-  void sendMessage(MessageType type, QString *lpszUserId, XmlMessage *pMessage);
+  void sendMessage(MessageType type, QString userId, XmlMessage message);
   void trayShowAction_triggered();
   void trayHistoryAction_triggered();
   void trayFileAction_triggered();
@@ -110,12 +112,13 @@ private slots:
   void homePageAction_triggered();
   void updateAction_triggered();
   void buttonStartChat_clicked();
+  void buttonStartGroupChat_clicked();
   void buttonStartPublicChat_clicked();
   void refreshAction_triggered();
   void trayIcon_activated(QSystemTrayIcon::ActivationReason reason);
   void trayMessage_clicked();
-  void treeWidgetUserList_itemActivated(QTreeWidgetItem *pItem, int column);
-  void treeWidgetUserList_itemContextMenu(QTreeWidgetItem *pItem, QPoint &pos);
+  void treeWidgetUserList_itemActivated(QTreeWidgetItem *item, int column);
+  void treeWidgetUserList_itemContextMenu(QTreeWidgetItem *pItem, QPoint pos);
   void treeWidgetUserList_itemDragDropped(QTreeWidgetItem *item);
   void treeWidgetUserList_fileDragDropped(QTreeWidgetItem *item, QStringList fileNames);
   void treeWidgetUserList_itemSelectionChanged();
@@ -123,6 +126,7 @@ private slots:
   void groupRenameAction_triggered();
   void groupDeleteAction_triggered();
   void userConversationAction_triggered();
+  void userMessageAction_triggered();
   void buttonSendBroadcast_clicked();
   void buttonSendFile_clicked();
   void userFolderAction_triggered();
@@ -148,60 +152,52 @@ private:
   void createToolBar();
   QFrame *createSeparator(QWidget *parent);
   void setUIText();
-  void showMinimizeMessage();
-  void initGroups(QList<Group> *pGroupList);
+  void initGroups(const QList<Group> &pGroupList);
   void updateStatusImage(QTreeWidgetItem *pItem, QString *lpszStatus);
   void setAvatar(QString fileName = QString());
-  QTreeWidgetItem *getUserItem(QString *lpszUserId);
+  lmcUserTreeWidgetItem *getUserItem(const QString &userId);
   QTreeWidgetItem *getGroupItem(QString *lpszGroupId);
   QTreeWidgetItem *getGroupItemByName(QString *lpszGroupName);
-  void sendMessage(MessageType type, QString *lpszUserId, QString *lpszMessage, QString chatRoomId = "");
-  void sendAvatar(QString *lpszUserId);
-  void setUserAvatar(QString *lpszUserId, QString *lpszFilePath);
+  void sendMessage(MessageType type, const QString &userId, const QString &message, const QString &chatRoomId = QString::null);
+  void sendAvatar(const QString &userId);
+  void setUserAvatar(const QString &userId, const QString &filePath);
   void processTrayIconTrigger();
   void setTrayTooltip();
   void sendFile(bool sendFolder = false, QTreeWidgetItem *dropTarget = nullptr, QStringList files = QStringList());
   void startChatRoom(bool fromToolbar = false);
+  QWidget *getUserTooltip(QString userDetails, QString imagePath);
 
   Ui::MainWindow ui;
 
   const QClipboard *_clipboard = QApplication::clipboard();
 
-  lmcSettings *pSettings;
   QMenuBar *pMainMenu;
-  QSystemTrayIcon *pTrayIcon;
+  QSystemTrayIcon *_trayIcon;
   QMenu *pFileMenu;
   QMenu *pToolsMenu;
   QMenu *pTrayMenu;
   QMenu *pHelpMenu;
-  QMenu *pStatusMenu;
+  QMenu *_statusMenu;
   QMenu *pAvatarMenu = nullptr;
   QMenu *pGroupMenu;
   QMenu *pUserMenu;
   QMenu *_usersListMainMenu;
-  ThemedButton *buttonStatus;
-  ThemedButton *buttonStartChat;
-  ThemedButton *buttonSendFile;
-  ThemedButton *buttonSendBroadcast;
-  ThemedButton *buttonStartPublicChat;
-  User *pLocalUser;
+  ThemedButton *_buttonStatus;
+  ThemedButton *_buttonStartChat;
+  ThemedButton *_buttonStartGroupChat;
+  ThemedButton *_buttonSendFile;
+  ThemedButton *_buttonSendBroadcast;
+  ThemedButton *_buttonStartPublicChat;
+  User *_localUser;
 
   bool bConnected;
   int nAvatar;
-  bool showSysTray;
-  bool showSysTrayMsg;
-  bool showMinimizeMsg;
-  bool minimizeHide;
-  bool singleClickActivation;
-  bool allowSysTrayMinimize;
-  bool showAlert;
-  bool noBusyAlert;
-  bool noDNDAlert;
 
+  lmcSettings    *pSettings;
   lmcSoundPlayer *pSoundPlayer;
   TrayMessageType lastTrayMessageType;
   QString lastTrayMessageChatRoomId;
-  QActionGroup *statusGroup;
+  QActionGroup *_statusGroup;
   QAction *chatRoomAction;
   QAction *publicChatAction;
   QAction *refreshAction;
@@ -230,6 +226,7 @@ private:
   QAction *_groupSendScreenshotAction;
   QAction *_groupSendFileClipboardAction;
   QAction *_userChatAction;
+  QAction *_userMessageAction;
   QAction *_userBroadcastAction;
   QAction *_userFileAction;
   QAction *_userFolderAction;
@@ -241,7 +238,7 @@ private:
   QAction *_usersMainAddAction;
   QAction *_avatarBrowseAction;
 
-  bool windowLoaded;
+  bool _windowLoaded;
 };
 
 #endif // MAINWINDOW_H

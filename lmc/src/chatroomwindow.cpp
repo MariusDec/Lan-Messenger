@@ -29,6 +29,9 @@
 #include <QMimeData>
 #include <QShortcut>
 #include <QTimer>
+#include <QDesktopWidget>
+#include <QMessageBox>
+#include <QCheckBox>
 
 const qint64 pauseTime = 5000;
 
@@ -39,10 +42,15 @@ lmcChatRoomWindow::lmcChatRoomWindow(QWidget *parent, bool isPublicChat)
   ui.setupUi(this);
   setAcceptDrops(true);
   setProperty("isWindow", true);
+  ui.textBoxMessage->setProperty("light", true);
+  ui.labelSendKey->setProperty("subNote", true);
+  ui.labelCountChars->setProperty("subNote", true);
+  installEventFilter(this);
 
   ui.buttonLeave->setVisible(false);
 
-  ui.textBoxMessage->setProperty("light", true);
+  ui.labelCountChars->setVisible(Globals::getInstance().showCharacterCount());
+  ui.labelSendKey->setVisible(Globals::getInstance().showCharacterCount());
 
   connect(ui.treeWidgetUserList, &lmcUserTreeWidget::itemActivated, this,
           &lmcChatRoomWindow::treeWidgetUserList_itemActivated);
@@ -52,11 +60,12 @@ lmcChatRoomWindow::lmcChatRoomWindow(QWidget *parent, bool isPublicChat)
           &lmcChatRoomWindow::buttonAddUsers_clicked);
   connect(ui.buttonLeave, &ThemedButton::clicked, this,
           &lmcChatRoomWindow::buttonLeaveChat_clicked);
+  connect (ui.textBoxMessage, &QTextEdit::textChanged, this, &lmcChatRoomWindow::textChanged);
 
-  pMessageLog = new lmcMessageLog(ui.wgtLog);
-  ui.logLayout->addWidget(pMessageLog);
-  pMessageLog->setAcceptDrops(false);
-  connect(pMessageLog,
+  _messageLog = new lmcMessageLog(ui.widgetLog);
+  ui.widgetLog_layout->addWidget(_messageLog);
+  _messageLog->setAcceptDrops(false);
+  connect(_messageLog,
           &lmcMessageLog::messageSent, this,
           &lmcChatRoomWindow::log_sendMessage);
 
@@ -78,15 +87,15 @@ lmcChatRoomWindow::lmcChatRoomWindow(QWidget *parent, bool isPublicChat)
   ui.labelInfo->setBackgroundRole(QPalette::Base);
   ui.labelInfo->setAutoFillBackground(true);
   ui.labelInfo->setVisible(false);
-  pMessageLog->installEventFilter(this);
+  _messageLog->installEventFilter(this);
   ui.treeWidgetUserList->installEventFilter(this);
   ui.textBoxMessage->installEventFilter(this);
   infoFlag = IT_Ok;
   dataSaved = false;
   windowLoaded = false;
 
-  localId = QString::null;
-  localName = QString::null;
+  _localId = QString::null;
+  _localName = QString::null;
 
   chatState = CS_Blank;
   keyStroke = 0;
@@ -95,33 +104,32 @@ lmcChatRoomWindow::lmcChatRoomWindow(QWidget *parent, bool isPublicChat)
 }
 
 lmcChatRoomWindow::~lmcChatRoomWindow() {
-    pSmileyMenu->clear();
-    delete pSmileyMenu;
+    _smileyMenu->clear();
+    delete _smileyMenu;
 
-    pEmojiMenu->clear();
-    delete pEmojiMenu;
+    _emojiMenu->clear();
+    delete _emojiMenu;
 
-    pUserMenu->clear();
-    delete pUserMenu;
+    _userMenu->clear();
+    delete _userMenu;
 
-    delete pSoundPlayer;
-    delete pSettings;
+    delete _soundPlayer;
 }
 
 void lmcChatRoomWindow::init(User *pLocalUser, bool connected, const QString &thread) {
   LoggerManager::getInstance().writeInfo(
       QStringLiteral("lmcChatRoomWindow.init started"));
 
-  localId = pLocalUser->id;
-  localName = pLocalUser->name;
+  _localId = pLocalUser->id;
+  _localName = pLocalUser->name;
 
-  this->pLocalUser = pLocalUser;
+  this->_localUser = pLocalUser;
 
-  pMessageLog->localId = localId;
-  pMessageLog->savePath = QDir(StdLocation::getWritableCacheDir()).absoluteFilePath(QString("msg_%1.tmp").arg(thread));
+  _messageLog->localId = _localId;
+  _messageLog->savePath = QDir(StdLocation::getWritableCacheDir()).absoluteFilePath(QString("msg_%1.tmp").arg(thread));
 
   //	get the avatar image for the user
-  pMessageLog->participantAvatars.insert(localId, pLocalUser->avatarPath);
+  _messageLog->participantAvatars.insert(_localId, pLocalUser->avatarPath);
 
   _chatRoomId = thread;
   _originalChatRoomId = thread;
@@ -135,7 +143,7 @@ void lmcChatRoomWindow::init(User *pLocalUser, bool connected, const QString &th
   if (!bConnected)
     showStatus(IT_Disconnected, true);
 
-  pSoundPlayer = new lmcSoundPlayer();
+  _soundPlayer = new lmcSoundPlayer();
 
   ui.treeWidgetUserList->setIconSize(QSize(16, 16));
   ui.treeWidgetUserList->header()->setDragEnabled(false);
@@ -151,60 +159,42 @@ void lmcChatRoomWindow::init(User *pLocalUser, bool connected, const QString &th
   ui.treeWidgetUserList->addTopLevelItem(pItem);
   ui.treeWidgetUserList->expandAll();
 
-  pSettings = new lmcSettings();
-  showSmiley = pSettings->value(IDS_EMOTICON, IDS_EMOTICON_VAL).toBool();
-  pMessageLog->showSmiley = showSmiley;
-  pMessageLog->autoFile =
-      pSettings->value(IDS_AUTOFILE, IDS_AUTOFILE_VAL).toBool();
-  pMessageLog->messageTime =
-      pSettings->value(IDS_MESSAGETIME, IDS_MESSAGETIME_VAL).toBool();
-  pMessageLog->messageDate =
-      pSettings->value(IDS_MESSAGEDATE, IDS_MESSAGEDATE_VAL).toBool();
-  pMessageLog->allowLinks =
-      pSettings->value(IDS_ALLOWLINKS, IDS_ALLOWLINKS_VAL).toBool();
-  pMessageLog->pathToLink =
-      pSettings->value(IDS_PATHTOLINK, IDS_PATHTOLINK_VAL).toBool();
-  pMessageLog->trimMessage =
-      pSettings->value(IDS_TRIMMESSAGE, IDS_TRIMMESSAGE_VAL).toBool();
-  pMessageLog->overrideIncomingStyle = pSettings->value(IDS_OVERRIDEINMSG, IDS_OVERRIDEINMSG_VAL).toBool();
-  pMessageLog->defaultFont.fromString(pSettings->value(IDS_FONT, IDS_FONT_VAL).toString());
-  pMessageLog->defaultColor = pSettings->value(IDS_COLOR, IDS_COLOR_VAL).toString();
-
   QFont font;
-  font.fromString(pSettings->value(IDS_FONT, IDS_FONT_VAL).toString());
-  messageColor = QApplication::palette().text().color();
-  messageColor.setNamedColor(
-      pSettings->value(IDS_COLOR, IDS_COLOR_VAL).toString());
-  sendKeyMod = pSettings->value(IDS_SENDKEYMOD, IDS_SENDKEYMOD_VAL).toBool();
+  font.fromString(Globals::getInstance().messagesFontString());
+  _messageColor = QApplication::palette().text().color();
+  _messageColor.setNamedColor(Globals::getInstance().messagesColor());
+
+  setMessageFont(font);
+  ui.textBoxMessage->setStyleSheet(QString("QTextEdit { color: %1; }").arg(_messageColor.name()));
+  ui.textBoxMessage->setFocus();
 
   if (_isPublicChat) {
-    restoreGeometry(pSettings->value(IDS_WINDOWPUBLICCHAT).toByteArray());
-    ui.vSplitter->restoreState(
-        pSettings->value(IDS_SPLITTERPUBLICCHATV).toByteArray());
-    ui.hSplitter->restoreState(
-        pSettings->value(IDS_SPLITTERPUBLICCHATH).toByteArray());
+      if (!Globals::getInstance().publicChatWindowGeometry().isEmpty())
+          restoreGeometry(Globals::getInstance().publicChatWindowGeometry());
+      else
+          move(50, 50);
+
+      if (!Globals::getInstance().publicChatVSplitterGeometry().isEmpty())
+          ui.vSplitter->restoreState(Globals::getInstance().publicChatVSplitterGeometry());
+      if (!Globals::getInstance().publicChatHSplitterGeometry().isEmpty())
+          ui.hSplitter->restoreState(Globals::getInstance().publicChatHSplitterGeometry());
   } else {
-      restoreGeometry(pSettings->value(IDS_WINDOWCHATROOM).toByteArray());
-      ui.vSplitter->restoreState(
-          pSettings->value(IDS_SPLITTERCHATROOMV).toByteArray());
-      ui.hSplitter->restoreState(
-          pSettings->value(IDS_SPLITTERCHATROOMH).toByteArray());
+      if (!Globals::getInstance().chatWindowGeometry().isEmpty())
+          restoreGeometry(Globals::getInstance().chatWindowGeometry());
+      else
+          move(50, 50);
+
+      if (!Globals::getInstance().chatVSplitterGeometry().isEmpty())
+          ui.vSplitter->restoreState(Globals::getInstance().chatVSplitterGeometry());
+      if (!Globals::getInstance().chatHSplitterGeometry().isEmpty())
+          ui.hSplitter->restoreState(Globals::getInstance().chatHSplitterGeometry());
   }
 
   setUIText();
 
-  setMessageFont(font);
-  ui.textBoxMessage->setStyleSheet(QString("QTextEdit { color: %1; }").arg(messageColor.name()));
-  ui.textBoxMessage->setFocus();
+  ui.treeWidgetUserList->setView(Globals::getInstance().userListView());
 
-  int viewType =
-      pSettings->value(IDS_USERLISTVIEW, IDS_USERLISTVIEW_VAL).toInt();
-  ui.treeWidgetUserList->setView((UserListView)viewType);
-
-  appendHistory =
-      pSettings->value(IDS_APPENDHISTORY, IDS_APPENDHISTORY_VAL).toBool();
-
-  pMessageLog->initMessageLog();
+  _messageLog->initMessageLog();
 
   ThemeManager::getInstance().reloadStyleSheet();
 
@@ -219,83 +209,83 @@ void lmcChatRoomWindow::show() {
 
 void lmcChatRoomWindow::stop() {
   if (_isPublicChat && windowLoaded) {
-    pSettings->setValue(IDS_WINDOWPUBLICCHAT, saveGeometry());
-    pSettings->setValue(IDS_SPLITTERPUBLICCHATV, ui.vSplitter->saveState());
-    pSettings->setValue(IDS_SPLITTERPUBLICCHATH, ui.hSplitter->saveState());
+    Globals::getInstance().setPublicChatWindowGeometry(saveGeometry());
+    Globals::getInstance().setPublicChatVSplitterGeometry(ui.vSplitter->saveState());
+    Globals::getInstance().setPublicChatHSplitterGeometry(ui.hSplitter->saveState());
   } else {
-      pSettings->setValue(IDS_WINDOWCHATROOM, saveGeometry());
-      pSettings->setValue(IDS_SPLITTERCHATROOMV, ui.vSplitter->saveState());
-      pSettings->setValue(IDS_SPLITTERCHATROOMH, ui.hSplitter->saveState());
+      Globals::getInstance().setChatWindowGeometry(saveGeometry());
+      Globals::getInstance().setChatVSplitterGeometry(ui.vSplitter->saveState());
+      Globals::getInstance().setChatHSplitterGeometry(ui.hSplitter->saveState());
   }
 }
 
-void lmcChatRoomWindow::addUser(User *pUser) {
+void lmcChatRoomWindow::addUser(User *user) {
   LoggerManager::getInstance().writeInfo(
       QString("lmcChatRoomWindow.addUser started -|- User: %1")
-          .arg(pUser ? pUser->name : "no user"));
-  if (!pUser || peerIds.contains(pUser->id))
+          .arg(user ? user->name : "no user"));
+  if (!user || _peerIds.contains(user->id))
     return;
 
   _lastUserId = QString::null;
 
   // Do not add user if user's version is 1.2.35 or less. These versions do not
   // support Public Chat feature.
-  if (Helper::compareVersions(pUser->version, "1.2.35") <= 0)
+  if (Helper::compareVersions(user->version, "1.2.35") <= 0)
     return;
 
   //	Do not add user if user is already in the list of participants
-  if (peerIds.contains(pUser->id))
+  if (_peerIds.contains(user->id))
     return;
 
-  peerIds.insert(pUser->id, pUser->id);
-  _peerNames.insert(pUser->id, pUser->name);
+  _peerIds.insert(user->id, user->id);
+  _peerNames.insert(user->id, user->name);
 
   int index;
   StatusStruct *status =
-      Globals::getInstance().getStatus(pUser->status, &index);
+      Globals::getInstance().getStatus(user->status, &index);
 
   lmcUserTreeWidgetUserItem *pItem = new lmcUserTreeWidgetUserItem();
-  pItem->setData(0, IdRole, pUser->id);
+  pItem->setData(0, IdRole, user->id);
   pItem->setData(0, TypeRole, "User");
   pItem->setData(0, StatusRole, index);
-  pItem->setData(0, SubtextRole, pUser->note);
-  pItem->setText(0, pUser->name);
+  pItem->setData(0, SubtextRole, user->note);
+  pItem->setText(0, user->name);
 
   if (status)
     pItem->setIcon(0, QIcon(ThemeManager::getInstance().getAppIcon(status->icon)));
 
   lmcUserTreeWidgetGroupItem *pGroupItem =
-      (lmcUserTreeWidgetGroupItem *)getGroupItem(&GroupId);
+      (lmcUserTreeWidgetGroupItem *)getGroupItem(GroupId);
   pGroupItem->addChild(pItem);
   pGroupItem->sortChildren(0, Qt::AscendingOrder);
 
   // this should be called after item has been added to tree
-  setUserAvatar(&pUser->id, &pUser->avatarPath);
+  setUserAvatar(user->id, user->avatarPath);
 
   if (!_isPublicChat) {
     XmlMessage xmlMessage;
     xmlMessage.addData(XN_THREAD, _chatRoomId);
     xmlMessage.addData(XN_GROUPMSGOP, GroupMsgOpNames[GMO_Join]);
-    xmlMessage.addData(XN_USERID, pUser->id);
+    xmlMessage.addData(XN_USERID, user->id);
 
-    appendMessageLog(MT_Join, &pUser->id, &pUser->name, &xmlMessage);
+    appendMessageLog(MT_Join, user->id, user->name, xmlMessage);
     setWindowTitle(getWindowTitle());
-    emit messageSent(MT_Message, nullptr, &xmlMessage);
+    emit messageSent(MT_Message, QString::null, xmlMessage);
 
-    for (QString &userId : peerIds.keys())
-        emit messageSent(MT_Message, &userId, &xmlMessage);
+    for (QString &userId : _peerIds.keys())
+        emit messageSent(MT_Message, userId, xmlMessage);
   }
 
   //	Local user cannot participate in public chat if status is offline
-  if (_peerNames.size () <= 1 && !pUser->id.compare(localId)) {
-    bool offline = Globals::getInstance().getStatusType(pUser->status) ==
+  if (_peerNames.size () <= 1 && !user->id.compare(_localId)) {
+    bool offline = Globals::getInstance().getStatusType(user->status) ==
                    StatusTypeEnum::StatusOffline;
     ui.textBoxMessage->setEnabled(!offline);
     ui.textBoxMessage->setFocus();
   }
 
-  if (_peerNames.size() == 1 && pUser->id.compare(localId)) {
-      StatusStruct *statusItem = Globals::getInstance().getStatus(pUser->status);
+  if (_peerNames.size() == 1 && user->id.compare(_localId)) {
+      StatusStruct *statusItem = Globals::getInstance().getStatus(user->status);
       if (statusItem) {
           if (statusItem->statusType == StatusTypeEnum::StatusOffline)
               showStatus(IT_Offline, false);
@@ -335,13 +325,13 @@ void lmcChatRoomWindow::updateUser(User *pUser) {
   if (!pUser)
     return;
 
-  QTreeWidgetItem *pItem = getUserItem(&pUser->id);
+  QTreeWidgetItem *pItem = getUserItem(pUser->id);
   if (pItem) {
     int index;
 
    Globals::getInstance().getStatus(pUser->status, &index);
 
-    updateStatusImage(pItem, &pUser->status);
+    updateStatusImage(pItem, pUser->status);
     pItem->setData(0, StatusRole, index);
     pItem->setData(0, SubtextRole, pUser->note);
     pItem->setText(0, pUser->name);
@@ -353,7 +343,7 @@ void lmcChatRoomWindow::updateUser(User *pUser) {
     setWindowTitle(getWindowTitle());
 
   //	Local user cannot participate in public chat if status is offline
-  if (_isPublicChat && pUser->id.compare(localId) == 0) {
+  if (_isPublicChat && pUser->id.compare(_localId) == 0) {
     bool offline = Globals::getInstance().getStatusType(pUser->status) ==
                    StatusTypeEnum::StatusOffline;
     ui.textBoxMessage->setEnabled(!offline);
@@ -369,30 +359,30 @@ void lmcChatRoomWindow::updateUser(User *pUser) {
   }
 }
 
-void lmcChatRoomWindow::removeUser(QString *lpszUserId) {
-  QTreeWidgetItem *pItem = getUserItem(lpszUserId);
-  if (!pItem)
+void lmcChatRoomWindow::removeUser(const QString &userId) {
+  QTreeWidgetItem *item = getUserItem(userId);
+  if (!item)
     return;
 
-  if (peerIds.size() == 1)
-      _lastUserId = *lpszUserId; // last user can only disconnect by going offline
+  if (_peerIds.size() == 1)
+      _lastUserId = userId; // last user can only disconnect by going offline
   else
       _lastUserId = QString::null;
 
-  QTreeWidgetItem *pGroup = pItem->parent();
-  pGroup->removeChild(pItem);
+  QTreeWidgetItem *pGroup = item->parent();
+  pGroup->removeChild(item);
 
-  QString userId = peerIds.value(*lpszUserId);
-  QString userName = _peerNames.value(*lpszUserId);
+  QString validUserId = _peerIds.value(userId);
+  QString userName = _peerNames.value(userId);
 
-  peerIds.remove(*lpszUserId);
-  _peerNames.remove(*lpszUserId);
+  _peerIds.remove(userId);
+  _peerNames.remove(userId);
 
   XmlMessage xmlMessage;
   xmlMessage.addData(XN_THREAD, _chatRoomId);
   xmlMessage.addData(XN_GROUPMSGOP, GroupMsgOpNames[GMO_Leave]);
 
-  appendMessageLog(MT_Leave, &userId, &userName, &xmlMessage);
+  appendMessageLog(MT_Leave, validUserId, userName, xmlMessage);
   setWindowTitle(getWindowTitle());
 
   if (!_isPublicChat && _peerNames.size() == 1) {
@@ -411,71 +401,79 @@ void lmcChatRoomWindow::removeUser(QString *lpszUserId) {
 
   // If the local user is removed for some reason, prevent sending any further
   // messages
-  if (userId.compare(localId) == 0)
+  if (validUserId.compare(_localId) == 0)
     ui.textBoxMessage->setEnabled(false);
 }
 
 void lmcChatRoomWindow::setHtml(const QString &html) {
-    pMessageLog->prependHtml(html);
+    _messageLog->prependHtml(html);
 }
 
-void lmcChatRoomWindow::receiveMessage(MessageType type, QString *lpszUserId,
-                                       XmlMessage *pMessage) {
+void lmcChatRoomWindow::receiveMessage(MessageType type, const QString &userId,
+                                       const XmlMessage &message) {
   QString title;
 
   //	if lpszUserId is NULL, the message was sent locally
-  QString senderId = lpszUserId ? *lpszUserId : localId;
-  QString senderName = lpszUserId ? _peerNames.value(senderId) : localName;
+  QString senderId = !userId.isEmpty() ? userId : _localId;
+  QString senderName = !userId.isEmpty() ? _peerNames.value(senderId) : _localName;
   QString data;
 
-  StatusStruct *statusItem = Globals::getInstance().getStatus(pMessage->data(XN_STATUS));
+  StatusStruct *statusItem = Globals::getInstance().getStatus(message.data(XN_STATUS));
 
   switch (type) {
   case MT_PublicMessage:
-    appendMessageLog(type, lpszUserId, &senderName, pMessage);
+    appendMessageLog(type, userId, senderName, message);
     if (isVisible() && !isActiveWindow()) {
-        pSoundPlayer->play(SE_NewPubMessage);
+        _soundPlayer->play(SE_NewPubMessage);
     }
 
     if (!isActiveWindow()) {
-        if (pSettings->value(IDS_SYSTRAYPUBNEWMSG, IDS_SYSTRAYPUBNEWMSG_VAL).toBool())
-            emit showTrayMessage(TM_Message, pMessage->data(XN_MESSAGE), _chatRoomId, QString("%1 messaged you").arg(senderName), TMI_Info);
+        if (Globals::getInstance().sysTrayNewPublicMessages())
+            emit showTrayMessage(TM_Message, message.data(XN_MESSAGE), _chatRoomId, QString("%1 sent a public message").arg(senderName), TMI_Info);
+        QApplication::alert(this);
     }
     break;
   case MT_Message:
   case MT_GroupMessage:
-    appendMessageLog(type, lpszUserId, &senderName, pMessage);
+    _hasUnreadMessages = true;
+    appendMessageLog(type, userId, senderName, message);
     if (isHidden() || !isActiveWindow()) {
-      pSoundPlayer->play(SE_NewMessage);
+      _soundPlayer->play(SE_NewMessage);
       title = tr("%1 says...");
       setWindowTitle(title.arg(senderName));
 
       if (!isActiveWindow()) {
-          if (pSettings->value(IDS_SYSTRAYNEWMSG, IDS_SYSTRAYNEWMSG_VAL).toBool())
-              emit showTrayMessage(TM_Message, pMessage->data(XN_MESSAGE), _chatRoomId, QString("%1 messaged you").arg(senderName), TMI_Info);
+          if (Globals::getInstance().sysTrayNewMessages())
+              emit showTrayMessage(TM_Message, message.data(XN_MESSAGE), _chatRoomId, QString("%1 messaged you").arg(senderName), TMI_Info);
+          QApplication::alert(this);
+      } else if (Globals::getInstance().informReadMessage()) {
+          _hasUnreadMessages = false;
+          setChatState(CS_Read);
       }
     }
     break;
   case MT_Broadcast:
-      appendMessageLog(type, lpszUserId, &senderName, pMessage);
+  case MT_InstantMessage:
+      appendMessageLog(type, userId, senderName, message);
       if(isHidden() || !isActiveWindow()) {
-          pSoundPlayer->play(SE_NewMessage);
-          title = tr("Broadcast from %1");
+          _soundPlayer->play(SE_NewMessage);
+          title = QString("%1").arg(type == MT_Broadcast ? tr("Broadcast from %1") : tr("Message from %1"));
           setWindowTitle(title.arg(senderName));
       }
 
       if (!isActiveWindow()) {
-          if (pSettings->value(IDS_SYSTRAYNEWMSG, IDS_SYSTRAYNEWMSG_VAL).toBool())
-              emit showTrayMessage(TM_Message, pMessage->data(XN_BROADCAST), _chatRoomId, QString("Received broadcast from %1").arg(senderName), TMI_Info);
+          if (Globals::getInstance().sysTrayNewMessages())
+              emit showTrayMessage(TM_Message, message.data(XN_MESSAGE), _chatRoomId, QString("%1").arg(type == MT_Broadcast ? tr("Received broadcast from %1") : tr("Received instant message from %1")).arg(senderName), TMI_Info);
+          QApplication::alert(this);
       }
       break;
   case MT_ChatState:
-    appendMessageLog(type, lpszUserId, &senderName, pMessage);
+    appendMessageLog(type, userId, senderName, message);
     break;
   case MT_Status:
   {
-    data = pMessage->data(XN_STATUS);
-    bool isLocalUser = (pLocalUser->id == senderId);
+    data = message.data(XN_STATUS);
+    bool isLocalUser = (_localUser->id == senderId);
     if (statusItem) {
       setWindowIcon(
           QIcon(ThemeManager::getInstance().getAppIcon(statusItem->icon)));
@@ -491,25 +489,25 @@ void lmcChatRoomWindow::receiveMessage(MessageType type, QString *lpszUserId,
   }
     break;
   case MT_Avatar:
-    data = pMessage->data(XN_FILEPATH);
+    data = message.data(XN_FILEPATH);
     // this message may come with or without user id. NULL user id means avatar
     // change by local user, while non NULL user id means avatar change by a peer.
-    setUserAvatar(&senderId, &data);
+    setUserAvatar(senderId, data);
     break;
   case MT_UserName:
-    data = pMessage->data(XN_NAME);
+    data = message.data(XN_NAME);
     if (_peerNames.contains(senderId))
-      _peerNames[senderId] = data; // TODO should this be insert ?
+      _peerNames[senderId] = data;
 
-    pMessageLog->updateUserName(&senderId, &data);
+    _messageLog->updateUserName(senderId, data);
     break;
   case MT_File:
   case MT_Folder:
-      if(pMessage->data(XN_FILEOP) == FileOpNames[FO_Request]) {
+      if(message.data(XN_FILEOP) == FileOpNames[FO_Request]) {
           //	a file request has been received
-          appendMessageLog(type, lpszUserId, &senderName, pMessage);
-          if(pMessage->data(XN_MODE) == FileModeNames[FM_Receive] && (isHidden() || !isActiveWindow())) {
-              pSoundPlayer->play(SE_NewFile);
+          appendMessageLog(type, userId, senderName, message);
+          if(message.data(XN_MODE) == FileModeNames[FM_Receive] && (isHidden() || !isActiveWindow())) {
+              _soundPlayer->play(SE_NewFile);
               if(type == MT_File)
                   title = tr("%1 sends a file...");
               else
@@ -518,11 +516,11 @@ void lmcChatRoomWindow::receiveMessage(MessageType type, QString *lpszUserId,
           }
       } else {
           // a file message of op other than request has been received
-          processFileOp(pMessage);
+          processFileOp(message);
       }
       break;
   case MT_Failed:
-    appendMessageLog(type, lpszUserId, &senderName, pMessage);
+    appendMessageLog(type, userId, senderName, message);
     break;
   default:
     break;
@@ -536,51 +534,21 @@ void lmcChatRoomWindow::connectionStateChanged(bool connected) {
 }
 
 void lmcChatRoomWindow::settingsChanged() {
-  showSmiley = pSettings->value(IDS_EMOTICON, IDS_EMOTICON_VAL).toBool();
-  pMessageLog->showSmiley = showSmiley;
-  pMessageLog->autoFile =
-      pSettings->value(IDS_AUTOFILE, IDS_AUTOFILE_VAL).toBool();
-  pMessageLog->overrideIncomingStyle = pSettings->value(IDS_OVERRIDEINMSG, IDS_OVERRIDEINMSG_VAL).toBool();
-  pMessageLog->defaultFont.fromString(pSettings->value(IDS_FONT, IDS_FONT_VAL).toString());
-  pMessageLog->defaultColor = pSettings->value(IDS_COLOR, IDS_COLOR_VAL).toString();
-  sendKeyMod = pSettings->value(IDS_SENDKEYMOD, IDS_SENDKEYMOD_VAL).toBool();
-  appendHistory =
-      pSettings->value(IDS_APPENDHISTORY, IDS_APPENDHISTORY_VAL).toBool();
-  pSoundPlayer->settingsChanged();
-  if (localName.compare(pLocalUser->name) != 0) {
-    localName = pLocalUser->name;
-    updateUser(pLocalUser);
-    pMessageLog->updateUserName(&localId, &localName);
+  _soundPlayer->settingsChanged();
+  if (_localName.compare(_localUser->name) != 0) {
+    _localName = _localUser->name;
+    updateUser(_localUser);
+    _messageLog->updateUserName(_localId, _localName);
   }
+  _messageLog->reloadMessageLog();
 
-  bool msgTime =
-      pSettings->value(IDS_MESSAGETIME, IDS_MESSAGETIME_VAL).toBool();
-  bool msgDate =
-      pSettings->value(IDS_MESSAGEDATE, IDS_MESSAGEDATE_VAL).toBool();
-  bool allowLinks =
-      pSettings->value(IDS_ALLOWLINKS, IDS_ALLOWLINKS_VAL).toBool();
-  bool pathToLink =
-      pSettings->value(IDS_PATHTOLINK, IDS_PATHTOLINK_VAL).toBool();
-  bool trim = pSettings->value(IDS_TRIMMESSAGE, IDS_TRIMMESSAGE_VAL).toBool();
-  QString theme = pSettings->value(IDS_THEME, IDS_THEME_VAL).toString();
-  if (msgTime != pMessageLog->messageTime ||
-      msgDate != pMessageLog->messageDate ||
-      allowLinks != pMessageLog->allowLinks ||
-      pathToLink != pMessageLog->pathToLink ||
-      trim != pMessageLog->trimMessage ||
-      theme.compare(pMessageLog->themePath) != 0) {
-    pMessageLog->messageTime = msgTime;
-    pMessageLog->messageDate = msgDate;
-    pMessageLog->allowLinks = allowLinks;
-    pMessageLog->pathToLink = pathToLink;
-    pMessageLog->trimMessage = trim;
-    pMessageLog->themePath = theme;
-    pMessageLog->reloadMessageLog();
-  }
+  ui.labelCountChars->setVisible(Globals::getInstance().showCharacterCount());
+  ui.labelSendKey->setVisible(Globals::getInstance().showCharacterCount());
+  textChanged();
 
-  int viewType =
-      pSettings->value(IDS_USERLISTVIEW, IDS_USERLISTVIEW_VAL).toInt();
-  ui.treeWidgetUserList->setView((UserListView)viewType);
+
+  ui.treeWidgetUserList->setView(Globals::getInstance().userListView());
+  ui.labelSendKey->setText(QString("Send message using %1\t").arg(Globals::getInstance().sendByEnter() ? "Enter" : "Ctrl+Enter"));
 }
 
 void lmcChatRoomWindow::selectContacts(const std::vector<User *> selectedContacts) {
@@ -589,44 +557,58 @@ void lmcChatRoomWindow::selectContacts(const std::vector<User *> selectedContact
     }
 }
 
-bool lmcChatRoomWindow::eventFilter(QObject *pObject, QEvent *pEvent) {
-  if (pEvent->type() == QEvent::KeyPress) {
-    QKeyEvent *pKeyEvent = static_cast<QKeyEvent *>(pEvent);
-    if (pObject == ui.textBoxMessage) {
-      if (pKeyEvent->key() == Qt::Key_Return ||
-          pKeyEvent->key() == Qt::Key_Enter) {
-        bool keyMod = ((pKeyEvent->modifiers() & Qt::ControlModifier) ==
-                       Qt::ControlModifier);
-        if (keyMod == sendKeyMod) {
+bool lmcChatRoomWindow::eventFilter(QObject *object, QEvent *event) {
+  if (event->type() == QEvent::KeyPress) {
+    QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+    if (object == ui.textBoxMessage) {
+      if (keyEvent->key() == Qt::Key_Return ||
+          keyEvent->key() == Qt::Key_Enter) {
+        bool sendByEnter = ((keyEvent->modifiers() & Qt::ControlModifier) ==
+                       Qt::NoModifier);
+        if (sendByEnter == Globals::getInstance().sendByEnter()) {
           sendMessage();
           setChatState(CS_Active);
           return true;
         }
-        // The TextEdit widget does not insert new line when Ctrl+Enter is
-        // pressed
+        // The TextEdit widget does not insert new line when Ctrl+Enter is pressed
         // So we insert a new line manually
-        if (keyMod)
+        if (!sendByEnter)
           ui.textBoxMessage->insertPlainText("\n");
-      } else if (pKeyEvent->key() == Qt::Key_Escape) {
+      } else if (keyEvent->key() == Qt::Key_Escape) {
         close();
         return true;
+      } else if (keyEvent->key() == Qt::Key_B && (keyEvent->modifiers() & Qt::ControlModifier) == Qt::ControlModifier) {
+          insertHtmlTag(QStringLiteral("[b]"), QStringLiteral("[/b]"));
+          return true;
+      } else if (keyEvent->key() == Qt::Key_U && (keyEvent->modifiers() & Qt::ControlModifier) == Qt::ControlModifier) {
+          insertHtmlTag(QStringLiteral("[u]"), QStringLiteral("[/u]"));
+          return true;
+      } else if (keyEvent->key() == Qt::Key_I && (keyEvent->modifiers() & Qt::ControlModifier) == Qt::ControlModifier) {
+          insertHtmlTag(QStringLiteral("[i]"), QStringLiteral("[/i]"));
+          return true;
       }
+
       keyStroke++;
       setChatState(CS_Composing);
     } else {
-      if (pKeyEvent->key() == Qt::Key_Escape) {
+      if (keyEvent->key() == Qt::Key_Escape) {
         close();
-        emit closed(&_originalChatRoomId);
+        emit closed(_originalChatRoomId);
         return true;
       }
     }
+  } else if (event->type() == QEvent::Enter) {
+      if (_hasUnreadMessages && ui.textBoxMessage->hasFocus() && Globals::getInstance().informReadMessage()) {
+          _hasUnreadMessages = false;
+          setChatState(CS_Read);
+      }
   }
 
   return false;
 }
 
-void lmcChatRoomWindow::changeEvent(QEvent *pEvent) {
-  switch (pEvent->type()) {
+void lmcChatRoomWindow::changeEvent(QEvent *event) {
+  switch (event->type()) {
   case QEvent::ActivationChange:
     if (isActiveWindow()) {
       setWindowTitle(getWindowTitle());
@@ -640,33 +622,50 @@ void lmcChatRoomWindow::changeEvent(QEvent *pEvent) {
     break;
   }
 
-  QWidget::changeEvent(pEvent);
+  QWidget::changeEvent(event);
 }
 
 void lmcChatRoomWindow::closeEvent(QCloseEvent *event) {
     setChatState(CS_Inactive);
-    if (!_isPublicChat && _peerNames.size () > 1 && !_leaveChatTriggered) {
-        if (windowState() != Qt::WindowMinimized) {
-            setWindowState(windowState() | Qt::WindowMinimized);
-            event->ignore();
-            return;
+    if (!_isPublicChat && !_leaveChatTriggered && _peerNames.size () > 1) {
+        if (Globals::getInstance().confirmLeaveChat()) {
+            QMessageBox messageBox;
+
+            QCheckBox checkbox;
+            checkbox.setText("Do not show this message again");
+
+            messageBox.setCheckBox(&checkbox);
+            messageBox.setIcon(QMessageBox::Warning);
+            messageBox.setWindowTitle(QStringLiteral("Warning"));
+            messageBox.setText(QStringLiteral("By closing this window you will leave the group chat. You cannot come back to the group chat if you leave. \nAre you sure you want to close this window?"));
+            messageBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+
+            if (messageBox.exec() == QMessageBox::No) {
+                event->ignore();
+            } else {
+                if (checkbox.isChecked())
+                    Globals::getInstance().setConfirmLeaveChat(false);
+
+                buttonLeaveChat_clicked();
+            }
         } else {
             buttonLeaveChat_clicked();
-            return;
         }
     }
 
     // call stop procedure to save history
-    stop();
-    emit closed(&_chatRoomId);
+    if (event->isAccepted()) {
+        stop();
+        emit closed(_chatRoomId);
 
-    QWidget::closeEvent(event);
+        QWidget::closeEvent(event);
+    }
 }
 
-void lmcChatRoomWindow::dragEnterEvent(QDragEnterEvent *pEvent)
+void lmcChatRoomWindow::dragEnterEvent(QDragEnterEvent *event)
 {
-    if (pEvent->mimeData()->hasFormat("text/uri-list")) {
-      QList<QUrl> urls = pEvent->mimeData()->urls();
+    if (event->mimeData()->hasFormat("text/uri-list")) {
+      QList<QUrl> urls = event->mimeData()->urls();
       if (urls.isEmpty())
         return;
 
@@ -674,13 +673,13 @@ void lmcChatRoomWindow::dragEnterEvent(QDragEnterEvent *pEvent)
       if (fileName.isEmpty())
         return;
 
-      pEvent->acceptProposedAction();
+      event->acceptProposedAction();
     }
 }
 
-void lmcChatRoomWindow::dropEvent(QDropEvent *pEvent)
+void lmcChatRoomWindow::dropEvent(QDropEvent *event)
 {
-    QList<QUrl> urls = pEvent->mimeData()->urls();
+    QList<QUrl> urls = event->mimeData()->urls();
     if (urls.isEmpty())
       return;
 
@@ -698,12 +697,43 @@ void lmcChatRoomWindow::dropEvent(QDropEvent *pEvent)
     }
 }
 
+void lmcChatRoomWindow::moveEvent(QMoveEvent *event)
+{
+    if (!Globals::getInstance().windowSnapping()) {
+        QWidget::moveEvent(event);
+        return;
+    }
+
+    const QRect screen = QApplication::desktop()->availableGeometry(this);
+
+    bool windowSnapped = false;
+
+    if (std::abs(frameGeometry().left() - screen.left()) < 25) {
+        move(screen.left(), frameGeometry().top());
+        windowSnapped = true;
+    } else if (std::abs(screen.right() - frameGeometry().right()) < 25) {
+        move((screen.right() - frameGeometry().width() + 1), frameGeometry().top());
+        windowSnapped = true;
+    }
+
+    if (std::abs(frameGeometry().top() - screen.top()) < 25) {
+        move(frameGeometry().left(), screen.top());
+        windowSnapped = true;
+    } else if (std::abs(screen.bottom() - frameGeometry().bottom()) < 25) {
+        move(frameGeometry().left(), (screen.bottom() - frameGeometry().height() + 1));
+        windowSnapped = true;
+    }
+
+    if (!windowSnapped)
+        QWidget::moveEvent(event);
+}
+
 void lmcChatRoomWindow::userConversationAction_triggered() {
   QString userId =
       ui.treeWidgetUserList->currentItem()->data(0, IdRole).toString();
 
   QString threadId = Helper::getUuid();
-  threadId.prepend(pLocalUser->id);
+  threadId.prepend(_localUser->id);
 
   emit chatStarting(threadId, XmlMessage(), QStringList() << userId);
 }
@@ -711,13 +741,12 @@ void lmcChatRoomWindow::userConversationAction_triggered() {
 void lmcChatRoomWindow::userFileAction_triggered() {
   QString userId =
       ui.treeWidgetUserList->currentItem()->data(0, IdRole).toString();
-  QString dir = pSettings->value(IDS_OPENPATH, StdLocation::getDocumentsPath())
-                    .toString();
+  QString dir = Globals::getInstance().fileOpenPath();
   QString fileName = QFileDialog::getOpenFileName(this, QString(), dir);
   if (!fileName.isEmpty()) {
-      pSettings->setValue(IDS_OPENPATH, QFileInfo(fileName).dir().absolutePath());
+      Globals::getInstance().setFileOpenPath(QFileInfo(fileName).dir().absolutePath());
 
-      QString chatRoomId = pLocalUser->id;
+      QString chatRoomId = _localUser->id;
       chatRoomId.append(Helper::getUuid());
 
       sendObject(userId, MT_File, &fileName, chatRoomId);
@@ -726,12 +755,11 @@ void lmcChatRoomWindow::userFileAction_triggered() {
 
 void lmcChatRoomWindow::userFolderAction_triggered() {
   QString userId = ui.treeWidgetUserList->currentItem()->data(0, IdRole).toString();
-  QString dir = pSettings->value(IDS_OPENPATH, StdLocation::getDocumentsPath())
-                    .toString();
+  QString dir = Globals::getInstance().fileOpenPath();
   QString fileName = QFileDialog::getExistingDirectory(
               this, QString(), dir, QFileDialog::ShowDirsOnly);
   if (!fileName.isEmpty()) {
-      QString chatRoomId = pLocalUser->id;
+      QString chatRoomId = _localUser->id;
       chatRoomId.append(Helper::getUuid());
 
       sendObject(userId, MT_Folder, &fileName, chatRoomId);
@@ -743,7 +771,7 @@ void lmcChatRoomWindow::userInfoAction_triggered() {
       ui.treeWidgetUserList->currentItem()->data(0, IdRole).toString();
   XmlMessage xmlMessage;
   xmlMessage.addData(XN_QUERYOP, QueryOpNames[QO_Get]);
-  emit messageSent(MT_Query, &userId, &xmlMessage);
+  emit messageSent(MT_Query, userId, xmlMessage);
 }
 
 void lmcChatRoomWindow::buttonFont_clicked() {
@@ -756,11 +784,11 @@ void lmcChatRoomWindow::buttonFont_clicked() {
 }
 
 void lmcChatRoomWindow::buttonFontColor_clicked() {
-  QColor color = QColorDialog::getColor(messageColor, this, tr("Select Color"));
+  QColor color = QColorDialog::getColor(_messageColor, this, tr("Select Color"));
   if (color.isValid()) {
-    messageColor = color;
+    _messageColor = color;
     ui.textBoxMessage->setStyleSheet("QTextEdit {color: " +
-                                     messageColor.name() + ";}");
+                                     _messageColor.name() + ";}");
   }
 }
 
@@ -769,13 +797,12 @@ void lmcChatRoomWindow::buttonFile_clicked() { sendFile(); }
 void lmcChatRoomWindow::buttonFolder_clicked() { sendFile(true); }
 
 void lmcChatRoomWindow::buttonSave_clicked() {
-  QString dir = pSettings->value(IDS_SAVEPATH, StdLocation::getDocumentsPath())
-                    .toString();
+  QString dir = Globals::getInstance().fileSavePath();
   QString fileName =
       QFileDialog::getSaveFileName(this, tr("Save Conversation"), dir,
                                    "HTML File (*.html);;Text File (*.txt)");
   if (!fileName.isEmpty()) {
-    pSettings->setValue(IDS_SAVEPATH, QFileInfo(fileName).dir().absolutePath());
+    Globals::getInstance().setFileSavePath(QFileInfo(fileName).dir().absolutePath());
     QFile file(fileName);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
       return;
@@ -783,9 +810,9 @@ void lmcChatRoomWindow::buttonSave_clicked() {
     stream.setCodec("UTF-8");
     stream.setGenerateByteOrderMark(true);
     if (fileName.endsWith(".html", Qt::CaseInsensitive))
-      stream << pMessageLog->prepareMessageLogForSave(HtmlFormat);
+      stream << _messageLog->prepareMessageLogForSave(HtmlFormat);
     else
-      stream << pMessageLog->prepareMessageLogForSave(TextFormat);
+      stream << _messageLog->prepareMessageLogForSave(TextFormat);
     file.close();
   }
 }
@@ -793,7 +820,7 @@ void lmcChatRoomWindow::buttonSave_clicked() {
 void lmcChatRoomWindow::buttonSendClipboard_clicked() {
   if (_clipboard->mimeData()->hasImage()) {
       QPixmap imageData = qvariant_cast<QPixmap>(_clipboard->mimeData()->imageData());
-      QString screenshotPath = QString("%1screenshot - %2.png").arg(StdLocation::getCacheDir(), pLocalUser->name);
+      QString screenshotPath = QString("%1screenshot - %2.png").arg(StdLocation::getCacheDir(), _localUser->name);
       imageData.save(screenshotPath);
 
       for (const QString &userId : _peerNames.keys())
@@ -826,14 +853,14 @@ void lmcChatRoomWindow::buttonTransfers_clicked() {
 void lmcChatRoomWindow::buttonAddUsers_clicked() {
   QStringList excludeList;
 
-  QHash<QString, QString>::const_iterator index = peerIds.constBegin();
-  while (index != peerIds.constEnd()) {
+  QHash<QString, QString>::const_iterator index = _peerIds.constBegin();
+  while (index != _peerIds.constEnd()) {
     QString userId = index.value();
     excludeList.append(userId);
     index++;
   }
 
-  emit contactsAdding(&excludeList);
+  emit contactsAdding(excludeList);
 }
 
 void lmcChatRoomWindow::buttonLeaveChat_clicked() {
@@ -842,7 +869,7 @@ void lmcChatRoomWindow::buttonLeaveChat_clicked() {
     xmlMessage.addData(XN_GROUPMSGOP, GroupMsgOpNames[GMO_Leave]);
 
     for (QString &peerId : _peerNames.keys())
-        emit messageSent(MT_GroupMessage, &peerId, &xmlMessage);
+        emit messageSent(MT_GroupMessage, peerId, xmlMessage);
 
     _leaveChatTriggered = true;
     close();
@@ -854,12 +881,14 @@ void lmcChatRoomWindow::buttonToggleSideBar_clicked()
 }
 
 void lmcChatRoomWindow::smileyAction_triggered() {
-  //	nSmiley contains index of smiley
-  insertSmileyCode(ImagesList::getInstance().getSmileys()[nSmiley]);
+    //	nSmiley contains index of smiley
+    if (nSmiley >= 0)
+        insertSmileyCode(ImagesList::getInstance().getSmileys()[nSmiley]);
 }
 
 void lmcChatRoomWindow::emojiAction_triggered() {
-  insertSmileyCode(ImagesList::getInstance().getEmojis()[nEmoji]);
+    if (nEmoji >= 0)
+        insertSmileyCode(ImagesList::getInstance().getEmojis()[nEmoji]);
 }
 
 void lmcChatRoomWindow::insertSmileyCode(const ImagesStruct &smiley) {
@@ -888,43 +917,58 @@ void lmcChatRoomWindow::insertSmileyCode(const ImagesStruct &smiley) {
     ui.textBoxMessage->setFocus();
 }
 
-void lmcChatRoomWindow::log_sendMessage(MessageType type, QString *lpszUserId,
-                                        XmlMessage *pMessage) {
-  Q_UNUSED(type);
-  Q_UNUSED(lpszUserId);
-  Q_UNUSED(pMessage);
-    emit messageSent(type, lpszUserId, pMessage);
+void lmcChatRoomWindow::insertHtmlTag(const QString &beginTag, const QString &endTag) {
+    QTextCursor cursor = ui.textBoxMessage->textCursor();
+    QString selectedText = cursor.selectedText();
+
+    bool moveCursor = selectedText.isEmpty();
+
+    selectedText = QString("%1%2%3").arg(beginTag, selectedText, endTag);
+
+    ui.textBoxMessage->insertPlainText(selectedText);
+
+    if (moveCursor) {
+        cursor.movePosition(QTextCursor::Left, QTextCursor::MoveAnchor, endTag.length());
+        ui.textBoxMessage->setTextCursor(cursor);
+    }
+    ui.textBoxMessage->setFocus();
 }
 
-void lmcChatRoomWindow::treeWidgetUserList_itemActivated(QTreeWidgetItem *pItem,
+void lmcChatRoomWindow::log_sendMessage(MessageType type, QString userId,
+                                        XmlMessage message) {
+    message.removeData(XN_THREAD);
+    message.addData(XN_THREAD, _chatRoomId);
+    emit messageSent(type, userId, message);
+}
+
+void lmcChatRoomWindow::treeWidgetUserList_itemActivated(QTreeWidgetItem *item,
                                                          int column) {
   Q_UNUSED(column);
-  if (pItem->data(0, TypeRole).toString().compare("User") == 0) {
-    QString szUserId = pItem->data(0, IdRole).toString();
-    if (szUserId.compare(localId) != 0) {
-        QString chatRoomId = pLocalUser->id;
+  if (item->data(0, TypeRole).toString().compare("User") == 0) {
+    QString userId = item->data(0, IdRole).toString();
+    if (userId.compare(_localId) != 0) {
+        QString chatRoomId = _localUser->id;
         chatRoomId.append(Helper::getUuid());
 
 
 
-        emit chatStarting(chatRoomId, XmlMessage(), QStringList() << szUserId);
+        emit chatStarting(chatRoomId, XmlMessage(), QStringList() << userId);
     }
   }
 }
 
 void
-lmcChatRoomWindow::treeWidgetUserList_itemContextMenu(QTreeWidgetItem *pItem,
-                                                      QPoint &pos) {
-  if (!pItem)
+lmcChatRoomWindow::treeWidgetUserList_itemContextMenu(QTreeWidgetItem *item,
+                                                      QPoint pos) {
+  if (!item)
     return;
 
-  if (pItem->data(0, TypeRole).toString().compare("User") == 0) {
-    for (int index = 0; index < pUserMenu->actions().count(); index++)
-      pUserMenu->actions()[index]->setData(pItem->data(0, IdRole));
+  if (item->data(0, TypeRole).toString().compare("User") == 0) {
+    for (int index = 0; index < _userMenu->actions().count(); index++)
+      _userMenu->actions()[index]->setData(item->data(0, IdRole));
 
-    userChatAction->setVisible(_peerNames.size() != 1);
-
-    pUserMenu->exec(pos);
+    _userChatAction->setVisible(_peerNames.size() != 1);
+    _userMenu->exec(pos);
   }
 }
 
@@ -941,43 +985,51 @@ void lmcChatRoomWindow::checkChatState() {
     setChatState(CS_Paused);
 }
 
+void lmcChatRoomWindow::textChanged() {
+    if (Globals::getInstance().showCharacterCount()) {
+        QString text = ui.textBoxMessage->toPlainText();
+        text = text.remove(QRegularExpression("(\\[/?(b|u|i|q|quote)\\])", QRegularExpression::DontCaptureOption));
+        ui.labelCountChars->setText(QString("%1 character%2").arg(QString::number(text.length()), text.length() != 1 ? "s" : ""));
+    }
+}
+
 void lmcChatRoomWindow::createUserMenu() {
-  pUserMenu = new QMenu(this);
-  userChatAction = pUserMenu->addAction(
+  _userMenu = new QMenu(this);
+  _userChatAction = _userMenu->addAction(
       "&Conversation", this, SLOT(userConversationAction_triggered()));
-  userFileAction = pUserMenu->addAction("Send &File", this,
+  _userFileAction = _userMenu->addAction("Send &File", this,
                                         SLOT(userFileAction_triggered()));
-  userFolderAction = pUserMenu->addAction("Send &Folder", this,
+  _userFolderAction = _userMenu->addAction("Send &Folder", this,
                                         SLOT(userFolderAction_triggered()));
-  pUserMenu->addSeparator();
-  userInfoAction = pUserMenu->addAction("Get &Information", this,
+  _userMenu->addSeparator();
+  _userInfoAction = _userMenu->addAction("Get &Information", this,
                                         SLOT(userInfoAction_triggered()));
 }
 
 void lmcChatRoomWindow::createSmileyMenu() {
-  pSmileyMenu = new QMenu(this);
+  _smileyMenu = new QMenu(this);
 
-  pSmileyAction = new lmcImagePickerAction(
-      pSmileyMenu, ImagesList::getInstance().getSmileys(),
+  _smileyAction = new lmcImagePickerAction(
+      _smileyMenu, ImagesList::getInstance().getSmileys(),
       ImagesList::getInstance().getTabs(ImagesList::Smileys), 39, 39, 10,
       &nSmiley, true);
-  connect(pSmileyAction, &lmcImagePickerAction::imageSelected, this,
+  connect(_smileyAction, &lmcImagePickerAction::imageSelected, this,
           &lmcChatRoomWindow::smileyAction_triggered);
 
-  pSmileyMenu->addAction(pSmileyAction);
+  _smileyMenu->addAction(_smileyAction);
 }
 
 void lmcChatRoomWindow::createEmojiMenu() {
-  pEmojiMenu = new QMenu(this);
+  _emojiMenu = new QMenu(this);
 
-  pEmojiAction = new lmcImagePickerAction(
-      pEmojiMenu, ImagesList::getInstance().getEmojis(),
+  _emojiAction = new lmcImagePickerAction(
+      _emojiMenu, ImagesList::getInstance().getEmojis(),
       ImagesList::getInstance().getTabs(ImagesList::Emojis), 78, 39, 8, &nEmoji,
       true);
-  connect(pEmojiAction, &lmcImagePickerAction::imageSelected, this,
+  connect(_emojiAction, &lmcImagePickerAction::imageSelected, this,
           &lmcChatRoomWindow::emojiAction_triggered);
 
-  pEmojiMenu->addAction(pEmojiAction);
+  _emojiMenu->addAction(_emojiAction);
 }
 
 QFrame *lmcChatRoomWindow::createSeparator(QWidget *parent) {
@@ -1021,7 +1073,7 @@ void lmcChatRoomWindow::createToolBar() {
   buttonSmiley->setFixedWidth(32);
   buttonSmiley->setIcon(QIcon(ThemeManager::getInstance().getAppIcon(
                                          QStringLiteral("smiley"))));
-  buttonSmiley->setMenu(pSmileyMenu);
+  buttonSmiley->setMenu(_smileyMenu);
 
   ThemedButton *buttonEmoji = new ThemedButton(ui.widgetToolBar);
   buttonEmoji->setPopupMode(QToolButton::InstantPopup);
@@ -1031,7 +1083,7 @@ void lmcChatRoomWindow::createToolBar() {
   buttonEmoji->setFixedWidth(32);
   buttonEmoji->setIcon(QIcon(ThemeManager::getInstance().getAppIcon(
                                          QStringLiteral("emoji"))));
-  buttonEmoji->setMenu(pEmojiMenu);
+  buttonEmoji->setMenu(_emojiMenu);
 
   ThemedButton *buttonSendFile = new ThemedButton(ui.widgetToolBar);
   buttonSendFile->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -1171,14 +1223,15 @@ void lmcChatRoomWindow::setUIText() {
 
   setWindowTitle(getWindowTitle());
 
-  QTreeWidgetItem *pGroupItem = getGroupItem(&GroupId);
+  QTreeWidgetItem *pGroupItem = getGroupItem(GroupId);
   pGroupItem->setText(0, tr("Participants"));
 
-  userChatAction->setText(tr("&Conversation"));
-  userFileAction->setText(tr("Send &File"));
-  userInfoAction->setText(tr("Get &Information"));
+  _userChatAction->setText(tr("&Conversation"));
+  _userFileAction->setText(tr("Send &File"));
+  _userInfoAction->setText(tr("Get &Information"));
 
   showStatus(IT_Ok, false); //	this will force the info label to retranslate
+  ui.labelSendKey->setText(QString("Send message using %1\t").arg(Globals::getInstance().sendByEnter() ? "Enter" : "Ctrl+Enter"));
 }
 
 void lmcChatRoomWindow::sendMessage() {
@@ -1186,45 +1239,45 @@ void lmcChatRoomWindow::sendMessage() {
     return;
 
   if (bConnected) {
-    QString szMessage(ui.textBoxMessage->toPlainText());
+    QString message(ui.textBoxMessage->toPlainText());
 
     QFont font = ui.textBoxMessage->font();
-    font.setPointSize(ui.textBoxMessage->fontPointSize());
+    font.setPointSize(ui.textBoxMessage->fontPointSize());  // TODO is this negative ???
 
     MessageType type = !_isPublicChat ? (_peerNames.size() <= 1 ? MT_Message : MT_GroupMessage) : MT_PublicMessage;
     XmlMessage xmlMessage;
     xmlMessage.addHeader(XN_TIME, QString::number(QDateTime::currentDateTime().toMSecsSinceEpoch()));
     xmlMessage.addData(XN_FONT, font.toString());
-    xmlMessage.addData(XN_COLOR, messageColor.name());
-    xmlMessage.addData(XN_MESSAGE, szMessage);
+    xmlMessage.addData(XN_COLOR, _messageColor.name());
+    xmlMessage.addData(XN_MESSAGE, message);
     xmlMessage.addData(XN_THREAD, _chatRoomId);
 
     if (_peerNames.size () > 1) {
         xmlMessage.addData(XN_GROUPMSGOP, GroupMsgOpNames[GMO_Message]);
     }
 
-    appendMessageLog(type, &localId, &localName, &xmlMessage);
+    appendMessageLog(type, _localId, _localName, xmlMessage);
 
     QHash<QString, QString>::const_iterator index = _peerNames.constBegin();
     while (index != _peerNames.constEnd()) {
         QString userId = index.key();
-        emit messageSent(type, &userId, &xmlMessage);
+        emit messageSent(type, userId, xmlMessage);
         index++;
     }
   } else
-    appendMessageLog(MT_Error, NULL, NULL, NULL);
+    appendMessageLog(MT_Error, QString::null, QString::null, XmlMessage());
 
   ui.textBoxMessage->clear();
   ui.textBoxMessage->setFocus();
 }
 
-void lmcChatRoomWindow::appendMessageLog(MessageType type, QString *lpszUserId,
-                                         QString *lpszUserName,
-                                         XmlMessage *pMessage) {
-    pMessageLog->appendMessageLog(type, lpszUserId, lpszUserName, pMessage, false, _peerNames.count(), true, pLocalUser, _peerNames);
+void lmcChatRoomWindow::appendMessageLog(MessageType type, const QString &userId,
+                                         const QString &userName,
+                                         const XmlMessage &message) {
+    _messageLog->appendMessageLog(type, userId, userName, message, false, _peerNames.count(), true, _localUser, _peerNames);
 
   if (!_buttonSaveConversation->isEnabled())
-    _buttonSaveConversation->setEnabled(pMessageLog->hasData);
+    _buttonSaveConversation->setEnabled(_messageLog->hasData);
 }
 
 void lmcChatRoomWindow::showStatus(int flag, bool isLocalUser) {
@@ -1232,8 +1285,8 @@ void lmcChatRoomWindow::showStatus(int flag, bool isLocalUser) {
   bool groupMode = _peerNames.size() != 1;
 
   int relScrollPos =
-      pMessageLog->page()->mainFrame()->scrollBarMaximum(Qt::Vertical) -
-      pMessageLog->page()->mainFrame()->scrollBarValue(Qt::Vertical);
+      _messageLog->page()->mainFrame()->scrollBarMaximum(Qt::Vertical) -
+      _messageLog->page()->mainFrame()->scrollBarValue(Qt::Vertical);
 
   //if (!groupMode)
 
@@ -1258,9 +1311,9 @@ void lmcChatRoomWindow::showStatus(int flag, bool isLocalUser) {
   }
 
   int scrollPos =
-          pMessageLog->page()->mainFrame()->scrollBarMaximum(Qt::Vertical) -
+          _messageLog->page()->mainFrame()->scrollBarMaximum(Qt::Vertical) -
           relScrollPos;
-  pMessageLog->page()->mainFrame()->setScrollBarValue(Qt::Vertical, scrollPos);
+  _messageLog->page()->mainFrame()->setScrollBarValue(Qt::Vertical, scrollPos);
 }
 
 QString lmcChatRoomWindow::getWindowTitle() {
@@ -1295,15 +1348,15 @@ void lmcChatRoomWindow::setMessageFont(QFont &font) {
 }
 
 void lmcChatRoomWindow::updateStatusImage(QTreeWidgetItem *pItem,
-                                          QString *lpszStatus) {
-  StatusStruct *status = Globals::getInstance().getStatus(*lpszStatus);
-  if (status)
+                                          const QString &status) {
+  StatusStruct *statusStruct = Globals::getInstance().getStatus(status);
+  if (statusStruct)
     pItem->setIcon(
         0,
-        QIcon(ThemeManager::getInstance().getAppIcon(status->icon)));
+        QIcon(ThemeManager::getInstance().getAppIcon(statusStruct->icon)));
 }
 
-QTreeWidgetItem *lmcChatRoomWindow::getUserItem(QString *lpszUserId) {
+QTreeWidgetItem *lmcChatRoomWindow::getUserItem(const QString &userId) {
   for (int topIndex = 0; topIndex < ui.treeWidgetUserList->topLevelItemCount();
        topIndex++) {
     for (int index = 0;
@@ -1311,7 +1364,7 @@ QTreeWidgetItem *lmcChatRoomWindow::getUserItem(QString *lpszUserId) {
          index++) {
       QTreeWidgetItem *pItem =
           ui.treeWidgetUserList->topLevelItem(topIndex)->child(index);
-      if (pItem->data(0, IdRole).toString().compare(*lpszUserId) == 0)
+      if (pItem->data(0, IdRole).toString().compare(userId) == 0)
         return pItem;
     }
   }
@@ -1319,35 +1372,34 @@ QTreeWidgetItem *lmcChatRoomWindow::getUserItem(QString *lpszUserId) {
   return NULL;
 }
 
-QTreeWidgetItem *lmcChatRoomWindow::getGroupItem(QString *lpszGroupId) {
+QTreeWidgetItem *lmcChatRoomWindow::getGroupItem(const QString &groupId) {
   for (int topIndex = 0; topIndex < ui.treeWidgetUserList->topLevelItemCount();
        topIndex++) {
     QTreeWidgetItem *pItem = ui.treeWidgetUserList->topLevelItem(topIndex);
-    if (pItem->data(0, IdRole).toString().compare(*lpszGroupId) == 0)
+    if (pItem->data(0, IdRole).toString().compare(groupId) == 0)
       return pItem;
   }
 
   return NULL;
 }
 
-void lmcChatRoomWindow::setUserAvatar(QString *lpszUserId,
-                                      QString *lpszFilePath) {
-  QTreeWidgetItem *pUserItem = getUserItem(lpszUserId);
-  if (!pUserItem || !lpszFilePath)
+void lmcChatRoomWindow::setUserAvatar(const QString &userId,
+                                      const QString &filePath) {
+  QTreeWidgetItem *pUserItem = getUserItem(userId);
+  if (!pUserItem || filePath.isEmpty())
     return;
 
-  QPixmap avatar(*lpszFilePath);
+  QPixmap avatar(filePath);
   if (!avatar.isNull()) {
       avatar = avatar.scaled(QSize(32, 32), Qt::IgnoreAspectRatio,
                              Qt::SmoothTransformation);
       pUserItem->setData(0, AvatarRole, QIcon(avatar));
-      pMessageLog->updateAvatar(lpszUserId, lpszFilePath);
+      _messageLog->updateAvatar(userId, filePath);
   }
 }
 
 void lmcChatRoomWindow::sendFile(bool sendFolder) {
-  QString dir = pSettings->value(IDS_OPENPATH, StdLocation::getDocumentsPath())
-                    .toString();
+  QString dir = Globals::getInstance().fileOpenPath();
   QStringList fileNames;
   if (!sendFolder)
     fileNames = QFileDialog::getOpenFileNames(this, QString(), dir);
@@ -1361,7 +1413,7 @@ void lmcChatRoomWindow::sendFile(bool sendFolder) {
   if (fileNames.isEmpty())
     return;
 
-  pSettings->setValue(IDS_OPENPATH, QFileInfo(fileNames[0]).absolutePath());
+ Globals::getInstance().setFileOpenPath(QFileInfo(fileNames[0]).absolutePath());
 
   MessageType messageType = sendFolder ? MT_Folder : MT_File;
   for (const QString &userId : _peerNames.keys()) {
@@ -1383,18 +1435,18 @@ void lmcChatRoomWindow::sendObject(const QString &peerId, MessageType type,
     else
         xmlMessage.addData(XN_THREAD, roomId);
 
-    QString userId = peerIds.value(peerId);
-    emit messageSent(type, &userId, &xmlMessage);
+    QString userId = _peerIds.value(peerId);
+    emit messageSent(type, userId, xmlMessage);
   } else
-      appendMessageLog(MT_Error, NULL, NULL, NULL);
+      appendMessageLog(MT_Error, QString::null, QString::null, XmlMessage());
 }
 
-void lmcChatRoomWindow::processFileOp(XmlMessage *pMessage)
+void lmcChatRoomWindow::processFileOp(const XmlMessage &message)
 {
-    int fileOp = Helper::indexOf(FileOpNames, FO_Max, pMessage->data(XN_FILEOP));
+    int fileOp = Helper::indexOf(FileOpNames, FO_Max, message.data(XN_FILEOP));
     int fileMode =
-        Helper::indexOf(FileModeNames, FM_Max, pMessage->data(XN_MODE));
-    QString fileId = pMessage->data(XN_FILEID);
+        Helper::indexOf(FileModeNames, FM_Max, message.data(XN_MODE));
+    QString fileId = message.data(XN_FILEID);
 
     switch (fileOp) {
     case FO_Cancel:
@@ -1403,7 +1455,7 @@ void lmcChatRoomWindow::processFileOp(XmlMessage *pMessage)
     case FO_Error:
     case FO_Abort:
     case FO_Complete:
-      updateFileMessage((FileMode)fileMode, (FileOp)fileOp, fileId);
+      updateFileMessage(static_cast<FileMode>(fileMode), static_cast<FileOp>(fileOp), fileId);
       break;
     default:
       break;
@@ -1411,7 +1463,7 @@ void lmcChatRoomWindow::processFileOp(XmlMessage *pMessage)
 }
 
 void lmcChatRoomWindow::setChatState(ChatState newChatState) {
-  if (chatState == newChatState)
+  if (chatState == newChatState && newChatState != CS_Read)
     return;
 
   bool bNotify = false;
@@ -1434,6 +1486,12 @@ void lmcChatRoomWindow::setChatState(ChatState newChatState) {
       bNotify = true;
     }
     break;
+  case CS_Read:
+      if (!_isPublicChat && _peerNames.size() == 1) {
+          chatState = newChatState;
+          bNotify = true;
+      }
+      break;
   default:
     break;
   }
@@ -1445,10 +1503,10 @@ void lmcChatRoomWindow::setChatState(ChatState newChatState) {
       xmlMessage.addData(XN_THREAD, _chatRoomId);
     xmlMessage.addData(XN_CHATSTATE, ChatStateNames[chatState]);
 
-    QHash<QString, QString>::const_iterator index = peerIds.constBegin();
-    while (index != peerIds.constEnd()) {
+    QHash<QString, QString>::const_iterator index = _peerIds.constBegin();
+    while (index != _peerIds.constEnd()) {
       QString userId = index.value();
-      emit messageSent(MT_ChatState, &userId, &xmlMessage);
+      emit messageSent(MT_ChatState, userId, xmlMessage);
       index++;
     }
   }
@@ -1456,7 +1514,7 @@ void lmcChatRoomWindow::setChatState(ChatState newChatState) {
 
 void lmcChatRoomWindow::updateFileMessage(FileMode mode, FileOp op,
                                           QString fileId) {
-    pMessageLog->updateFileMessage(mode, op, fileId);
+    _messageLog->updateFileMessage(mode, op, fileId);
 }
 
 void lmcChatRoomWindow::toggleSideBar(bool toggle, bool toggled)

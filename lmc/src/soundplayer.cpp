@@ -1,11 +1,11 @@
 ﻿/****************************************************************************
 **
 ** This file is part of LAN Messenger.
-** 
+**
 ** Copyright (c) 2010 - 2012 Qualia Digital Solutions.
-** 
+**
 ** Contact:  qualiatech@gmail.com
-** 
+**
 ** LAN Messenger is free software: you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation, either version 3 of the License, or
@@ -21,45 +21,41 @@
 **
 ****************************************************************************/
 
-
 #include "soundplayer.h"
+#include "globals.h"
 
 lmcSoundPlayer::lmcSoundPlayer() {
-	pSettings = new lmcSettings();
-	for(int index = 0; index < SE_Max; index++) {
-		eventState[index] = Qt::Checked;
-		sounds[index] = soundFile[index];
-	}
-	settingsChanged();
+    pSettings = new lmcSettings();
+    for(int index = 0; index < SE_Max; index++) {
+        eventState[index] = Qt::Checked;
+        sounds[index] = soundFile[index];
+    }
+    settingsChanged();
 }
 
-void lmcSoundPlayer::play(SoundEvent event) {
-	QString localStatus = pSettings->value(IDS_STATUS, IDS_STATUS_VAL).toString();
-	if(!playSound || (localStatus == "Busy" && noBusySound) || (localStatus == "NoDisturb" && noDNDSound))
-		return;
+void lmcSoundPlayer::play(const SoundEvent &event) {
+    QString localStatus = Globals::getInstance().userStatus();
+    if(!Globals::getInstance().enableSoundAlerts() || (localStatus == "Busy" && Globals::getInstance().noBusySounds()) || (localStatus == "NoDisturb" && Globals::getInstance().noDNDSounds()))
+        return;
 
-	if(!eventState[event])
-		return;
+    if(!eventState[event])
+        return;
 
-	QSound::play(sounds[event]);
+    QSound::play(sounds[event]);
 }
 
 void lmcSoundPlayer::settingsChanged() {
-	int size = qMin(pSettings->beginReadArray(IDS_SOUNDEVENTHDR), (int)SE_Max);
-	for(int index = 0; index < size; index++) {
-		pSettings->setArrayIndex(index);
-		eventState[index] = pSettings->value(IDS_SOUNDEVENT, IDS_SOUNDEVENT_VAL).toInt();
-	}
-	pSettings->endArray();
+    int size = qMin(pSettings->beginReadArray(IDS_SOUNDEVENTHDR), (int)SE_Max);
+    for(int index = 0; index < size; index++) {
+        pSettings->setArrayIndex(index);
+        eventState[index] = pSettings->value(IDS_SOUNDEVENT, IDS_SOUNDEVENT_VAL).toInt();
+    }
+    pSettings->endArray();
 
-	size = qMin(pSettings->beginReadArray(IDS_SOUNDFILEHDR), (int)SE_Max);
-	for(int index = 0; index < size; index++) {
-		pSettings->setArrayIndex(index);
-		sounds[index] = pSettings->value(IDS_SOUNDFILE, soundFile[index]).toString();
-	}
-	pSettings->endArray();
-
-	playSound = pSettings->value(IDS_SOUND, IDS_SOUND_VAL).toBool();
-	noBusySound = pSettings->value(IDS_NOBUSYSOUND, IDS_NOBUSYSOUND_VAL).toBool();
-	noDNDSound = pSettings->value(IDS_NODNDSOUND, IDS_NODNDSOUND_VAL).toBool();
+    size = qMin(pSettings->beginReadArray(IDS_SOUNDFILEHDR), (int)SE_Max);
+    for(int index = 0; index < size; index++) {
+        pSettings->setArrayIndex(index);
+        sounds[index] = pSettings->value(IDS_SOUNDFILE, soundFile[index]).toString();
+    }
+    pSettings->endArray();
 }

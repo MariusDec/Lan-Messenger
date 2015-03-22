@@ -37,7 +37,6 @@
 #include <QMovie>
 #include <QToolTip>
 #include <QVBoxLayout>
-#include <QGraphicsDropShadowEffect>
 #include <QBitmap>
 
 lmcImagePicker::lmcImagePicker(QWidget *parent,
@@ -100,7 +99,7 @@ lmcImagePicker::lmcImagePicker(QWidget *parent,
         if (!source[index]->icon.isEmpty()) {
             QPixmap px(source[index]->icon);
 
-            currImageWidth = px.width() > picWidth ? picWidth : px.width(); // TODO !!! Reseach what happens if trying to get width/height or scale a null pixmap
+            currImageWidth = px.width() > picWidth ? picWidth : px.width();
             currImageHeight = px.height() > picHeight ? picHeight : px.height();
 
             item->setPixmap(px.scaled(QSize(currImageWidth, currImageHeight), Qt::KeepAspectRatio,
@@ -158,12 +157,12 @@ void lmcImagePicker::addLabelTooltip(QLabelSubclass *item,
   toolTipWidget->setObjectName (QStringLiteral("toolTipWidget"));
   QVBoxLayout *layout = new QVBoxLayout(toolTipWidget);
   layout->setObjectName (QStringLiteral("layout"));
-  toolTipWidget->setStyleSheet("border: 1px outset gray; border-radius: 4px;");
+  toolTipWidget->setStyleSheet("border: 1px outset gray; border-radius: 1px;");
 
   if (!image->description.isEmpty()) {
     QLabel *labelDescription = new QLabel(toolTipWidget);
     labelDescription->setObjectName (QStringLiteral("labelDescription"));
-    labelDescription->setText(QString("<b>%1</b>").arg(ChatHelper::makeHtmlSafe(image->description)));
+    labelDescription->setText(QString("<b>%1</b>").arg(image->description.toHtmlEscaped()));
     layout->addWidget(labelDescription, 0, Qt::AlignHCenter);
     labelDescription->setStyleSheet("border: none;");
   }

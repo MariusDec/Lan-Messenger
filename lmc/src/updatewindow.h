@@ -38,34 +38,34 @@ class lmcUpdateWindow : public QWidget
     Q_OBJECT
 
 public:
-	explicit lmcUpdateWindow(QRect* pRect, QWidget *parent = 0);
-	~lmcUpdateWindow();
+    explicit lmcUpdateWindow(const QRect &pRect, QWidget *parent = 0);
+    ~lmcUpdateWindow();
 
-	void init();
-	void stop();
-	void receiveMessage(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
-	void settingsChanged();
+    void init();
+    void stop();
+    void receiveMessage(MessageType type, const XmlMessage &message);
+    void settingsChanged();
 
 signals:
-	void messageSent(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
+    void messageSent(MessageType type, QString lpszUserId, XmlMessage pMessage);
 
 protected:
     bool eventFilter(QObject* pObject, QEvent* pEvent);
-	void changeEvent(QEvent* pEvent);
+    void changeEvent(QEvent* pEvent);
 
 private slots:
-	void btnRecheck_clicked();
+    void btnRecheck_clicked();
 
 private:
-	void setUIText();
-	void checkForUpdates();
-	QString getStatusMessage();
+    void setUIText();
+    void checkForUpdates();
+    QString getStatusMessage();
 
-	enum UpdateStatus{US_Check, US_Error, US_New, US_Latest};
+    enum UpdateStatus{US_Check, US_Error, US_New, US_Latest};
 
     Ui::UpdateWindow *ui;
-	QString webVersion;
-	UpdateStatus status;
+    QString webVersion;
+    UpdateStatus status;
 };
 
 #endif // UPDATEWINDOW_H

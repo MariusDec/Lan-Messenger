@@ -37,13 +37,7 @@ struct SingleMessage {
     QString id;	// secondary id for more efficient traversal
 
     SingleMessage() {}
-    SingleMessage(MessageType mType, QString szUserId, QString szUserName, XmlMessage xmlMessage, QString szId = QString()) {
-        type = mType;
-        userId = szUserId;
-        userName = szUserName;
-        message = xmlMessage;
-        id = szId;
-    }
+    SingleMessage(MessageType type, QString userId, QString userName, XmlMessage xmlMessage, QString id = QString()) : type(type), userId(userId), userName(userName), message(xmlMessage), id(id) { }
 };
 
 QDataStream &operator << (QDataStream &out, const SingleMessage &message);
@@ -51,8 +45,6 @@ QDataStream &operator >> (QDataStream &in, SingleMessage &message);
 
 class ChatHelper {
 public:
-    static void makeHtmlSafe(QString* lpszMessage);
-    static QString makeHtmlSafe(const QString &message);
     static QString replaceSmiley(QString* lpszHtml);
     static void decodeSmileys(QString &message, const QRegularExpression &regex, bool isEmoji);
 };

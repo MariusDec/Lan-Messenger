@@ -19,11 +19,11 @@ struct ImagesStruct {
     ImagesStruct(const QString &code, const QString &description,
                  const QString &imagePath, const QString &tab)
         : code(code), description(description), icon(imagePath), group(tab) {
-        codeHtmlSafe = ChatHelper::makeHtmlSafe(code);
+        codeHtmlSafe = code.toHtmlEscaped();
     }
 
     ImagesStruct(const QString &code, const QString &description)
-        : code(code), description(description) { codeHtmlSafe = ChatHelper::makeHtmlSafe(code); }
+        : code(code), description(description) { codeHtmlSafe = code.toHtmlEscaped(); }
 
     ImagesStruct(const QString &imagePath) : icon(imagePath) {}
 

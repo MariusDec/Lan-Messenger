@@ -21,6 +21,9 @@
 **
 ****************************************************************************/
 
+#include "settingsdialog.h"
+#include "thememanager.h"
+#include "globals.h"
 
 #include <QUrl>
 #include <QSound>
@@ -28,8 +31,7 @@
 #include <QLocale>
 #include <QAudioDeviceInfo>
 #include <QMessageBox>
-#include "settingsdialog.h"
-#include "thememanager.h"
+#include <QDesktopWidget>
 
 lmcSettingsDialog::lmcSettingsDialog(QWidget *parent, Qt::WindowFlags flags) : QDialog(parent, flags) {
     ui.setupUi(this);
@@ -52,29 +54,30 @@ lmcSettingsDialog::lmcSettingsDialog(QWidget *parent, Qt::WindowFlags flags) : Q
     connect(ui.radioButtonSysHistoryPath, &QRadioButton::toggled, this, &lmcSettingsDialog::radioButtonSysHistoryPath_toggled);
     connect(ui.buttonHistoryPath, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonHistoryPath_clicked);
     connect(ui.checkBoxSysTrayMsg, &QCheckBox::toggled, this, &lmcSettingsDialog::checkBoxSysTrayMsg_toggled);
-    // TODO change all connects to QT5 equivalents
-    connect(ui.buttonFilePath, SIGNAL(clicked()), this, SLOT(buttonFilePath_clicked()));
-    connect(ui.buttonClearHistory, SIGNAL(clicked()), this, SLOT(buttonClearHistory_clicked()));
-    connect(ui.buttonClearFileHistory, SIGNAL(clicked()), this, SLOT(buttonClearFileHistory_clicked()));
-    connect(ui.buttonViewFiles, SIGNAL(clicked()), this, SLOT(buttonViewFiles_clicked()));
-    connect(ui.checkBoxSound, SIGNAL(toggled(bool)), this, SLOT(checkBoxSound_toggled(bool)));
-    connect(ui.checkBoxAutoShowFile, SIGNAL(toggled(bool)), this, SLOT(checkBoxAutoShowFile_toggled(bool)));
-    connect(ui.buttonFont, SIGNAL(clicked()), this, SLOT(buttonFont_clicked()));
-    connect(ui.buttonColor, SIGNAL(clicked()), this, SLOT(buttonColor_clicked()));
-    connect(ui.buttonReset, SIGNAL(clicked()), this, SLOT(buttonReset_clicked()));
+    connect(ui.buttonFilePath, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonFilePath_clicked);
+    connect(ui.buttonClearHistory, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonClearHistory_clicked);
+    connect(ui.buttonClearFileHistory, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonClearFileHistory_clicked);
+    connect(ui.buttonViewFiles, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonViewFiles_clicked);
+    connect(ui.checkBoxSound, &QCheckBox::toggled, this, &lmcSettingsDialog::checkBoxSound_toggled);
+    connect(ui.checkBoxAutoShowFile, &QCheckBox::toggled, this, &lmcSettingsDialog::checkBoxAutoShowFile_toggled);
+    connect(ui.buttonFont, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonFont_clicked);
+    connect(ui.buttonColor, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonColor_clicked);
+    connect(ui.buttonReset, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonReset_clicked);
     connect(ui.comboBoxApplicationTheme, &ThemedComboBox::currentIndexChanged, this, &lmcSettingsDialog::comboBoxApplicationTheme_currentIndexChanged);
     connect(ui.comboBoxIconTheme, &ThemedComboBox::currentIndexChanged, this, &lmcSettingsDialog::comboBoxIconTheme_currentIndexChanged);
     connect(ui.comboBoxButtonTheme, &ThemedComboBox::currentIndexChanged, this, &lmcSettingsDialog::comboBoxButtonTheme_currentIndexChanged);
     connect(ui.comboBoxChatTheme, &ThemedComboBox::currentIndexChanged, this, &lmcSettingsDialog::comboBoxChatTheme_currentIndexChanged);
-    connect(ui.listWidgetBroadcasts, SIGNAL(currentRowChanged(int)), this, SLOT(listWidgetBroadcasts_currentRowChanged(int)));
-    connect(ui.textBoxBroadcast, SIGNAL(textEdited(QString)), this, SLOT(textBoxBroadcast_textEdited(QString)));
-    connect(ui.textBoxBroadcast, SIGNAL(returnPressed()), this, SLOT(buttonAddBroadcast_clicked()));
-    connect(ui.buttonAddBroadcast, SIGNAL(clicked()), this, SLOT(buttonAddBroadcast_clicked()));
-    connect(ui.buttonDeleteBroadcast, SIGNAL(clicked()), this, SLOT(buttonDeleteBroadcast_clicked()));
-    connect(ui.listWidgetSounds, SIGNAL(currentRowChanged(int)), this, SLOT(listWidgetSounds_currentRowChanged(int)));
-    connect(ui.buttonPlaySound, SIGNAL(clicked()), this, SLOT(buttonPlaySound_clicked()));
-    connect(ui.buttonSoundPath, SIGNAL(clicked()), this, SLOT(buttonSoundPath_clicked()));
-    connect(ui.buttonResetSounds, SIGNAL(clicked()), this, SLOT(buttonResetSounds_clicked()));
+    connect(ui.listWidgetBroadcasts, &QListWidget::currentRowChanged, this, &lmcSettingsDialog::listWidgetBroadcasts_currentRowChanged);
+    connect(ui.textBoxBroadcast, &QLineEdit::textEdited, this, &lmcSettingsDialog::textBoxBroadcast_textEdited);
+    connect(ui.textBoxBroadcast, &QLineEdit::returnPressed, this, &lmcSettingsDialog::buttonAddBroadcast_clicked);
+    connect(ui.buttonAddBroadcast, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonAddBroadcast_clicked);
+    connect(ui.buttonDeleteBroadcast, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonDeleteBroadcast_clicked);
+    connect(ui.listWidgetSounds, &QListWidget::currentRowChanged, this, &lmcSettingsDialog::listWidgetSounds_currentRowChanged);
+    connect(ui.buttonPlaySound, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonPlaySound_clicked);
+    connect(ui.buttonSoundPath, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonSoundPath_clicked);
+    connect(ui.buttonResetSounds, &ThemedButton::clicked, this, &lmcSettingsDialog::buttonResetSounds_clicked);
+
+    init();
 }
 
 lmcSettingsDialog::~lmcSettingsDialog() {
@@ -182,6 +185,37 @@ void lmcSettingsDialog::changeEvent(QEvent* pEvent) {
     QDialog::changeEvent(pEvent);
 }
 
+void lmcSettingsDialog::moveEvent(QMoveEvent *event)
+{
+    if (!Globals::getInstance().windowSnapping()) {
+        QWidget::moveEvent(event);
+        return;
+    }
+
+    const QRect screen = QApplication::desktop()->availableGeometry(this);
+
+    bool windowSnapped = false;
+
+    if (std::abs(frameGeometry().left() - screen.left()) < 25) {
+        move(screen.left(), frameGeometry().top());
+        windowSnapped = true;
+    } else if (std::abs(screen.right() - frameGeometry().right()) < 25) {
+        move((screen.right() - frameGeometry().width() + 1), frameGeometry().top());
+        windowSnapped = true;
+    }
+
+    if (std::abs(frameGeometry().top() - screen.top()) < 25) {
+        move(frameGeometry().left(), screen.top());
+        windowSnapped = true;
+    } else if (std::abs(screen.bottom() - frameGeometry().bottom()) < 25) {
+        move(frameGeometry().left(), (screen.bottom() - frameGeometry().height() + 1));
+        windowSnapped = true;
+    }
+
+    if (!windowSnapped)
+        QWidget::moveEvent(event);
+}
+
 void lmcSettingsDialog::listWidgetCategories_currentRowChanged(int currentRow) {
     ui.stackedWidget->setCurrentIndex(currentRow);
 }
@@ -224,8 +258,8 @@ void lmcSettingsDialog::radioButtonSysHistoryPath_toggled(bool checked) {
 }
 
 void lmcSettingsDialog::buttonHistoryPath_clicked() {
-    QString historyPath = QFileDialog::getSaveFileName(this, tr("Save History"),
-        ui.textBoxHistoryPath->text(), "Messenger DB (*.db)");
+    QString historyPath = QFileDialog::getExistingDirectory(this, tr("Save History"),
+        ui.textBoxHistoryPath->text());
     if(!historyPath.isEmpty())
         ui.textBoxHistoryPath->setText(historyPath);
 }
@@ -248,7 +282,7 @@ void lmcSettingsDialog::buttonClearHistory_clicked() {
 }
 
 void lmcSettingsDialog::buttonClearFileHistory_clicked() {
-    QFile::remove(StdLocation::transferHistoryFilePath());
+    QFile::remove(StdLocation::defaultTransferHistorySavePath());
     emit fileHistoryCleared();
 }
 
@@ -365,47 +399,46 @@ void lmcSettingsDialog::comboBoxButtonTheme_currentIndexChanged(int index) {
 void lmcSettingsDialog::comboBoxChatTheme_currentIndexChanged(int index) {
     pMessageLog->localId = "Myself";
     pMessageLog->demoPeerId = "Jack";
-    pMessageLog->messageTime = true;
 
     ThemeManager::getInstance ().loadPreviewChatTheme (index);
     pMessageLog->initMessageLog(true);
 
     XmlMessage msg;
     msg.addData(XN_TIME, QString::number(QDateTime::currentMSecsSinceEpoch()));
-    msg.addData(XN_FONT, pSettings->value(IDS_FONT, IDS_FONT_VAL).toString());
-    msg.addData(XN_COLOR, pSettings->value(IDS_COLOR, IDS_COLOR_VAL).toString());
+    msg.addData(XN_FONT, Globals::getInstance().messagesFontString());
+    msg.addData(XN_COLOR, Globals::getInstance().messagesColor());
 
     QString userId = "Jack";
     QString userName = "Jack";
 
     msg.addData(XN_MESSAGE, "Hello, this is an incoming message.");
-    pMessageLog->appendMessageLog(MT_Message, &userId, &userName, &msg, true, false, false);
+    pMessageLog->appendMessageLog(MT_Message, userId, userName, msg, true, false, false);
 
    // msg.removeData(XN_MESSAGE);
     msg.addData(XN_MESSAGE, "Hello, this is a consecutive incoming message.");
-    pMessageLog->appendMessageLog(MT_Message, &userId, &userName, &msg, true, false, false);
+    pMessageLog->appendMessageLog(MT_Message, userId, userName, msg, true, false, false);
 
    // msg.removeData(XN_MESSAGE);
-    msg.addData(XN_BROADCAST, "This is a broadcast message!");
-    pMessageLog->appendMessageLog(MT_Broadcast, &userId, &userName, &msg, true, false, false);
+    msg.addData(XN_MESSAGE, "This is a broadcast message!");
+    pMessageLog->appendMessageLog(MT_Broadcast, userId, userName, msg, true, false, false);
 
     userId = "Myself";
     userName = "Myself";
 
     //msg.removeData(XN_BROADCAST);
     msg.addData(XN_MESSAGE, "Hi, this is an outgoing message.");
-    pMessageLog->appendMessageLog(MT_Message, &userId, &userName, &msg, true, false, false);
+    pMessageLog->appendMessageLog(MT_Message, userId, userName, msg, true, false, false);
 
     //msg.removeData(XN_MESSAGE);
     msg.addData(XN_MESSAGE, "Hi, this is a consecutive outgoing message.");
-    pMessageLog->appendMessageLog(MT_Message, &userId, &userName, &msg, true, false, false);
+    pMessageLog->appendMessageLog(MT_Message, userId, userName, msg, true, false, false);
 
     userId = "Jack";
     userName = "Jack";
 
     msg.removeData(XN_MESSAGE);
     msg.addData(XN_MESSAGE, "This is another incoming message.");
-    pMessageLog->appendMessageLog(MT_Message, &userId, &userName, &msg, true, false, false);
+    pMessageLog->appendMessageLog(MT_Message, userId, userName, msg, true, false, false);
 }
 
 void lmcSettingsDialog::listWidgetBroadcasts_currentRowChanged(int index) {
@@ -550,18 +583,19 @@ void lmcSettingsDialog::loadSettings() {
         ui.checkBoxAutoStart->setChecked(false);
         ui.checkBoxAutoStart->hide();
 #else
-    ui.checkBoxAutoStart->setChecked(pSettings->value(IDS_AUTOSTART, IDS_AUTOSTART_DEFAULT_VAL).toBool());
+    ui.checkBoxAutoStart->setChecked(Globals::getInstance().autoStart());
 #endif
-    ui.checkBoxAutoShow->setChecked(pSettings->value(IDS_AUTOSHOW, IDS_AUTOSHOW_DEFAULT_VAL).toBool());
-    ui.checkBoxSysTray->setChecked(pSettings->value(IDS_SYSTRAY, IDS_SYSTRAY_VAL).toBool());
-    ui.checkBoxMinimizeTray->setChecked(pSettings->value(IDS_MINIMIZETRAY, IDS_MINIMIZETRAY_VAL).toBool());
-    ui.checkBoxSingleClickTray->setChecked(pSettings->value(IDS_SINGLECLICKTRAY, IDS_SINGLECLICKTRAY_VAL).toBool());
-    ui.checkBoxSysTrayMsg->setChecked(pSettings->value(IDS_SYSTRAYMSG, IDS_SYSTRAYMSG_VAL).toBool());
-    ui.checkBoxNewMessageNotif->setChecked(pSettings->value(IDS_SYSTRAYNEWMSG, IDS_SYSTRAYNEWMSG_VAL).toBool());
-    ui.checkBoxNewPublicMessageNotif->setChecked(pSettings->value(IDS_SYSTRAYPUBNEWMSG, IDS_SYSTRAYPUBNEWMSG_VAL).toBool());
-    ui.checkBoxAllowSysTrayMin->setChecked(pSettings->value(IDS_ALLOWSYSTRAYMIN, IDS_ALLOWSYSTRAYMIN_VAL).toBool());
-    ui.checkBoxRememberStatus->setChecked(pSettings->value(IDS_RESTORESTATUS, IDS_RESTORESTATUS_VAL).toBool());
-    QString langCode = pSettings->value(IDS_LANGUAGE, IDS_LANGUAGE_DEFAULT_VAL).toString();
+    ui.checkBoxAutoShow->setChecked(Globals::getInstance().autoShow());
+    ui.checkBoxEnableSnap->setChecked(Globals::getInstance().windowSnapping());
+    ui.checkBoxSysTray->setChecked(Globals::getInstance().sysTray());
+    ui.checkBoxMinimizeTray->setChecked(Globals::getInstance().minimizeToTray());
+    ui.checkBoxSingleClickTray->setChecked(Globals::getInstance().singleClickTray());
+    ui.checkBoxSysTrayMsg->setChecked(Globals::getInstance().sysTrayMessages());
+    ui.checkBoxNewMessageNotif->setChecked(Globals::getInstance().sysTrayNewMessages());
+    ui.checkBoxNewPublicMessageNotif->setChecked(Globals::getInstance().sysTrayNewPublicMessages());
+    ui.checkBoxAllowSysTrayMin->setChecked(Globals::getInstance().sysTrayMinimize());
+    ui.checkBoxRememberStatus->setChecked(Globals::getInstance().restoreStatus());
+    QString langCode = Globals::getInstance().language();
     for(int index = 0; index < ui.comboBoxLanguage->count(); index ++) {
         QString code = ui.comboBoxLanguage->itemData(index, Qt::UserRole).toString();
         if(langCode.compare(code) == 0) {
@@ -570,25 +604,31 @@ void lmcSettingsDialog::loadSettings() {
         }
     }
 
-    ui.textBoxUserName->setText(pSettings->value(IDS_USERNAME, IDS_USERNAME_VAL).toString());
-    ui.textBoxFirstName->setText(pSettings->value(IDS_USERFIRSTNAME, IDS_USERFIRSTNAME_VAL).toString());
-    ui.textBoxLastName->setText(pSettings->value(IDS_USERLASTNAME, IDS_USERLASTNAME_VAL).toString());
-    ui.textBoxAbout->setPlainText(pSettings->value(IDS_USERABOUT, IDS_USERABOUT_VAL).toString());
-    ui.spinBoxRefreshTime->setValue(pSettings->value(IDS_REFRESHTIME, IDS_REFRESHTIME_VAL).toInt());
+    if (Globals::getInstance().defaultNewMessageAction() == 2)
+        ui.radioSendInstantMessage->setChecked(true);
+    else
+        ui.radioOpenConversation->setChecked(true);
 
-    ui.radioButtonMessageTop->setChecked(pSettings->value(IDS_MESSAGEPOP, IDS_MESSAGEPOP_VAL).toBool());
-    ui.radioButtonMessageBottom->setChecked(!pSettings->value(IDS_MESSAGEPOP, IDS_MESSAGEPOP_VAL).toBool());
-    ui.checkBoxPublicMessagePop->setChecked(pSettings->value(IDS_PUBMESSAGEPOP, IDS_PUBMESSAGEPOP_VAL).toBool());
-    ui.checkBoxEmoticon->setChecked(pSettings->value(IDS_EMOTICON, IDS_EMOTICON_VAL).toBool());
-    ui.checkBoxMessageTime->setChecked(pSettings->value(IDS_MESSAGETIME, IDS_MESSAGETIME_VAL).toBool());
-    ui.checkBoxMessageDate->setChecked(pSettings->value(IDS_MESSAGEDATE, IDS_MESSAGEDATE_VAL).toBool());
-    ui.checkBoxAllowLinks->setChecked(pSettings->value(IDS_ALLOWLINKS, IDS_ALLOWLINKS_VAL).toBool());
-    ui.checkBoxPathToLink->setChecked(pSettings->value(IDS_PATHTOLINK, IDS_PATHTOLINK_VAL).toBool());
-    ui.checkBoxTrimMessage->setChecked(pSettings->value(IDS_TRIMMESSAGE, IDS_TRIMMESSAGE_VAL).toBool());
-    ui.checkBoxAppendHistory->setChecked(pSettings->value(IDS_APPENDHISTORY, IDS_APPENDHISTORY_VAL).toBool());
-    font.fromString(pSettings->value(IDS_FONT, IDS_FONT_VAL).toString());
-    color.setNamedColor(pSettings->value(IDS_COLOR, IDS_COLOR_VAL).toString());
-    ui.checkBoxOverrideIncoming->setChecked(pSettings->value(IDS_OVERRIDEINMSG, IDS_OVERRIDEINMSG_VAL).toBool());
+    ui.textBoxUserName->setText(Globals::getInstance().userName());
+    ui.textBoxFirstName->setText(Globals::getInstance().userFirstName());
+    ui.textBoxLastName->setText(Globals::getInstance().userLastName());
+    ui.textBoxAbout->setPlainText(Globals::getInstance().userAbout());
+    ui.spinBoxRefreshTime->setValue(Globals::getInstance().refreshInterval());
+
+    ui.checkBoxMessageRaise->setChecked(Globals::getInstance().popOnNewMessage());
+    ui.checkBoxPublicMessageRaise->setChecked(Globals::getInstance().popOnNewPublicMessage());
+    ui.checkBoxEmoticon->setChecked(Globals::getInstance().showEmoticons());
+    ui.checkBoxMessageTime->setChecked(Globals::getInstance().showMessageTime());
+    ui.checkBoxMessageDate->setChecked(Globals::getInstance().showMessageDate());
+    ui.checkBoxAllowLinks->setChecked(Globals::getInstance().showLinks());
+    ui.checkBoxPathToLink->setChecked(Globals::getInstance().showPathsAsLinks());
+    ui.checkBoxTrimMessage->setChecked(Globals::getInstance().trimMessages());
+    ui.checkBoxAppendHistory->setChecked(Globals::getInstance().appendHistory());
+    ui.checkBoxReadNotifications->setChecked(!Globals::getInstance().informReadMessage());
+    font.fromString(Globals::getInstance().messagesFontString());
+    color.setNamedColor(Globals::getInstance().messagesColor());
+    ui.checkBoxOverrideIncoming->setChecked(Globals::getInstance().overrideInMessagesStyle());
+    ui.checkBoxCharCount->setChecked(Globals::getInstance().showCharacterCount());
 
     ui.labelFontDescription->setText(QString("%1, %2pt").arg(font.family(), QString::number(font.pointSize())));
     ui.labelFontDescription->setFont(font);//->setStyleSheet(fontStyle);
@@ -598,15 +638,15 @@ void lmcSettingsDialog::loadSettings() {
     ui.textEditFontColorText->setFont(font);
     ui.textEditFontColorText->setStyleSheet(style);
 
-    ui.checkBoxHistory->setChecked(pSettings->value(IDS_HISTORY, IDS_HISTORY_VAL).toBool());
-    ui.radioButtonSysHistoryPath->setChecked(pSettings->value(IDS_SYSHISTORYPATH, IDS_SYSHISTORYPATH_VAL).toBool());
-    ui.radioButtonCustomHistoryPath->setChecked(!pSettings->value(IDS_SYSHISTORYPATH, IDS_SYSHISTORYPATH_VAL).toBool());
-    ui.checkBoxFileHistory->setChecked(pSettings->value(IDS_FILEHISTORY, IDS_FILEHISTORY_VAL).toBool());
+    ui.checkBoxHistory->setChecked(Globals::getInstance().saveHistory());
+    ui.radioButtonSysHistoryPath->setChecked(Globals::getInstance().defaultHistorySavePath());
+    ui.radioButtonCustomHistoryPath->setChecked(!Globals::getInstance().defaultHistorySavePath());
+    ui.checkBoxFileHistory->setChecked(Globals::getInstance().saveFileHistory());
 
-    ui.checkBoxAlert->setChecked(pSettings->value(IDS_ALERT, IDS_ALERT_VAL).toBool());
-    ui.checkBoxNoBusyAlert->setChecked(pSettings->value(IDS_NOBUSYALERT, IDS_NOBUSYALERT_VAL).toBool());
-    ui.checkBoxNoDNDAlert->setChecked(pSettings->value(IDS_NODNDALERT, IDS_NODNDALERT_VAL).toBool());
-    ui.checkBoxSound->setChecked(pSettings->value(IDS_SOUND, IDS_SOUND_VAL).toBool());
+    ui.checkBoxAlert->setChecked(Globals::getInstance().enableAlerts());
+    ui.checkBoxNoBusyAlert->setChecked(Globals::getInstance().noBusyAlerts());
+    ui.checkBoxNoDNDAlert->setChecked(Globals::getInstance().noDNDAlerts());
+    ui.checkBoxSound->setChecked(Globals::getInstance().enableSoundAlerts());
     // Check so that number of elements read from settings file does not exceed the number of elements
     // in the list view control. This prevents array out of bounds error.
     int size = qMin(pSettings->beginReadArray(IDS_SOUNDEVENTHDR), ui.listWidgetSounds->count());
@@ -621,11 +661,11 @@ void lmcSettingsDialog::loadSettings() {
         ui.listWidgetSounds->item(index)->setData(Qt::UserRole, pSettings->value(IDS_SOUNDFILE).toString());
     }
     pSettings->endArray();
-    ui.checkBoxNoBusySound->setChecked(pSettings->value(IDS_NOBUSYSOUND, IDS_NOBUSYSOUND_VAL).toBool());
-    ui.checkBoxNoDNDSound->setChecked(pSettings->value(IDS_NODNDSOUND, IDS_NODNDSOUND_VAL).toBool());
+    ui.checkBoxNoBusySound->setChecked(Globals::getInstance().noBusySounds());
+    ui.checkBoxNoDNDSound->setChecked(Globals::getInstance().noDNDSounds());
 
-    ui.spinBoxTimeout->setValue(pSettings->value(IDS_TIMEOUT, IDS_TIMEOUT_VAL).toInt());
-    ui.spinBoxMaxRetries->setValue(pSettings->value(IDS_MAXRETRIES, IDS_MAXRETRIES_VAL).toInt());
+    ui.spinBoxTimeout->setValue(Globals::getInstance().connectionTimeout());
+    ui.spinBoxMaxRetries->setValue(Globals::getInstance().connectionRetries());
     size = pSettings->beginReadArray(IDS_BROADCASTHDR);
     for(int index = 0; index < size; index++) {
         pSettings->setArrayIndex(index);
@@ -633,80 +673,94 @@ void lmcSettingsDialog::loadSettings() {
         item->setText(pSettings->value(IDS_BROADCAST).toString());
     }
     pSettings->endArray();
-    ui.textBoxMulticast->setText(pSettings->value(IDS_MULTICAST, IDS_MULTICAST_VAL).toString());
-    ui.textBoxUDPPort->setText(pSettings->value(IDS_UDPPORT, IDS_UDPPORT_VAL).toString());
-    ui.textBoxTCPPort->setText(pSettings->value(IDS_TCPPORT, IDS_TCPPORT_VAL).toString());
-    ui.textBoxErpAddress->setText(pSettings->value(IDS_ERPADDRESS, IDS_ERPADDRESS_VAL).toString());
+    ui.textBoxMulticast->setText(Globals::getInstance().multicastAddress());
+    ui.textBoxUDPPort->setText(QString::number(Globals::getInstance().udpPort()));
+    ui.textBoxTCPPort->setText(QString::number(Globals::getInstance().tcpPort()));
+    ui.textBoxErpAddress->setText(Globals::getInstance().erpAddress());
 
-    ui.checkBoxAutoFile->setChecked(pSettings->value(IDS_AUTOFILE, IDS_AUTOFILE_VAL).toBool());
-    ui.checkBoxAutoShowFile->setChecked(pSettings->value(IDS_AUTOSHOWFILE, IDS_AUTOSHOWFILE_VAL).toBool());
-    ui.radioButtonFileTop->setChecked(pSettings->value(IDS_FILETOP, IDS_FILETOP_VAL).toBool());
-    ui.radioButtonFileBottom->setChecked(!pSettings->value(IDS_FILETOP, IDS_FILETOP_VAL).toBool());
-    ui.textBoxFilePath->setText(StdLocation::getFileStoragePath());
-    ui.checkBoxFolderForEach->setChecked(pSettings->value(IDS_STORAGEUSERFOLDER, IDS_STORAGEUSERFOLDER_VAL).toBool());
+    ui.checkBoxAutoFile->setChecked(Globals::getInstance().autoReceiveFile());
+    ui.checkBoxAutoShowFile->setChecked(Globals::getInstance().autoShowTransfer());
+    ui.radioButtonFileTop->setChecked(Globals::getInstance().displayNewTransfers());
+    ui.radioButtonFileBottom->setChecked(!Globals::getInstance().displayNewTransfers());
+    ui.textBoxFilePath->setText(Globals::getInstance().fileStoragePath());
+    ui.checkBoxFolderForEach->setChecked(Globals::getInstance().createIndividualFolders());
 
-    QString themeName = pSettings->value(IDS_THEME, IDS_THEME_VAL).toString();
+    QString themeName = Globals::getInstance().chatTheme();
     ui.comboBoxChatTheme->setCurrentText(themeName);
 
-    themeName = pSettings->value(IDS_APPTHEME, IDS_APPTHEME_VAL).toString();
+    themeName = Globals::getInstance().applicationTheme();
     ui.comboBoxApplicationTheme->setCurrentText(themeName);
 
-    themeName = pSettings->value(IDS_APPICONTHEME, IDS_APPICONTHEME_VAL).toString();
+    themeName = Globals::getInstance().iconTheme();
     ui.comboBoxIconTheme->setCurrentText(themeName);
 
-    themeName = pSettings->value(IDS_BUTTONTHEME, IDS_BUTTONTHEME_VAL).toString();
+    themeName = Globals::getInstance().buttonsTheme();
     ui.comboBoxButtonTheme->setCurrentText(themeName);
 
-    int userListView = pSettings->value(IDS_USERLISTVIEW, IDS_USERLISTVIEW_VAL).toInt();
+    int userListView = Globals::getInstance().userListView();
     ui.comboBoxUserListView->setCurrentIndex(userListView);
 
-    ui.radioButtonEnter->setChecked(!pSettings->value(IDS_SENDKEYMOD, IDS_SENDKEYMOD_VAL).toBool());
-    ui.radioButtonCmdEnter->setChecked(pSettings->value(IDS_SENDKEYMOD, IDS_SENDKEYMOD_VAL).toBool());
+    ui.radioButtonEnter->setChecked(Globals::getInstance().sendByEnter());
+    ui.radioButtonCmdEnter->setChecked(!Globals::getInstance().sendByEnter());
+
+    checkBoxMessageTime_toggled(ui.checkBoxMessageTime->isChecked());
+    checkBoxAllowLinks_toggled(ui.checkBoxAllowLinks->isChecked());
+    checkBoxSysTrayMsg_toggled(ui.checkBoxSysTrayMsg->isChecked());
+    radioButtonSysHistoryPath_toggled(ui.radioButtonSysHistoryPath->isChecked());
+    checkBoxAutoShowFile_toggled(ui.checkBoxAutoShowFile->isChecked());
 }
 
 void lmcSettingsDialog::saveSettings() {
-    pSettings->setValue(IDS_VERSION, IDA_VERSION);
-    pSettings->setValue(IDS_AUTOSTART, ui.checkBoxAutoStart->isChecked());
-    pSettings->setValue(IDS_AUTOSHOW, ui.checkBoxAutoShow->isChecked());
-    pSettings->setValue(IDS_SYSTRAY, ui.checkBoxSysTray->isChecked());
-    pSettings->setValue(IDS_MINIMIZETRAY, ui.checkBoxMinimizeTray->isChecked());
-    pSettings->setValue(IDS_SINGLECLICKTRAY, ui.checkBoxSingleClickTray->isChecked());
-    pSettings->setValue(IDS_SYSTRAYMSG, ui.checkBoxSysTrayMsg->isChecked());
-    pSettings->setValue(IDS_SYSTRAYNEWMSG, ui.checkBoxNewMessageNotif->isChecked());
-    pSettings->setValue(IDS_SYSTRAYPUBNEWMSG, ui.checkBoxNewPublicMessageNotif->isChecked());
-    pSettings->setValue(IDS_ALLOWSYSTRAYMIN, ui.checkBoxAllowSysTrayMin->isChecked());
-    pSettings->setValue(IDS_RESTORESTATUS, ui.checkBoxRememberStatus->isChecked());
+    Globals::getInstance().setVersion(IDA_VERSION);
+    Globals::getInstance().setAutoStart(ui.checkBoxAutoStart->isChecked());
+    Globals::getInstance().setAutoShow(ui.checkBoxAutoShow->isChecked());
+    Globals::getInstance().setWindowSnapping(ui.checkBoxEnableSnap->isChecked());
+    Globals::getInstance().setSysTray(ui.checkBoxSysTray->isChecked());
+    Globals::getInstance().setMinimizeToTray(ui.checkBoxMinimizeTray->isChecked());
+    Globals::getInstance().setSingleClickTray(ui.checkBoxSingleClickTray->isChecked());
+    Globals::getInstance().setSysTrayMessages(ui.checkBoxSysTrayMsg->isChecked());
+    Globals::getInstance().setSysTrayNewMessages(ui.checkBoxNewMessageNotif->isChecked());
+    Globals::getInstance().setSysTrayNewPublicMessages(ui.checkBoxNewPublicMessageNotif->isChecked());
+    Globals::getInstance().setSysTrayMinimize(ui.checkBoxAllowSysTrayMin->isChecked());
+    Globals::getInstance().setRestoreStatus(ui.checkBoxRememberStatus->isChecked());
     QString langCode = ui.comboBoxLanguage->itemData(ui.comboBoxLanguage->currentIndex(), Qt::UserRole).toString();
-    pSettings->setValue(IDS_LANGUAGE, langCode);
+    Globals::getInstance().setLanguage(langCode);
 
-    pSettings->setValue(IDS_USERNAME, ui.textBoxUserName->text());
-    pSettings->setValue(IDS_USERFIRSTNAME, ui.textBoxFirstName->text());
-    pSettings->setValue(IDS_USERLASTNAME, ui.textBoxLastName->text());
-    pSettings->setValue(IDS_USERABOUT, ui.textBoxAbout->toPlainText());
-    pSettings->setValue(IDS_REFRESHTIME, ui.spinBoxRefreshTime->value());
+    int defaultNewMessageAction = 1;
+    if (ui.radioSendInstantMessage->isChecked())
+        defaultNewMessageAction = 2;
+    Globals::getInstance().setDefaultNewMessageAction(defaultNewMessageAction);
 
-    pSettings->setValue(IDS_MESSAGEPOP, ui.radioButtonMessageTop->isChecked());
-    pSettings->setValue(IDS_PUBMESSAGEPOP, ui.checkBoxPublicMessagePop->isChecked());
-    pSettings->setValue(IDS_EMOTICON, ui.checkBoxEmoticon->isChecked());
-    pSettings->setValue(IDS_MESSAGETIME, ui.checkBoxMessageTime->isChecked());
-    pSettings->setValue(IDS_MESSAGEDATE, ui.checkBoxMessageDate->isChecked());
-    pSettings->setValue(IDS_ALLOWLINKS, ui.checkBoxAllowLinks->isChecked());
-    pSettings->setValue(IDS_PATHTOLINK, ui.checkBoxPathToLink->isChecked());
-    pSettings->setValue(IDS_TRIMMESSAGE, ui.checkBoxTrimMessage->isChecked());
-    pSettings->setValue(IDS_APPENDHISTORY, ui.checkBoxAppendHistory->isChecked());
-    pSettings->setValue(IDS_FONT, font.toString());
-    pSettings->setValue(IDS_COLOR, color.name());
-    pSettings->setValue(IDS_OVERRIDEINMSG, ui.checkBoxOverrideIncoming->isChecked());
+    Globals::getInstance().setUserName(ui.textBoxUserName->text());
+    Globals::getInstance().setUserFirstName(ui.textBoxFirstName->text());
+    Globals::getInstance().setUserLastName(ui.textBoxLastName->text());
+    Globals::getInstance().setUserAbout(ui.textBoxAbout->toPlainText());
+    Globals::getInstance().setRefreshInterval(ui.spinBoxRefreshTime->value());
 
-    pSettings->setValue(IDS_HISTORY, ui.checkBoxHistory->isChecked());
-    pSettings->setValue(IDS_SYSHISTORYPATH, ui.radioButtonSysHistoryPath->isChecked());
-    pSettings->setValue(IDS_HISTORYPATH, ui.textBoxHistoryPath->text());
-    pSettings->setValue(IDS_FILEHISTORY, ui.checkBoxFileHistory->isChecked());
+    Globals::getInstance().setPopOnNewMessage(ui.checkBoxMessageRaise->isChecked());
+    Globals::getInstance().setPopOnNewPublicMessage(ui.checkBoxPublicMessageRaise->isChecked());
+    Globals::getInstance().setShowEmoticons(ui.checkBoxEmoticon->isChecked());
+    Globals::getInstance().setShowMessageTime(ui.checkBoxMessageTime->isChecked());
+    Globals::getInstance().setShowMessageDate(ui.checkBoxMessageDate->isChecked());
+    Globals::getInstance().setShowLinks(ui.checkBoxAllowLinks->isChecked());
+    Globals::getInstance().setShowPathsAsLinks(ui.checkBoxPathToLink->isChecked());
+    Globals::getInstance().setTrimMessages(ui.checkBoxTrimMessage->isChecked());
+    Globals::getInstance().setAppendHistory(ui.checkBoxAppendHistory->isChecked());
+    Globals::getInstance().setMessagesFont(font.toString());
+    Globals::getInstance().setMessagesColor(color.name());
+    Globals::getInstance().setOverrideInMessagesStyle(ui.checkBoxOverrideIncoming->isChecked());
+    Globals::getInstance().setInformReadMessage(!ui.checkBoxReadNotifications->isChecked());
+    Globals::getInstance().setShowCharacterCount(ui.checkBoxCharCount->isChecked());
 
-    pSettings->setValue(IDS_ALERT, ui.checkBoxAlert->isChecked());
-    pSettings->setValue(IDS_NOBUSYALERT, ui.checkBoxNoBusyAlert->isChecked());
-    pSettings->setValue(IDS_NODNDALERT, ui.checkBoxNoDNDAlert->isChecked());
-    pSettings->setValue(IDS_SOUND, ui.checkBoxSound->isChecked());
+    Globals::getInstance().setSaveHistory(ui.checkBoxHistory->isChecked());
+    Globals::getInstance().setDefaultHistorySavePath(ui.radioButtonSysHistoryPath->isChecked());
+    Globals::getInstance().setHistorySavePath(ui.textBoxHistoryPath->text());
+    Globals::getInstance().setSaveFileHistory(ui.checkBoxFileHistory->isChecked());
+
+    Globals::getInstance().setEnableAlerts(ui.checkBoxAlert->isChecked());
+    Globals::getInstance().setNoBusyAlerts(ui.checkBoxNoBusyAlert->isChecked());
+    Globals::getInstance().setNoDNDAlerts(ui.checkBoxNoDNDAlert->isChecked());
+    Globals::getInstance().setEnableSoundAlerts(ui.checkBoxSound->isChecked());
     int checkCount = 0;
     int soundFileCount = 0;
     if(ui.listWidgetSounds->count() > 0) {
@@ -738,11 +792,11 @@ void lmcSettingsDialog::saveSettings() {
         pSettings->endGroup();
     }
 
-    pSettings->setValue(IDS_NOBUSYSOUND, ui.checkBoxNoBusySound->isChecked());
-    pSettings->setValue(IDS_NODNDSOUND, ui.checkBoxNoDNDSound->isChecked());
+    Globals::getInstance().setNoBusySounds(ui.checkBoxNoBusySound->isChecked());
+    Globals::getInstance().setNoDNDSounds(ui.checkBoxNoDNDSound->isChecked());
 
-    pSettings->setValue(IDS_TIMEOUT, ui.spinBoxTimeout->value());
-    pSettings->setValue(IDS_MAXRETRIES, ui.spinBoxMaxRetries->value());
+    Globals::getInstance().setConnectionTimeout(ui.spinBoxTimeout->value());
+    Globals::getInstance().setConnectionRetries(ui.spinBoxMaxRetries->value());
     //	If any broadcast address is specified, settings written to settings file
     //	Otherwise, the entire group is removed from the settings file
     if(ui.listWidgetBroadcasts->count() > 0) {
@@ -758,25 +812,25 @@ void lmcSettingsDialog::saveSettings() {
         pSettings->remove("");
         pSettings->endGroup();
     }
-    pSettings->setValue(IDS_MULTICAST, ui.textBoxMulticast->text());
-    pSettings->setValue(IDS_UDPPORT, ui.textBoxUDPPort->text());
-    pSettings->setValue(IDS_TCPPORT, ui.textBoxTCPPort->text());
-    pSettings->setValue(IDS_ERPADDRESS, ui.textBoxErpAddress->text());
+    Globals::getInstance().setMulticastAddress(ui.textBoxMulticast->text());
+    Globals::getInstance().setUdpPort(ui.textBoxUDPPort->text().toInt());
+    Globals::getInstance().setTcpPort(ui.textBoxTCPPort->text().toInt());
+    Globals::getInstance().setErpAddress(ui.textBoxErpAddress->text());
 
-    pSettings->setValue(IDS_AUTOFILE, ui.checkBoxAutoFile->isChecked());
-    pSettings->setValue(IDS_AUTOSHOWFILE, ui.checkBoxAutoShowFile->isChecked());
-    pSettings->setValue(IDS_FILETOP, ui.radioButtonFileTop->isChecked());
-    pSettings->setValue(IDS_FILESTORAGEPATH, ui.textBoxFilePath->text());
-    pSettings->setValue(IDS_STORAGEUSERFOLDER, ui.checkBoxFolderForEach->isChecked());
+    Globals::getInstance().setAutoReceiveFile(ui.checkBoxAutoFile->isChecked());
+    Globals::getInstance().setAutoShowTransfer(ui.checkBoxAutoShowFile->isChecked());
+    Globals::getInstance().setDisplayNewTransfers(ui.radioButtonFileTop->isChecked());
+    Globals::getInstance().setFileStoragePath(ui.textBoxFilePath->text());
+    Globals::getInstance().setCreateIndividualFolders(ui.checkBoxFolderForEach->isChecked());
 
-    pSettings->setValue(IDS_THEME, ui.comboBoxChatTheme->currentText ());
-    pSettings->setValue(IDS_APPTHEME, ui.comboBoxApplicationTheme->currentText ());
-    pSettings->setValue(IDS_APPICONTHEME, ui.comboBoxIconTheme->currentText ());
-    pSettings->setValue(IDS_BUTTONTHEME, ui.comboBoxButtonTheme->currentText ());
+    Globals::getInstance().setChatTheme(ui.comboBoxChatTheme->currentText ());
+    Globals::getInstance().setApplicationTheme(ui.comboBoxApplicationTheme->currentText ());
+    Globals::getInstance().setIconTheme(ui.comboBoxIconTheme->currentText ());
+    Globals::getInstance().setButtonsTheme(ui.comboBoxButtonTheme->currentText ());
 
-    pSettings->setValue(IDS_USERLISTVIEW, ui.comboBoxUserListView->currentIndex());
+    Globals::getInstance().setUserListView(static_cast<UserListView> (ui.comboBoxUserListView->currentIndex()));
 
-    pSettings->setValue(IDS_SENDKEYMOD, ui.radioButtonCmdEnter->isChecked());
+    Globals::getInstance().setSendByEnter(ui.radioButtonEnter->isChecked());
 
     pSettings->sync();
 }

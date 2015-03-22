@@ -38,7 +38,7 @@ public:
     lmcUserSelectDialog(QWidget *parent = 0);
     ~lmcUserSelectDialog();
 
-    void init(QList<QTreeWidgetItem*>* pContactsList);
+    void init(const QList<QTreeWidgetItem *> &contactsList);
 
     QStringList selectedContacts;
 
@@ -54,7 +54,6 @@ private:
     void setUIText();
 
     Ui::UserSelectDialog ui;
-    lmcSettings* pSettings;
 };
 
 #endif // USERSELECTDIALOG_H

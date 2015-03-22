@@ -31,19 +31,18 @@ void Datagram::addHeader(DatagramType type, QByteArray& baData) {
     baData.insert(0, datagramType);
 }
 
-bool Datagram::getHeader(QByteArray& baDatagram, DatagramHeader** ppHeader) {
-    QString data(baDatagram);
+bool Datagram::getHeader(const QByteArray &datagram, DatagramHeader &header) {
+    QString data(datagram);
     LoggerManager::getInstance().writeInfo(QString("Datagram.getHeader started-|- datagram: %1").arg(data));
 
-    QString datagramType(baDatagram.mid(0, 6));	// first 6 bytes represent datagram type
+    QString datagramType(datagram.mid(0, 6));	// first 6 bytes represent datagram type
     int type = Helper::indexOf(DatagramTypeNames, DT_Max, datagramType);
     if(type < 0) {
         LoggerManager::getInstance().writeWarning(QStringLiteral("Datagram.getHeader ended-|- type: -1"));
         return false;
     }
 
-    *ppHeader = new DatagramHeader(
-                    (DatagramType)type,
+    header.init((DatagramType)type,
                     QString(),
                     QString());
 

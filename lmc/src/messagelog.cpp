@@ -25,23 +25,25 @@
 #include "loggermanager.h"
 #include "imageslist.h"
 #include "settings.h"
+#include "globals.h"
 
 #include <QMenu>
 #include <QAction>
 #include <QDir>
 #include <QFileInfo>
 #include <QDesktopServices>
+#include <QStandardPaths>
 
 const QString acceptOp("accept");
 const QString declineOp("decline");
 const QString cancelOp("cancel");
 
 lmcMessageLog::lmcMessageLog(QWidget *parent) : QWebView(parent) {
-    connect(this, SIGNAL(linkClicked(QUrl)), this, SLOT(log_linkClicked(QUrl)));
-    connect(this->page()->mainFrame(), SIGNAL(contentsSizeChanged(QSize)),
-            this, SLOT(log_contentsSizeChanged(QSize)));
-    connect(this->page(), SIGNAL(linkHovered(QString, QString, QString)),
-            this, SLOT(log_linkHovered(QString, QString, QString)));
+    connect(this, &lmcMessageLog::linkClicked, this, &lmcMessageLog::log_linkClicked);
+    connect(this->page()->mainFrame(), &QWebFrame::contentsSizeChanged,
+            this, &lmcMessageLog::log_contentsSizeChanged);
+    connect(this->page(), &QWebPage::linkHovered,
+            this, &lmcMessageLog::log_linkHovered);
 
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     page()->setLinkDelegationPolicy(QWebPage::DelegateAllLinks);
@@ -52,11 +54,6 @@ lmcMessageLog::lmcMessageLog(QWidget *parent) : QWebView(parent) {
 
     participantAvatars.clear();
     hasData = false;
-    messageTime = false;
-    messageDate = false;
-    allowLinks = false;
-    pathToLink = false;
-    trimMessage = true;
     sendFileMap.clear();
     receiveFileMap.clear();
     lastId = QString::null;
@@ -102,16 +99,16 @@ void lmcMessageLog::createContextMenu() {
     contextMenu->addSeparator();
     selectAllAction = contextMenu->addAction("Select &All", this,
                             SLOT(selectAllAction_triggered()), QKeySequence::SelectAll);
-    connect(this, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
+    connect(this, &lmcMessageLog::customContextMenuRequested, this, &lmcMessageLog::showContextMenu);
     setContextMenuPolicy(Qt::CustomContextMenu);
 }
 
-void lmcMessageLog::appendMessageLog(MessageType type, QString* lpszUserId, QString* lpszUserName, XmlMessage* pMessage,
-        bool bReload, bool groupMessage, bool saveLog, User *localUser, const QHash<QString, QString> &peersList) {
-    if(!pMessage && type != MT_Error)
+void lmcMessageLog::appendMessageLog(MessageType type, const QString &userId, const QString &userName, const XmlMessage &message,
+        bool reload, bool groupMessage, bool saveLog, User *localUser, const QHash<QString, QString> &peersList) {
+    if(!message.isValid() && type != MT_Error)
         return;
 
-    QString message;
+    QString messageString;
     QString html;
     QString caption;
     QDateTime time;
@@ -126,52 +123,62 @@ void lmcMessageLog::appendMessageLog(MessageType type, QString* lpszUserId, QStr
     switch(type) {
     case MT_GroupMessage:
     case MT_Message:
-        time.setMSecsSinceEpoch(pMessage->header(XN_TIME).toLongLong());
-        message = pMessage->data(XN_MESSAGE);
-        font.fromString(pMessage->data(XN_FONT));
-        color.setNamedColor(pMessage->data(XN_COLOR));
-        appendMessage(lpszUserId, lpszUserName, &message, &time, &font, &color);
-        lastId = *lpszUserId;
+        time.setMSecsSinceEpoch(message.header(XN_TIME).toLongLong());
+        messageString = message.data(XN_MESSAGE);
+        font.fromString(message.data(XN_FONT));
+        color.setNamedColor(message.data(XN_COLOR));
+        appendMessage(userId, userName, messageString, time, font, color);
+        lastId = userId;
         break;
     case MT_PublicMessage:
-        time.setMSecsSinceEpoch(pMessage->header(XN_TIME).toLongLong());
-        message = pMessage->data(XN_MESSAGE);
-        font.fromString(pMessage->data(XN_FONT));
-        color.setNamedColor(pMessage->data(XN_COLOR));
-        appendPublicMessage(lpszUserId, lpszUserName, &message, &time, &font, &color);
-        lastId = *lpszUserId;
+        time.setMSecsSinceEpoch(message.header(XN_TIME).toLongLong());
+        messageString = message.data(XN_MESSAGE);
+        font.fromString(message.data(XN_FONT));
+        color.setNamedColor(message.data(XN_COLOR));
+        appendPublicMessage(userId, userName, messageString, time, font, color);
+        lastId = userId;
         break;
     case MT_Broadcast:
-        time.setMSecsSinceEpoch(pMessage->header(XN_TIME).toLongLong());
-        message = pMessage->data(XN_BROADCAST);
-        appendBroadcast(lpszUserId, lpszUserName, &message, &time);
+        time.setMSecsSinceEpoch(message.header(XN_TIME).toLongLong());
+        messageString = message.data(XN_MESSAGE);
+        appendBroadcast(userName, messageString, time);
         lastId  = QString::null;
         break;
+    case MT_InstantMessage:
+        time.setMSecsSinceEpoch(message.header(XN_TIME).toLongLong());
+        messageString = message.data(XN_MESSAGE);
+        font.fromString(message.data(XN_FONT));
+        color.setNamedColor(message.data(XN_COLOR));
+        appendInstantMessage(userId, userName, messageString, time, font, color);
+        break;
     case MT_ChatState:
-        message = pMessage->data(XN_CHATSTATE);
-        caption = getChatStateMessage((ChatState)Helper::indexOf(ChatStateNames, CS_Max, message));
+        messageString = message.data(XN_CHATSTATE);
+        caption = getChatStateMessage((ChatState)Helper::indexOf(ChatStateNames, CS_Max, messageString));
         if(!caption.isNull()) {
             html = getTheme().stateMsg;
             html.replace("%iconpath%", QUrl::fromLocalFile(ThemeManager::getInstance().getAppIcon(QStringLiteral("blank"))).toString());
-            html.replace("%sender%", caption.arg(*lpszUserName));
+            html.replace("%sender%", caption.arg(userName));
             html.replace("%message%", "");
-            appendMessageLog(&html);
+            appendMessageLog(html);
         }
         addToLog = false;
         break;
     case MT_Failed:
-        message = pMessage->data(XN_MESSAGE);
-        font.fromString(pMessage->data(XN_FONT));
-        color.setNamedColor(pMessage->data(XN_COLOR));
+        messageString = message.data(XN_MESSAGE);
+        font.fromString(message.data(XN_FONT));
+        color.setNamedColor(message.data(XN_COLOR));
         html = getTheme().sysMsg;
-        caption = tr("This message was not delivered."); // TODO  to %1:
-        fontStyle = getFontStyle(&font, &color, true);
-        decodeMessage(&message, trimMessage, allowLinks, pathToLink, showSmiley);
+        if (peersList.size() == 1)
+            caption = tr("This message was not delivered to %1.").arg(peersList.keys()[0]);
+        else
+            caption = tr("This message was not delivered.");
+        fontStyle = getFontStyle(font, color, true);
+        decodeMessage(messageString, Globals::getInstance().trimMessages(), Globals::getInstance().showLinks(), Globals::getInstance().showPathsAsLinks(), Globals::getInstance().showEmoticons());
         html.replace("%iconpath%", QUrl::fromLocalFile(ThemeManager::getInstance().getAppIcon(QStringLiteral("criticalmsg"))).toString());
-        html.replace("%sender%", caption);//.arg(*lpszUserName));
+        html.replace("%sender%", caption);
         html.replace("%style%", fontStyle);
-        html.replace("%message%", message);
-        appendMessageLog(&html);
+        html.replace("%message%", messageString);
+        appendMessageLog(html);
         lastId  = QString::null;
         break;
     case MT_Error:
@@ -179,27 +186,26 @@ void lmcMessageLog::appendMessageLog(MessageType type, QString* lpszUserId, QStr
         html.replace("%iconpath%", QUrl::fromLocalFile(ThemeManager::getInstance().getAppIcon(QStringLiteral("criticalmsg"))).toString());
         html.replace("%sender%", tr("Your message was not sent."));
         html.replace("%message%", "");
-        appendMessageLog(&html);
+        appendMessageLog(html);
         lastId  = QString::null;
         addToLog = false;
         break;
     case MT_File:
     case MT_Folder:
-        appendFileMessage(type, lpszUserName, lpszUserId, pMessage, bReload);
-        id = pMessage->data(XN_TEMPID);
-        pMessage->removeData(XN_TEMPID);
+        appendFileMessage(type, userName, userId, const_cast<XmlMessage &>(message), reload);
+        id = message.data(XN_TEMPID);
         lastId = QString::null;
         break;
     case MT_Join:
     case MT_Leave:
-        message = pMessage->data(XN_GROUPMSGOP);
-        caption = getChatRoomMessage((GroupMsgOp)Helper::indexOf(GroupMsgOpNames, GMO_Max, message), groupMessage);
+        messageString = message.data(XN_GROUPMSGOP);
+        caption = getChatRoomMessage((GroupMsgOp)Helper::indexOf(GroupMsgOpNames, GMO_Max, messageString), groupMessage);
         if(!caption.isNull()) {
             html = getTheme().sysMsg;
             html.replace("%iconpath%", QUrl::fromLocalFile(ThemeManager::getInstance().getAppIcon(QStringLiteral("blank"))).toString());
-            html.replace("%sender%", caption.arg(*lpszUserName));
+            html.replace("%sender%", caption.arg(userName));
             html.replace("%message%", "");
-            appendMessageLog(&html);
+            appendMessageLog(html);
         }
         lastId = QString::null;
     default:
@@ -207,10 +213,8 @@ void lmcMessageLog::appendMessageLog(MessageType type, QString* lpszUserId, QStr
     }
 
     if (saveLog) {
-        if(!bReload and addToLog and pMessage and (type == MT_GroupMessage or type == MT_Message or type == MT_Broadcast or type == MT_File or type == MT_Folder or type == MT_PublicMessage)) {
-            XmlMessage xmlMessage = pMessage->clone();
-            QString userId = lpszUserId ? *lpszUserId : QString::null;
-            QString userName = lpszUserName ? *lpszUserName : QString::null;
+        if(!reload and addToLog and !messageString.isEmpty() and (type == MT_GroupMessage or type == MT_Message or type == MT_Broadcast or type == MT_File or type == MT_Folder or type == MT_PublicMessage)) {
+            XmlMessage xmlMessage(message.toString());
             SingleMessage message(type, userId, userName, xmlMessage, id);
             messageLog.append(message);
 
@@ -256,20 +260,20 @@ void lmcMessageLog::updateFileMessage(FileMode mode, FileOp op, QString fileId) 
     }
 }
 
-void lmcMessageLog::updateUserName(QString* lpszUserId, QString* lpszUserName) {
+void lmcMessageLog::updateUserName(const QString &userId, const QString &userName) {
     //	update the entries in message log
     for(int index = 0; index < messageLog.count(); index++) {
         SingleMessage msg = messageLog.takeAt(index);
-        if(lpszUserId->compare(msg.userId) == 0)
-            msg.userName = *lpszUserName;
+        if(userId.compare(msg.userId) == 0)
+            msg.userName = userName;
         messageLog.insert(index, msg);
     }
 
     reloadMessageLog();
 }
 
-void lmcMessageLog::updateAvatar(QString* lpszUserId, QString* lpszFilePath) {
-    participantAvatars.insert(*lpszUserId, *lpszFilePath);
+void lmcMessageLog::updateAvatar(const QString &userId, const QString &filePath) {
+    participantAvatars.insert(userId, filePath);
 
     reloadMessageLog();
 }
@@ -278,7 +282,7 @@ void lmcMessageLog::reloadMessageLog() {
     initMessageLog(false, false, false);
     for(int index = 0; index < messageLog.count(); index++) {
         SingleMessage msg = messageLog[index];
-        appendMessageLog(msg.type, &msg.userId, &msg.userName, &msg.message, true);
+        appendMessageLog(msg.type, msg.userId, msg.userName, msg.message, true);
     }
 }
 
@@ -318,9 +322,9 @@ void lmcMessageLog::abortPendingFileOperations() {
     }
 }
 
-void lmcMessageLog::saveMessageLog(const QString &user, const QString &userId, User *localUser, const QList<QString> &peersList, const QDateTime &date, SingleMessage &message, const QString &savePath) {
+void lmcMessageLog::saveMessageLog(const QString &userName, const QString &userId, User *localUser, const QList<QString> &peersList, const QDateTime &date, SingleMessage &message, const QString &savePath) {
     // TODO !!! add log
-    if (message.message.data(XN_MESSAGE).isEmpty() && message.message.data(XN_BROADCAST).isEmpty() && message.message.data(XN_FILENAME).isEmpty())
+    if (message.message.data(XN_MESSAGE).isEmpty() && message.message.data(XN_FILENAME).isEmpty())
         return;
 
     QDir dir = QFileInfo(savePath).dir();
@@ -335,10 +339,12 @@ void lmcMessageLog::saveMessageLog(const QString &user, const QString &userId, U
     QDataStream stream(&file);
 
     if (!fileExists) {
-        if (!user.isEmpty() && !userId.isEmpty())
-            stream << user << userId << date.toMSecsSinceEpoch() << peersList;
-        else
+        if (!userName.isEmpty() && !userId.isEmpty())
+            stream << userName << userId << date.toMSecsSinceEpoch() << peersList;
+        else if (localUser)
             stream << localUser->name << localUser->id << date.toMSecsSinceEpoch() << peersList;
+        else
+            LoggerManager::getInstance().writeWarning(QStringLiteral("lmcMessageLog.saveMessageLog-|- No peer and no local user specified. History will not be saved."));
     }
 
     stream << message;
@@ -357,7 +363,7 @@ void lmcMessageLog::changeEvent(QEvent* event) {
 
     QWidget::changeEvent(event);
 }
-#include <QStandardPaths>
+
 void lmcMessageLog::log_linkClicked(QUrl url) {
     QString linkPath = url.toString();
 
@@ -383,18 +389,17 @@ void lmcMessageLog::log_linkClicked(QUrl url) {
     FileMode mode;
     FileOp op;
 
-    if(linkData[3].compare(acceptOp) == 0) {
+    if(!linkData[3].compare(acceptOp)) {
         mode = FM_Receive;
         op = FO_Accept;
-    } else if(linkData[3].compare(declineOp) == 0) {
+    } else if(!linkData[3].compare(declineOp)) {
         mode = FM_Receive;
         op = FO_Decline;
-    } else if(linkData[3].compare(cancelOp) == 0) {
+    } else if(!linkData[3].compare(cancelOp)) {
         mode = FM_Send;
         op = FO_Cancel;
     } else	// unknown link command
         return;
-
 
     //	Remove the link and show a confirmation message.
     updateFileMessage(mode, op, linkData[4]);
@@ -409,7 +414,7 @@ void lmcMessageLog::log_contentsSizeChanged(QSize size) {
     }
 }
 
-void lmcMessageLog::log_linkHovered(const QString& link, const QString& title, const QString& textContent) {
+void lmcMessageLog::log_linkHovered(QString link, QString title, QString textContent) {
     Q_UNUSED(title);
     Q_UNUSED(textContent);
     linkHovered = !link.isEmpty();
@@ -436,14 +441,14 @@ void lmcMessageLog::selectAllAction_triggered() {
     pageAction(QWebPage::SelectAll)->trigger();
 }
 
-void lmcMessageLog::appendMessageLog(QString *lpszHtml) {
+void lmcMessageLog::appendMessageLog(const QString &htmlString) {
     QWebFrame* frame = page()->mainFrame();
     QWebElement document = frame->documentElement();
     QWebElement body = document.findFirst("body");
-    body.appendInside(*lpszHtml);
+    body.appendInside(htmlString);
 }
 
-void lmcMessageLog::removeMessageLog(QString divClass) {
+void lmcMessageLog::removeMessageLog(const QString &divClass) {
     QWebFrame* frame = page()->mainFrame();
     QWebElement document = frame->documentElement();
     QWebElement body = document.findFirst("body");
@@ -451,20 +456,40 @@ void lmcMessageLog::removeMessageLog(QString divClass) {
     element.removeFromDocument();
 }
 
-void lmcMessageLog::appendBroadcast(QString* lpszUserId, QString* lpszUserName, QString* lpszMessage, QDateTime* pTime) {
-    Q_UNUSED(lpszUserId);
-
-    decodeMessage(lpszMessage, trimMessage, allowLinks, pathToLink, showSmiley);
+void lmcMessageLog::appendBroadcast(const QString &userName, QString &message, const QDateTime &dateTime) {
+    decodeMessage(message, Globals::getInstance().trimMessages(), Globals::getInstance().showLinks(), Globals::getInstance().showPathsAsLinks(), Globals::getInstance().showEmoticons());
 
     QString html = getTheme().pubMsg;
     QString caption = tr("Broadcast message from %1:");
     html.replace("%iconpath%", QUrl::fromLocalFile(ThemeManager::getInstance().getAppIcon(QStringLiteral("broadcastformsg"))).toString());
-    html.replace("%sender%", caption.arg(*lpszUserName));
-    html.replace("%time%", getTimeString(pTime));
+    html.replace("%sender%", caption.arg(userName));
+    html.replace("%time%", getTimeString(dateTime));
     html.replace("%style%", "");
-    html.replace("%message%", *lpszMessage);
+    html.replace("%message%", message);
 
-    appendMessageLog(&html);
+    appendMessageLog(html);
+}
+
+void lmcMessageLog::appendInstantMessage(const QString &userId, const QString &userName, QString &message, const QDateTime &dateTime,
+                                         const QFont &font, const QColor &color) {
+    bool localUser = (userId.compare(localId) == 0);
+
+    decodeMessage(message, Globals::getInstance().trimMessages(), Globals::getInstance().showLinks(), Globals::getInstance().showPathsAsLinks(), Globals::getInstance().showEmoticons());
+
+    //	get the avatar image for this user from the cache folder
+    QString filePath = participantAvatars.value(userId);
+    //	if image not found, use the default avatar image for this user
+    QString iconPath = QUrl::fromLocalFile (QFile::exists(filePath) ? filePath : ImagesList::getInstance().getDefaultAvatar()).toString();
+    QString fontStyle = getFontStyle(font, color, localUser);
+
+    QString html = getTheme().inMsg;
+    html.replace("%iconpath%", iconPath);
+    html.replace("%sender%", userName);
+    html.replace("%time%", getTimeString(dateTime));
+    html.replace("%style%", fontStyle);
+    html.replace("%message%", message);
+
+    appendMessageLog(html);
 }
 
 void lmcMessageLog::prependHtml(const QString &html) {
@@ -474,28 +499,28 @@ void lmcMessageLog::prependHtml(const QString &html) {
     lastId.clear();
 }
 
-void lmcMessageLog::appendMessage(QString* lpszUserId, QString* lpszUserName, QString* lpszMessage, QDateTime* pTime,
-                                  QFont* pFont, QColor* pColor) {
+void lmcMessageLog::appendMessage(const QString &userId, const QString &userName, QString &message, const QDateTime &dateTime,
+                                  const QFont &font, const QColor &color) {
     QString html = QString::null;
-    bool localUser = (lpszUserId->compare(localId) == 0);
+    bool localUser = (userId.compare(localId) == 0);
 
-    decodeMessage(lpszMessage, trimMessage, allowLinks, pathToLink, showSmiley);
+    decodeMessage(message, Globals::getInstance().trimMessages(), Globals::getInstance().showLinks(), Globals::getInstance().showPathsAsLinks(), Globals::getInstance().showEmoticons());
 
-    QString fontStyle = getFontStyle(pFont, pColor, localUser);
+    QString fontStyle = getFontStyle(font, color, localUser);
 
-    if(lpszUserId->compare(lastId) != 0) {
+    if(userId.compare(lastId) != 0) {
         html = localUser ? getTheme().outMsg : getTheme().inMsg;
 
         //	get the avatar image for this user from the cache folder
-        QString filePath = participantAvatars.value(*lpszUserId);
+        QString filePath = participantAvatars.value(userId);
         //	if image not found, use the default avatar image for this user
         QString iconPath = QUrl::fromLocalFile (QFile::exists(filePath) ? filePath : ImagesList::getInstance().getDefaultAvatar()).toString();
 
         html.replace("%iconpath%", iconPath);
-        html.replace("%sender%", *lpszUserName);
-        html.replace("%time%", getTimeString(pTime));
+        html.replace("%sender%", userName);
+        html.replace("%time%", getTimeString(dateTime));
         html.replace("%style%", fontStyle);
-        html.replace("%message%", *lpszMessage);
+        html.replace("%message%", message);
 
         QWebFrame* frame = page()->mainFrame();
         QWebElement document = frame->documentElement();
@@ -503,9 +528,9 @@ void lmcMessageLog::appendMessage(QString* lpszUserId, QString* lpszUserName, QS
         body.appendInside(html);
     } else {
         html = localUser ? getTheme().outNextMsg : getTheme().inNextMsg;
-        html.replace("%time%", getTimeString(pTime));
+        html.replace("%time%", getTimeString(dateTime));
         html.replace("%style%", fontStyle);
-        html.replace("%message%", *lpszMessage);
+        html.replace("%message%", message);
 
         QWebFrame* frame = page()->mainFrame();
         QWebElement document = frame->documentElement();
@@ -518,29 +543,29 @@ void lmcMessageLog::appendMessage(QString* lpszUserId, QString* lpszUserName, QS
     hasData = true;
 }
 
-void lmcMessageLog::appendPublicMessage(QString* lpszUserId, QString* lpszUserName, QString* lpszMessage,
-                                        QDateTime *pTime, QFont *pFont, QColor *pColor) {
+void lmcMessageLog::appendPublicMessage(const QString &userId, const QString &userName, QString &message,
+                                        const QDateTime &dateTime, const QFont &font, const QColor &color) {
     QString html = QString::null;
-    bool localUser = (lpszUserId->compare(localId) == 0);
+    bool localUser = (userId.compare(localId) == 0);
 
-    decodeMessage(lpszMessage, trimMessage, allowLinks, pathToLink, showSmiley);
+    decodeMessage(message, Globals::getInstance().trimMessages(), Globals::getInstance().showLinks(), Globals::getInstance().showPathsAsLinks(), Globals::getInstance().showEmoticons());
 
-    QString fontStyle = getFontStyle(pFont, pColor, localUser);
+    QString fontStyle = getFontStyle(font, color, localUser);
 
-    if(lpszUserId->compare(lastId) != 0) {
+    if(userId.compare(lastId) != 0) {
         outStyle = !outStyle;
         html = outStyle ? getTheme().outMsg : getTheme().inMsg;
 
         //	get the avatar image for this user from the cache folder
-        QString filePath = participantAvatars.value(*lpszUserId);
+        QString filePath = participantAvatars.value(userId);
         //	if image not found, use the default avatar image for this user
         QString iconPath = QUrl::fromLocalFile (QFile::exists(filePath) ? filePath : ImagesList::getInstance().getDefaultAvatar()).toString();
 
         html.replace("%iconpath%", iconPath);
-        html.replace("%sender%", *lpszUserName);
-        html.replace("%time%", getTimeString(pTime));
+        html.replace("%sender%", userName);
+        html.replace("%time%", getTimeString(dateTime));
         html.replace("%style%", fontStyle);
-        html.replace("%message%", *lpszMessage);
+        html.replace("%message%", message);
 
         QWebFrame* frame = page()->mainFrame();
         QWebElement document = frame->documentElement();
@@ -548,9 +573,9 @@ void lmcMessageLog::appendPublicMessage(QString* lpszUserId, QString* lpszUserNa
         body.appendInside(html);
     } else {
         html = outStyle ? getTheme().outNextMsg : getTheme().inNextMsg;
-        html.replace("%time%", getTimeString(pTime));
+        html.replace("%time%", getTimeString(dateTime));
         html.replace("%style%", fontStyle);
-        html.replace("%message%", *lpszMessage);
+        html.replace("%message%", message);
 
         QWebFrame* frame = page()->mainFrame();
         QWebElement document = frame->documentElement();
@@ -564,14 +589,13 @@ void lmcMessageLog::appendPublicMessage(QString* lpszUserId, QString* lpszUserNa
 }
 
 // This function is called to display a file request message on chat box
-void lmcMessageLog::appendFileMessage(MessageType type, QString* lpszUserName, QString *lpszUserId, XmlMessage* pMessage,
-                                      bool bReload) {
-    Q_UNUSED(type);
+void lmcMessageLog::appendFileMessage(MessageType type, const QString &userName, const QString &userId, XmlMessage &message,
+                                      bool reload) {
     QString htmlMsg;
     QString caption;
-    QString fileId = pMessage->data(XN_FILEID);
+    QString fileId = message.data(XN_FILEID);
     QString tempId;
-    QString szStatus;
+    QString status;
     QString fileType;
 
     switch(type) {
@@ -589,21 +613,22 @@ void lmcMessageLog::appendFileMessage(MessageType type, QString* lpszUserName, Q
     htmlMsg = getTheme().reqMsg;
     htmlMsg.replace("%iconpath%", QUrl::fromLocalFile(ThemeManager::getInstance().getAppIcon(QStringLiteral("filemsg"))).toString());
 
-    FileOp fileOp = (FileOp)Helper::indexOf(FileOpNames, FO_Max, pMessage->data(XN_FILEOP));
-    FileMode fileMode = (FileMode)Helper::indexOf(FileModeNames, FM_Max, pMessage->data(XN_MODE));
+    FileOp fileOp = (FileOp)Helper::indexOf(FileOpNames, FO_Max, message.data(XN_FILEOP));
+    FileMode fileMode = (FileMode)Helper::indexOf(FileModeNames, FM_Max, message.data(XN_MODE));
 
     if(fileMode == FM_Send) {
         tempId = "send" + fileId;
         caption = tr("Sending '%1' to %2.");
-        htmlMsg.replace("%sender%", caption.arg(pMessage->data(XN_FILENAME), *lpszUserName));
+        htmlMsg.replace("%sender%", caption.arg(message.data(XN_FILENAME), userName));
         htmlMsg.replace("%message%", "");
         htmlMsg.replace("%fileid%", tempId);
 
         switch(fileOp) {
         case FO_Request:
-            sendFileMap.insert(fileId, *pMessage);
-            pMessage->addData(XN_TEMPID, tempId);
-            htmlMsg.replace("%links%", QString("<a href='lmc://%1/%2/%3/%4'>%5</a> &nbsp;").arg(fileType, *lpszUserId, cancelOp, fileId,  tr("Cancel")));
+            sendFileMap.insert(fileId, message);
+            message.removeData(XN_TEMPID);
+            message.addData(XN_TEMPID, tempId);
+            htmlMsg.replace("%links%", QString("<a href='lmc://%1/%2/%3/%4'>%5</a> &nbsp;").arg(fileType, userId, cancelOp, fileId,  tr("Cancel")));
             break;
         case FO_Cancel:
         case FO_Accept:
@@ -611,8 +636,8 @@ void lmcMessageLog::appendFileMessage(MessageType type, QString* lpszUserName, Q
         case FO_Error:
         case FO_Abort:
         case FO_Complete:
-            szStatus = getFileStatusMessage(FM_Send, fileOp);
-            htmlMsg.replace("%links%", szStatus);
+            status = getFileStatusMessage(FM_Send, fileOp);
+            htmlMsg.replace("%links%", status);
             break;
         default:
             return;
@@ -620,39 +645,40 @@ void lmcMessageLog::appendFileMessage(MessageType type, QString* lpszUserName, Q
         }
     } else {
         tempId = "receive" + fileId;
-        if(autoFile) {
+        if(Globals::getInstance().autoReceiveFile()) {
             if(type == MT_File)
                 caption = tr("%1 is sending you a file:");
             else
                 caption = tr("%1 is sending you a folder:");
-            htmlMsg.replace("%sender%", caption.arg(*lpszUserName));
-            htmlMsg.replace("%message%", pMessage->data(XN_FILENAME) + " (" +
-                Helper::formatSize(pMessage->data(XN_FILESIZE).toLongLong()) + ")");
+            htmlMsg.replace("%sender%", caption.arg(userName));
+            htmlMsg.replace("%message%", message.data(XN_FILENAME) + " (" +
+                Helper::formatSize(message.data(XN_FILESIZE).toLongLong()) + ")");
             htmlMsg.replace("%fileid%", "");
         } else {
             if(type == MT_File)
                 caption = tr("%1 sends you a file:");
             else
                 caption = tr("%1 sends you a folder:");
-            htmlMsg.replace("%sender%", caption.arg(*lpszUserName));
-            htmlMsg.replace("%message%", pMessage->data(XN_FILENAME) + " (" +
-                Helper::formatSize(pMessage->data(XN_FILESIZE).toLongLong()) + ")");
+            htmlMsg.replace("%sender%", caption.arg(userName));
+            htmlMsg.replace("%message%", message.data(XN_FILENAME) + " (" +
+                Helper::formatSize(message.data(XN_FILESIZE).toLongLong()) + ")");
             htmlMsg.replace("%fileid%", tempId);
         }
 
         switch(fileOp) {
         case FO_Request:
-            receiveFileMap.insert(fileId, *pMessage);
-            pMessage->addData(XN_TEMPID, tempId);
+            receiveFileMap.insert(fileId, message);
+            message.removeData(XN_TEMPID);
+            message.addData(XN_TEMPID, tempId);
 
-            if(autoFile) {
+            if(Globals::getInstance().autoReceiveFile()) {
                 htmlMsg.replace("%links%", tr("Accepted"));
-                if(!bReload)
-                    fileOperation(fileId, acceptOp, *lpszUserId, fileType);
+                if(!reload)
+                    fileOperation(fileId, acceptOp, fileType, userId);
             } else {
                 htmlMsg.replace("%links%",
                     QString("<a href='lmc://%1/%2/%3/%4'>%5</a> &nbsp;"
-                            "<a href='lmc://%6/%7/%8/%9'>%10</a>").arg(fileType, *lpszUserId, acceptOp, fileId,  tr("Accept")).arg(fileType, *lpszUserId, declineOp, fileId, tr("Decline")));
+                            "<a href='lmc://%6/%7/%8/%9'>%10</a>").arg(fileType, userId, acceptOp, fileId,  tr("Accept")).arg(fileType, userId, declineOp, fileId, tr("Decline")));
             }
             break;
         case FO_Cancel:
@@ -661,8 +687,8 @@ void lmcMessageLog::appendFileMessage(MessageType type, QString* lpszUserName, Q
         case FO_Error:
         case FO_Abort:
         case FO_Complete:
-            szStatus = getFileStatusMessage(FM_Receive, fileOp);
-            htmlMsg.replace("%links%", szStatus);
+            status = getFileStatusMessage(FM_Receive, fileOp);
+            htmlMsg.replace("%links%", status);
             break;
         default:
             return;
@@ -676,26 +702,26 @@ void lmcMessageLog::appendFileMessage(MessageType type, QString* lpszUserName, Q
     body.appendInside(htmlMsg);
 }
 
-QString lmcMessageLog::getFontStyle(QFont* pFont, QColor* pColor, bool localUser) {
+QString lmcMessageLog::getFontStyle(const QFont &font, const QColor &color, bool localUser) {
     QString style;
 
-    if(pFont->italic())
+    if(font.italic())
         style.append("font-style:italic; ");
-    if(pFont->bold())
+    if(font.bold())
         style.append("font-weight:bold; ");
-    if(pFont->strikeOut())
+    if(font.strikeOut())
         style.append("text-decoration:line-through; ");
-    if(pFont->underline())
+    if(font.underline())
         style.append("text-decoration:underline; ");
 
-    if (!overrideIncomingStyle or localUser) {
-        style.append(QString("font-family:\"%1\"; ").arg(pFont->family()));
-        style.append(QString("font-size:%1pt; ").arg(QString::number(pFont->pointSize())));
-        style.append(QString("color:%1; ").arg(pColor->name()));
+    if (!Globals::getInstance().overrideInMessagesStyle() or localUser) {
+        style.append(QString("font-family:\"%1\"; ").arg(font.family()));
+        style.append(QString("font-size:%1pt; ").arg(QString::number(font.pointSize())));
+        style.append(QString("color:%1; ").arg(color.name()));
     } else {
-        style.append(QString("font-family:\"%1\"; ").arg(defaultFont.family()));
-        style.append(QString("font-size:%1pt; ").arg(QString::number(defaultFont.pointSize())));
-        style.append(QString("color:%1; ").arg(defaultColor));
+        style.append(QString("font-family:\"%1\"; ").arg(Globals::getInstance().messagesFont().family()));
+        style.append(QString("font-size:%1pt; ").arg(QString::number(Globals::getInstance().messagesFont().pointSize())));
+        style.append(QString("color:%1; ").arg(Globals::getInstance().messagesColor()));
     }
 
     return style;
@@ -738,6 +764,9 @@ QString lmcMessageLog::getChatStateMessage(ChatState chatState) {
     case CS_Paused:
         message = tr("%1 has entered text");
         break;
+    case CS_Read:
+        message = tr("%1 has read the message");
+        break;
     default:
         break;
     }
@@ -765,7 +794,7 @@ QString lmcMessageLog::getChatRoomMessage(GroupMsgOp op, bool groupMessage) {
     return message;
 }
 
-void lmcMessageLog::fileOperation(QString fileId, QString action, QString fileType, QString senderId, FileMode mode) {
+void lmcMessageLog::fileOperation(QString fileId, const QString &action, const QString &fileType, const QString &senderId, FileMode mode) {
     XmlMessage fileData, xmlMessage;
 
     MessageType type;
@@ -804,91 +833,89 @@ void lmcMessageLog::fileOperation(QString fileId, QString action, QString fileTy
         xmlMessage.addData(XN_FILEID, fileData.data(XN_FILEID));
     }
 
-    emit messageSent(type, &senderId, &xmlMessage);
+    emit messageSent(type, senderId, xmlMessage);
 }
 
 //	Called when message received, before adding to message log
 //	The useDefaults parameter is an override flag that will ignore app settings
 //	while decoding the message. If the flag is set, message is not trimmed,
 //	smileys are left as text and links will be detected and converted.
-void lmcMessageLog::decodeMessage(QString* lpszMessage, bool trimMessage, bool allowLinks, bool pathToLink, bool showSmileys, bool useDefaults) {
+void lmcMessageLog::decodeMessage(QString &message, bool trimMessage, bool allowLinks, bool pathToLink, bool showSmileys, bool useDefaults) {
     if(!useDefaults && trimMessage)
-        *lpszMessage = lpszMessage->trimmed();
+        message = message.trimmed();
 
     //	The url detection regexps only work with plain text, so link detection is done before
     //	making the text html safe. The converted links are given a "data-isLink" custom
     //	attribute to differentiate them from the message content
     if(useDefaults || allowLinks) {
-        lpszMessage->replace(QRegExp("((?:(?:https?|ftp|file)://|www\\.|ftp\\.)[-A-Z0-9+&@#/%=~_|$?!:,.]*[A-Z0-9+&@#/%=~_|$])", Qt::CaseInsensitive),
+        message.replace(QRegExp("((?:(?:https?|ftp|file)://|www\\.|ftp\\.)[-A-Z0-9+&@#/%=~_|$?!:,.]*[A-Z0-9+&@#/%=~_|$])", Qt::CaseInsensitive),
                              "<a data-isLink='true' href='\\1'>\\1</a>");
-        lpszMessage->replace("<a data-isLink='true' href='www", "<a data-isLink='true' href='http://www");
+        message.replace("<a data-isLink='true' href='www", "<a data-isLink='true' href='http://www");
 
         if(!useDefaults && pathToLink)
-            lpszMessage->replace(QRegExp("((\\\\\\\\[\\w-]+\\\\[^\\\\/:*?<>|""]+)((?:\\\\[^\\\\/:*?<>|""]+)*\\\\?)$)"),
+            message.replace(QRegExp("((\\\\\\\\[\\w-]+\\\\[^\\\\/:*?<>|""]+)((?:\\\\[^\\\\/:*?<>|""]+)*\\\\?)$)"),
                                  "<a data-isLink='true' href='file:\\1'>\\1</a>");
         // Alternative: ^(?:[a-zA-Z]\:|\\\\\\\\[\\w\\.]+\\[\\w.$]+)\\\\(?:[\\w]+\\)*\\w([\\w.])+$
 
-        lmcSettings settings;
-        QString erpAddress = settings.value(IDS_ERPADDRESS, IDS_ERPADDRESS_VAL).toString();
+        QString erpAddress = Globals::getInstance().erpAddress();
         if (!erpAddress.endsWith('/'))
             erpAddress.append('/');
 
         // replace ITx, COMMx, ATTx and VIDx with links
-        lpszMessage->replace(QRegExp("\\b(IT(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?IssueId=\\2' title='%1Pages/Issues/IssueDetail.aspx?IssueId=\\2'>\\1</a>").arg(erpAddress));
-        lpszMessage->replace(QRegExp("\\b(COMM(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1erp/Pages/Issues/IssueDetail.aspx?CommentId=\\2#COMMN\\2' title='%1erp/Pages/Issues/IssueDetail.aspx?CommentId=\\2#COMMN\\2'>\\1</a>").arg(erpAddress));
-        lpszMessage->replace(QRegExp("\\b(ATT(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1erp/Pages/Issues/IssueDetail.aspx?VideoId=\\2' title='%1erp/Pages/Issues/IssueDetail.aspx?VideoId=\\2'>\\1</a>").arg(erpAddress));
-        lpszMessage->replace(QRegExp("\\b(VID(\\d+))\\b", Qt::CaseInsensitive),  QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?AttachmentId=\\2' title='%1Pages/Issues/IssueDetail.aspx?AttachmentId=\\2'>\\1</a>").arg(erpAddress));
+        message.replace(QRegExp("\\b(IT(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?IssueId=\\2' title='%1Pages/Issues/IssueDetail.aspx?IssueId=\\2'>\\1</a>").arg(erpAddress));
+        message.replace(QRegExp("\\b(COMM(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?CommentId=\\2#COMMN\\2' title='%1erp/Pages/Issues/IssueDetail.aspx?CommentId=\\2#COMMN\\2'>\\1</a>").arg(erpAddress));
+        message.replace(QRegExp("\\b(VID(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?VideoId=\\2' title='%1erp/Pages/Issues/IssueDetail.aspx?VideoId=\\2'>\\1</a>").arg(erpAddress));
+        message.replace(QRegExp("\\b(ATT(\\d+))\\b", Qt::CaseInsensitive),  QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?AttachmentId=\\2' title='%1Pages/Issues/IssueDetail.aspx?AttachmentId=\\2'>\\1</a>").arg(erpAddress));
     }
 
-    QString message = QString::null;
+    QString temp = QString::null;
     int index = 0;
 
-    while(index < lpszMessage->length()) {
-        int aStart = lpszMessage->indexOf("<a data-isLink='true'", index);
+    while(index < message.length()) {
+        int aStart = message.indexOf("<a data-isLink='true'", index);
         if(aStart != -1) {
-            QString messageSegment = lpszMessage->mid(index, aStart - index);
-            processMessageText(&messageSegment, showSmileys, useDefaults);
-            message.append(messageSegment);
-            index = lpszMessage->indexOf("</a>", aStart) + 4;
-            QString linkSegment = lpszMessage->mid(aStart, index - aStart);
-            message.append(linkSegment);
+            QString messageSegment = message.mid(index, aStart - index);
+            processMessageText(messageSegment, showSmileys, useDefaults);
+            temp.append(messageSegment);
+            index = message.indexOf("</a>", aStart) + 4;
+            QString linkSegment = message.mid(aStart, index - aStart);
+            temp.append(linkSegment);
         } else {
-            QString messageSegment = lpszMessage->mid(index);
-            processMessageText(&messageSegment, showSmileys, useDefaults);
-            message.append(messageSegment);
+            QString messageSegment = message.mid(index);
+            processMessageText(messageSegment, showSmileys, useDefaults);
+            temp.append(messageSegment);
             break;
         }
     }
 
-    message.replace("\n", "<br/>");
     // TODO this is not nice, use regex to turn [] into <>
-    message = message.replace("[b]", "<b>").replace("[/b]", "</b>").replace("[u]", "<u>").replace("[/u]", "</u>").replace("[i]", "<i>").replace("[/i]", "</i>").replace("[q]", "<q>").replace("[/q]", "</q>").replace("[quote]", "<blockquote>").replace("[/quote]", "</blockquote>");
+    temp = temp.replace("\n", "<br />").replace("[b]", "<b>").replace("[/b]", "</b>").replace("[u]", "<u>").replace("[/u]", "</u>").replace("[i]", "<i>").replace("[/i]", "</i>").replace("[q]", "<q>").replace("[/q]", "</q>").replace("[quote]", "<blockquote>").replace("[/quote]", "</blockquote>");
 
-    *lpszMessage = message;
+    message = temp;
 }
 
-void lmcMessageLog::processMessageText(QString* lpszMessageText, bool showSmileys, bool useDefaults) {
-    ChatHelper::makeHtmlSafe(lpszMessageText);
+void lmcMessageLog::processMessageText(QString &messageText, bool showSmileys, bool useDefaults) {
+    messageText = messageText.toHtmlEscaped();
 
     //	if smileys are enabled, replace text emoticons with corresponding images
     if(!useDefaults && showSmileys)
-        ChatHelper::decodeSmileys(*lpszMessageText, ImagesList::getInstance().getSmileysRegex(), false);
+        ChatHelper::decodeSmileys(messageText, ImagesList::getInstance().getSmileysRegex(), false);
 
-    ChatHelper::decodeSmileys(*lpszMessageText, ImagesList::getInstance().getEmojisRegex(), true);
+    ChatHelper::decodeSmileys(messageText, ImagesList::getInstance().getEmojisRegex(), true);
 
-    lpszMessageText->replace("  ", "&nbsp;&nbsp;"); // TODO this is not okay, should figure out a solution for the html safe/unsafe thing
+    messageText.replace("  ", "&nbsp;&nbsp;"); // TODO this is not okay, should figure out a solution for the html safe/unsafe thing
 }
 
-QString lmcMessageLog::getTimeString(QDateTime* pTime) {
-    QString szTimeStamp;
-    if(messageTime) {
-        szTimeStamp.append("(");
-        if(messageDate)
-            szTimeStamp.append(pTime->date().toString(Qt::SystemLocaleShortDate) + "&nbsp;");
-        szTimeStamp.append(pTime->time().toString(Qt::SystemLocaleShortDate) + ")&nbsp;");
+QString lmcMessageLog::getTimeString(const QDateTime &dateTime) {
+    QString timeStamp;
+    if(Globals::getInstance().showMessageTime()) {
+        timeStamp.append("(");
+        if(Globals::getInstance().showMessageDate())
+            timeStamp.append(dateTime.date().toString(Qt::SystemLocaleShortDate) + "&nbsp;");
+        timeStamp.append(dateTime.time().toString(Qt::SystemLocaleShortDate) + ")&nbsp;");
     }
 
-    return szTimeStamp;
+    return timeStamp;
 }
 
 const ChatThemeStruct &lmcMessageLog::getTheme()

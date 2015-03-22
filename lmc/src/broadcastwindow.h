@@ -53,12 +53,13 @@ public:
     void settingsChanged();
 
 signals:
-    void messageSent(MessageType type, QString* lpszUserId, XmlMessage* pMessage);
+    void messageSent(MessageType type, QString lpszUserId, XmlMessage pMessage);
 
 protected:
-    bool eventFilter(QObject* pObject, QEvent* pEvent);
-    void changeEvent(QEvent* pEvent);
-    void closeEvent(QCloseEvent* pEvent);
+    bool eventFilter(QObject* object, QEvent* event);
+    void changeEvent(QEvent* event);
+    void closeEvent(QCloseEvent* event);
+    void moveEvent(QMoveEvent *event);
 
 private slots:
     void smileyAction_triggered();
@@ -76,20 +77,15 @@ private:
     void insertSmileyCode(const ImagesStruct &smiley);
 
     Ui::BroadcastWindow ui;
-    lmcSettings* pSettings;
     QToolBar* _toolbar;
-    //ThemedButton* _buttonFontSize;
     ThemedButton* _buttonSmiley;
     ThemedButton* _buttonEmoji;
     int nSmiley;
     int nEmoji;
     bool bConnected;
     int infoFlag;
-    bool showSmiley;
-    bool sendKeyMod;
     bool parentToggling;
     bool childToggling;
-    //QActionGroup* _groupActionFont;
     User *localUser;
 };
 

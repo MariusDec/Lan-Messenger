@@ -52,24 +52,33 @@ struct User {
     User() {}
     User(const QString &id, const QString &version, const QString &address, const QString &name, const QString &status, const QString &group,
          int nAvatar, const QString &note, const QString &avatarPath, const QString &caps, const QString &hostName) : id(id), name(name), address(address), version(version), status(status), group(group), note(note), avatar(nAvatar), avatarPath(avatarPath), caps(caps.toInt()), hostName(hostName) {
-        lanIndex = address.mid(address.lastIndexOf('.') + 1).toInt();
+        updateUserNameWithHost();
+    }
 
-        QString userPc = QString("C%1 - ").arg(lanIndex);
-        if (!address.endsWith(QString(".1.%1").arg(lanIndex))) {
-            QRegularExpressionMatch match = QRegularExpression("^(C(\\d)+)$").match(hostName); // TODO !!! test
-            if (match.captured() == hostName) {
-                userPc = QString("%1 - ").arg(hostName);
-                lanIndex = hostName.mid(1).toInt();
-            }
+    void setName(const QString &name) {
+        this->name = name;
+        updateUserNameWithHost();
+    }
+
+    void updateUserNameWithHost() {
+        lanIndex = 0;
+        QString userPc;
+
+        QRegularExpressionMatch match = QRegularExpression("^(C(\\d)+)$").match(hostName);
+        if (match.captured() == hostName) {
+            userPc = QString("%1 - ").arg(hostName);
+            lanIndex = hostName.mid(1).toInt();
+        } else if (address.section('.', -2, -2) == "1") {
+            userPc = QString("C%1 - ").arg(address.section('.', -1, -1));
+            lanIndex = address.section('.', -1, -1).toInt();
         }
 
-        if (!this->name.startsWith(userPc)) {
-            QString match = QRegularExpression("^(C(\\d)+ \\- )$").match(hostName).captured();
-            if (this->name.startsWith(match)) {
-                this->name.remove(0, match.length());
+        if (!userPc.isEmpty()) {
+            QString match = QRegularExpression("^(C(\\d)+(\\s)*\\-(\\s)*)").match(this->name).captured();
+            if (name.startsWith(match))
+                name.remove(0, match.length());
 
-                this->name.prepend(userPc);
-            }
+            name.prepend(userPc);
         }
     }
 };
@@ -95,10 +104,13 @@ struct DatagramHeader {
     QString userId;
     QString address;
 
-    DatagramHeader(DatagramType dtType, QString szUserId, QString szAddress) {
-        type = dtType;
-        userId = szUserId;
-        address = szAddress;
+    DatagramHeader() { }
+    DatagramHeader(DatagramType type, const QString &userId, const QString &address) : type(type), userId(userId), address(address) { }
+
+    void init(DatagramType type, const QString &userId, const QString &address) {
+        this->type = type;
+        this->userId = userId;
+        this->address = address;
     }
 };
 
@@ -108,10 +120,13 @@ struct MessageHeader {
     QString userId;
     QString address;
 
-    MessageHeader(MessageType mtType, qint64 nId, QString szUserId) {
-        type = mtType;
-        id = nId;
-        userId = szUserId;
+    MessageHeader() { }
+    MessageHeader(MessageType type, qint64 id, const QString &userId) : type(type), id(id), userId(userId) { }
+
+    void init(MessageType type, qint64 id, const QString &userId) {
+        this->type = type;
+        this->id = id;
+        this->userId = userId;
     }
 };
 

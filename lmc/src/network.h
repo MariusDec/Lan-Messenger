@@ -42,51 +42,48 @@ public:
     lmcNetwork();
     ~lmcNetwork();
 
-    void init(XmlMessage* pInitParams);
+    void init(const XmlMessage &initParams);
     void start();
     void stop();
     QString physicalAddress();
     QString IPAddress();
-    void setLocalId(QString* lpszLocalId);
-    void sendBroadcast(QString* lpszData);
-    void addConnection(QString* lpszUserId, QString* lpszAddress);
-    void sendMessage(QString* lpszReceiverId, QString* lpszAddress, QString* lpszData);
-    void initSendFile(QString* lpszReceiverId, QString *lpszReceiverName, QString* lpszAddress, QString* lpszData);
-    void initReceiveFile(QString* lpszSenderId, QString *lpszSenderName, QString* lpszAddress, QString* lpszData);
-    void fileOperation(FileMode mode, QString* lpszUserId, QString* lpszData);
-    void sendWebMessage(QString* lpszUrl, QString* lpszData);
+    void setLocalId(const QString &localId);
+    void sendBroadcast(const QString &data);
+    void addConnection(const QString &userId, const QString &address);
+    void sendMessage(const QString &receiverId, const QString &data);
+    void initSendFile(const QString &receiverId, const QString &receiverName, const QString address, const QString &data);
+    void initReceiveFile(const QString &senderId, const QString &senderName, const QString &address, const QString &data);
+    void fileOperation(FileMode mode, const QString &userId, const QString &data);
+    void sendWebMessage(const QString &url);
     void settingsChanged();
 
     QString	ipAddress;
     QString	subnetMask;
-    bool	isConnected;
-    bool	canReceive;
+    bool	isConnected = false;
+    bool	canReceive = false;
 
 signals:
     void connectionStateChanged();
-    void broadcastReceived(DatagramHeader* pHeader, QString* lpszData);
-    void newConnection(QString* lpszUserId, QString *lpszAddress);
-    void connectionLost(QString* lpszUserId);
-    void messageReceived(DatagramHeader* pHeader, QString* lpszData);
-    void progressReceived(QString* lpszUserId, QString *lpszUserName, QString* lpszData);
-    void webMessageReceived(QString* lpszData);
+    void broadcastReceived(DatagramHeader header, QString data);
+    void newConnection(QString userId, QString address);
+    void connectionLost(QString userId);
+    void messageReceived(DatagramHeader header, QString data);
+    void progressReceived(QString userId, QString userName, QString data);
+    void webMessageReceived(QString data);
 
 private slots:
     void timer_timeout();
-    void udp_receiveBroadcast(DatagramHeader* pHeader, QString* lpszData);
-    void tcp_newConnection(QString* lpszUserId, QString* lpszAddress);
-    void tcp_connectionLost(QString* lpszUserId);
-    void tcp_receiveMessage(DatagramHeader* pHeader, QString* lpszData);
-    void tcp_receiveProgress(QString* lpszUserId, QString *lpszUserName, QString* lpszData);
-    void web_receiveMessage(QString* lpszData);
+    void udp_receiveBroadcast(DatagramHeader header, QString data);
+    void tcp_newConnection(QString userId, QString address);
+    void tcp_connectionLost(QString userId);
+    void tcp_receiveMessage(DatagramHeader header, QString data);
+    void tcp_receiveProgress(QString userId, QString userName, QString data);
+    void web_receiveMessage(QString data);
 
 private:
-    bool getIPAddress();
-    bool getIPAddress(QNetworkInterface* pNetworkInterface, QNetworkAddressEntry* pAddressEntry);
-    bool getNetworkInterface(QNetworkInterface* pNetworkInterface);
-    bool getNetworkInterface(QNetworkInterface* pNetworkInterface, QString* lpszPreferred);
-    bool isInterfaceUp(QNetworkInterface* pNetworkInterface);
-    bool getNetworkAddressEntry(QNetworkAddressEntry* pAddressEntry);
+    bool getIPAddress(bool getLanAddress = true);
+    bool getIPAddress(const QNetworkInterface &networkInterface, QNetworkAddressEntry &addressEntry, bool getLanAddress);
+    bool isInterfaceUp(const QNetworkInterface &networkInterface);
 
     struct NetworkAdapter {
         QString name;
@@ -94,13 +91,12 @@ private:
         QString type;
     };
 
-    lmcSettings*			pSettings;
-    lmcUdpNetwork*			pUdpNetwork;
-    lmcTcpNetwork*			pTcpNetwork;
-    lmcWebNetwork*			pWebNetwork;
-    QTimer*					pTimer;
-    QString					interfaceName;
-    QNetworkInterface		networkInterface;
+    lmcUdpNetwork			_udpNetwork;
+    lmcTcpNetwork			_tcpNetwork;
+    lmcWebNetwork			_webNetwork;
+    QTimer					_timer;
+    QString					_interfaceName;
+    QNetworkInterface		_networkInterface;
 };
 
 #endif // NETWORK_H

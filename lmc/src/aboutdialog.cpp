@@ -21,11 +21,12 @@
 **
 ****************************************************************************/
 
+#include "aboutdialog.h"
+#include "thememanager.h"
+#include "globals.h"
 
 #include <QDesktopWidget>
 #include <QFile>
-#include "aboutdialog.h"
-#include "thememanager.h"
 
 //	constructor
 lmcAboutDialog::lmcAboutDialog(QWidget *parent, Qt::WindowFlags flags) : QDialog(parent, flags) {
@@ -48,7 +49,6 @@ lmcAboutDialog::~lmcAboutDialog() {
 void lmcAboutDialog::init() {
     setWindowIcon(QIcon(ThemeManager::getInstance().getAppIcon(QStringLiteral("messenger"))));
 
-    pSettings = new lmcSettings();
     setUIText();
 
     ui.tabWidget->setCurrentIndex(0);
@@ -67,6 +67,37 @@ void lmcAboutDialog::changeEvent(QEvent* pEvent) {
     }
 
     QDialog::changeEvent(pEvent);
+}
+
+void lmcAboutDialog::moveEvent(QMoveEvent *event)
+{
+    if (!Globals::getInstance().windowSnapping()) {
+        QWidget::moveEvent(event);
+        return;
+    }
+
+    const QRect screen = QApplication::desktop()->availableGeometry(this);
+
+    bool windowSnapped = false;
+
+    if (std::abs(frameGeometry().left() - screen.left()) < 25) {
+        move(screen.left(), frameGeometry().top());
+        windowSnapped = true;
+    } else if (std::abs(screen.right() - frameGeometry().right()) < 25) {
+        move((screen.right() - frameGeometry().width() + 1), frameGeometry().top());
+        windowSnapped = true;
+    }
+
+    if (std::abs(frameGeometry().top() - screen.top()) < 25) {
+        move(frameGeometry().left(), screen.top());
+        windowSnapped = true;
+    } else if (std::abs(screen.bottom() - frameGeometry().bottom()) < 25) {
+        move(frameGeometry().left(), (screen.bottom() - frameGeometry().height() + 1));
+        windowSnapped = true;
+    }
+
+    if (!windowSnapped)
+        QWidget::moveEvent(event);
 }
 
 void lmcAboutDialog::setUIText() {

@@ -36,63 +36,48 @@ const qint64 bufferSize = 65535;
 FileSender::FileSender() {
 }
 
-FileSender::FileSender(const QString &szId, const QString &szLocalId, const QString &szPeerId, const QString &szPeerName, const QString &szFilePath,
-    const QString &szFileName, qint64 nFileSize, const QString &szAddress, int nPort, const FileType &nType) {
-
-        id = szId;
-        localId = szLocalId;
-        peerId = szPeerId;
-        peerName = szPeerName;
-        filePath = szFilePath;
-        fileName = szFileName;
-        fileSize = nFileSize;
-        address = szAddress;
-        port = nPort;
-        active = false;
-        mile = fileSize / 36;
-        milestone = mile;
-        file = NULL;
-        socket = NULL;
-        timer = NULL;
-        type = nType;
+FileSender::FileSender(const QString &id, const QString &localId, const QString &peerId, const QString &peerName, const QString &filePath,
+    const QString &fileName, qint64 fileSize, const QString &address, int port, const FileType &type) : id(id), peerId(peerId), peerName(peerName), type(type), _localId(localId), _filePath(filePath), _fileName(fileName), _fileSize(fileSize), _address(address), _port(port) {
+        _mile = fileSize / 36;
+        _milestone = _mile;
+        _socket.setParent(this);
+        _timer.setParent(this);
 }
 
 FileSender::~FileSender() {
 }
 
 void FileSender::init() {
-    socket = new QTcpSocket(this);
-    connect(socket, &QTcpSocket::connected, this, &FileSender::connected);
-    connect(socket, &QTcpSocket::disconnected, this, &FileSender::disconnected);
-    connect(socket, &QTcpSocket::readyRead, this, &FileSender::readyRead);
-    connect(socket, &QTcpSocket::bytesWritten, this, &FileSender::bytesWritten);
+    connect(&_socket, &QTcpSocket::connected, this, &FileSender::connected);
+    connect(&_socket, &QTcpSocket::disconnected, this, &FileSender::disconnected);
+    connect(&_socket, &QTcpSocket::readyRead, this, &FileSender::readyRead);
+    connect(&_socket, &QTcpSocket::bytesWritten, this, &FileSender::bytesWritten);
 
-    QHostAddress hostAddress(address);
-    socket->connectToHost(hostAddress, port);
+    QHostAddress hostAddress(_address);
+    _socket.connectToHost(hostAddress, _port);
 }
 
 void FileSender::stop() {
-    active = false;
+    _active = false;
 
-    if(timer)
-        timer->stop();
-    if(file && file->isOpen())
-        file->close();
-    if(socket && socket->isOpen())
-        socket->close();
+    _timer.stop();
+    if(_file.isOpen())
+        _file.close();
+    if(_socket.isOpen())
+        _socket.close();
 }
 
 void FileSender::connected() {
-    QByteArray data = QString("FILE%0%1").arg(id, localId).toLocal8Bit();	// insert indicator that this socket handles file transfer
+    QByteArray data = QString("FILE%0%1").arg(id, _localId).toLocal8Bit();	// insert indicator that this socket handles file transfer
     //	send an id message and then wait for a START message
     //	from receiver, which will trigger readyRead signal
-    socket->write(data);
+    _socket.write(data);
 }
 
 void FileSender::disconnected() {
-    if(active) {
+    if(_active) {
         QString data;
-        emit progressUpdated(FM_Send, FO_Error, type, &id, &peerId, &peerName, &data);
+        emit progressUpdated(FM_Send, FO_Error, type, id, peerId, peerName, data);
     }
 }
 
@@ -102,61 +87,54 @@ void FileSender::readyRead() {
 }
 
 void FileSender::timer_timeout() {
-    if(!active)
+    if(!_active)
         return;
 
-    QString transferred = QString::number(file->pos());
-    emit progressUpdated(FM_Send, FO_Progress, type, &id, &peerId, &peerName, &transferred);
+    QString transferred = QString::number(_file.pos());
+    emit progressUpdated(FM_Send, FO_Progress, type, id, peerId, peerName, transferred);
 }
 
 void FileSender::bytesWritten(qint64 bytes) {
     Q_UNUSED(bytes);
 
-    if(!active)
+    if(!_active)
         return;
 
-    qint64 unsentBytes = fileSize - file->pos();
+    qint64 unsentBytes = _fileSize - _file.pos();
 
     if(unsentBytes == 0) {
-        active = false;
-        file->close();
-        socket->close();
-        emit progressUpdated(FM_Send, FO_Complete, type, &id, &peerId, &peerName, &filePath);
+        _active = false;
+        _file.close();
+        _socket.close();
+        emit progressUpdated(FM_Send, FO_Complete, type, id, peerId, peerName, _filePath);
         return;
     }
 
     qint64 bytesToSend = (bufferSize < unsentBytes) ? bufferSize : unsentBytes;
-    qint64 bytesRead = file->read(buffer, bytesToSend);
-    socket->write(buffer, bytesRead);
-
-//	if(file->pos() > milestone) {
-//		QString transferred = QString::number(file->pos());
-//		emit progressUpdated(FM_Send, FO_Progress, type, &id, &peerId, &transferred);
-//		milestone += mile;
-//	}
+    qint64 bytesRead = _file.read(_buffer, bytesToSend);
+    _socket.write(_buffer, bytesRead);
 }
 
 void FileSender::sendFile() {
-    LoggerManager::getInstance().writeInfo(QString("MsgStream.sendFile started -|- Sending file to %1 (%2) on %3").arg(peerId, peerName, address));
+    LoggerManager::getInstance().writeInfo(QString("MsgStream.sendFile started -|- Sending file to %1 (%2) on %3").arg(peerId, peerName, _address));
 
-    file = new QFile(filePath);
+    _file.setFileName(_filePath);
 
-    if(file->open(QIODevice::ReadOnly)) {
-        buffer = new char[bufferSize];
-        active = true;
+    if(_file.open(QIODevice::ReadOnly)) {
+        _buffer = new char[bufferSize];
+        _active = true;
 
-        timer = new QTimer(this);
-        connect(timer, &QTimer::timeout, this, &FileSender::timer_timeout);
-        timer->start(PROGRESS_TIMEOUT);
+        connect(&_timer, &QTimer::timeout, this, &FileSender::timer_timeout);
+        _timer.start(PROGRESS_TIMEOUT);
 
-        qint64 unsentBytes = fileSize - file->pos();
+        qint64 unsentBytes = _fileSize - _file.pos();
         qint64 bytesToSend = (bufferSize < unsentBytes) ? bufferSize : unsentBytes;
-        qint64 bytesRead = file->read(buffer, bytesToSend);
-        socket->write(buffer, bytesRead);
+        qint64 bytesRead = _file.read(_buffer, bytesToSend);
+        _socket.write(_buffer, bytesRead);
     } else {
-        socket->close();
+        _socket.close();
         QString data;
-        emit progressUpdated(FM_Send, FO_Error, type, &id, &peerId, &peerName, &data);
+        emit progressUpdated(FM_Send, FO_Error, type, id, peerId, peerName, data);
     }
 
     LoggerManager::getInstance().writeInfo(QStringLiteral("MsgStream.sendFile ended"));
@@ -168,81 +146,67 @@ void FileSender::sendFile() {
 ** Description: Handles receiving files.
 ****************************************************************************/
 FileReceiver::FileReceiver() {
+    _timer.setParent(this);
 }
 
-FileReceiver::FileReceiver(const QString &szId, const QString &szPeerId, const QString &szPeerName, const QString &szFilePath, const QString &szFileName,
-    qint64 nFileSize, const QString &szAddress, int nPort, const FileType &nType) {
+FileReceiver::FileReceiver(const QString &id, const QString &peerId, const QString &peerName, const QString &filePath, const QString &fileName,
+                           qint64 fileSize, const QString &address, int port, const FileType &type) : id(id), peerId(peerId), peerName(peerName), type(type), _filePath(filePath), _fileName(fileName), _fileSize(fileSize), _address(address), _port(port) {
+    _mile = fileSize / 36;
+    _milestone = _mile;
 
-        id = szId;
-        peerId = szPeerId;
-        peerName = szPeerName;
-        filePath = szFilePath;
-        fileName = szFileName;
-        fileSize = nFileSize;
-        address = szAddress;
-        port = nPort;
-        active = false;
-        mile = fileSize / 36;
-        milestone = mile;
-        file = NULL;
-        socket = NULL;
-        timer = NULL;
-        type = nType;
-        lastPosition = 0;
-        numTimeOuts = 0;
+    _timer.setParent(this);
 }
 
 FileReceiver::~FileReceiver() {
 }
 
-void FileReceiver::init(QTcpSocket* socket) {
-    this->socket = socket;
-    connect(socket, &QTcpSocket::disconnected, this, &FileReceiver::disconnected);
-    connect(this->socket, &QTcpSocket::readyRead, this, &FileReceiver::readyRead);
+void FileReceiver::init(QTcpSocket *socket) {
+    _socket = socket;
+    connect(_socket, &QTcpSocket::disconnected, this, &FileReceiver::disconnected);
+    connect(_socket, &QTcpSocket::readyRead, this, &FileReceiver::readyRead);
 
     receiveFile();
     //	now send a START message to sender
-    socket->write("START");
+    _socket->write("START");
 }
 
 void FileReceiver::stop() {
     bool deleteFile = false;
 
-    active = false;
+    _active = false;
 
-    if(timer)
-        timer->stop();
-    if(file && file->isOpen()) {
-        deleteFile = (file->pos() < fileSize);
-        file->close();
+    _timer.stop();
+    if(_file.isOpen()) {
+        deleteFile = (_file.pos() < _fileSize);
+        _file.close();
     }
-    if(socket && socket->isOpen())
-        socket->close();
+    if(_socket->isOpen())
+        _socket->close();
 
     if(deleteFile)
-        QFile::remove(filePath);
+        QFile::remove(_filePath);
 }
 
 void FileReceiver::disconnected() {
-    if(active) {
+    if(_active) {
         QString data;
-        emit progressUpdated(FM_Receive, FO_Error, type, &id, &peerId, &peerName, &data);
+        emit progressUpdated(FM_Receive, FO_Error, type, id, peerId, peerName, data);
     }
 }
 
 void FileReceiver::readyRead() {
-    if(!active)
+    if(!_active)
         return;
 
-    qint64 bytesReceived = socket->read(buffer, bufferSize);
-    file->write(buffer, bytesReceived);
+    qint64 bytesReceived = _socket->read(_buffer, bufferSize);
+    _file.write(_buffer, bytesReceived);
 
-    qint64 unreceivedBytes = fileSize - file->pos();
+    qint64 unreceivedBytes = _fileSize - _file.pos();
     if(unreceivedBytes == 0) {
-        active = false;
-        file->close();
-        socket->close();
-        emit progressUpdated(FM_Receive, FO_Complete, type, &id, &peerId, &peerName, &filePath);
+        _active = false;
+        _file.close();
+        _socket->close();
+        emit progressUpdated(FM_Receive, FO_Complete, type, id, peerId, peerName, _filePath);
         return;
     }
 
@@ -254,45 +218,44 @@ void FileReceiver::readyRead() {
 }
 
 void FileReceiver::timer_timeout() {
-    if(!active)
+    if(!_active)
         return;
 
-    if(lastPosition < file->pos()) {
-        lastPosition = file->pos();
-        numTimeOuts = 0;
+    if(_lastPosition < _file.pos()) {
+        _lastPosition = _file.pos();
+        _numTimeOuts = 0;
     } else {
-        numTimeOuts++;
-        if(numTimeOuts > 20) {
+        _numTimeOuts++;
+        if(_numTimeOuts > 20) {
             QString data;
-            emit progressUpdated(FM_Receive, FO_Error, type, &id, &peerId, &peerName, &data);
+            emit progressUpdated(FM_Receive, FO_Error, type, id, peerId, peerName, data);
             stop();
             return;
         }
     }
 
-    QString transferred = QString::number(file->pos());
-    emit progressUpdated(FM_Receive, FO_Progress, type, &id, &peerId, &peerName, &transferred);
+    QString transferred = QString::number(_file.pos());
+    emit progressUpdated(FM_Receive, FO_Progress, type, id, peerId, peerName, transferred);
 }
 
 void FileReceiver::receiveFile() {
-    LoggerManager::getInstance().writeInfo(QString("MsgStream.receiveFile started -|- Receiving file from %1 (%2) on %3").arg(peerId, peerName, address));
+    LoggerManager::getInstance().writeInfo(QString("MsgStream.receiveFile started -|- Receiving file from %1 (%2) on %3").arg(peerId, peerName, _address));
 
-    QDir dir = QFileInfo(filePath).dir();
+    QDir dir = QFileInfo(_filePath).dir();
     if(!dir.exists())
         dir.mkpath(dir.absolutePath());
 
-    file = new QFile(filePath);
+    _file.setFileName(_filePath);
 
-    if(file->open(QIODevice::WriteOnly)) {
-        buffer = new char[bufferSize];
-        active = true;
+    if(_file.open(QIODevice::WriteOnly)) {
+        _buffer = new char[bufferSize];
+        _active = true;
 
-        timer = new QTimer(this);
-        connect(timer, &QTimer::timeout, this, &FileReceiver::timer_timeout);
-        timer->start(PROGRESS_TIMEOUT);
+        connect(&_timer, &QTimer::timeout, this, &FileReceiver::timer_timeout);
+        _timer.start(PROGRESS_TIMEOUT);
     } else {
-        socket->close();
-        emit progressUpdated(FM_Receive, FO_Error, type, &id, &peerId, &peerName, &filePath);
+        _socket->close();
+        emit progressUpdated(FM_Receive, FO_Error, type, id, peerId, peerName, _filePath);
     }
 
     LoggerManager::getInstance().writeInfo(QStringLiteral("MsgStream.receiveFile ended"));
@@ -302,24 +265,6 @@ void FileReceiver::receiveFile() {
 ** Class: MsgStream
 ** Description: Handles transmission and reception of TCP streaming messages.
 ****************************************************************************/
-MsgStream::MsgStream() {
-    _socket = NULL;
-    reading = false;
-}
-
-MsgStream::MsgStream(QString szLocalId, QString szPeerId, QString szPeerAddress, int nPort) {
-    localId = szLocalId;
-    peerId = szPeerId;
-    peerAddress = szPeerAddress;
-    port = nPort;
-    _socket = NULL;
-    reading = false;
-    outDataLen = 0;
-    inDataLen = 0;
-}
-
-MsgStream::~MsgStream() {
-}
 
 void MsgStream::init() {
     LoggerManager::getInstance().writeInfo(QStringLiteral("MsgStream.init started"));
@@ -330,12 +275,12 @@ void MsgStream::init() {
     connect(_socket, &QTcpSocket::readyRead, this, &MsgStream::readyRead);
     connect(_socket, &QTcpSocket::bytesWritten, this, &MsgStream::bytesWritten);
 
-    QHostAddress hostAddress(peerAddress);
-    _socket->connectToHost(hostAddress, port);
-    LoggerManager::getInstance().writeInfo(QString("MsgStream.init ended -|- connected to %1 on %2").arg(hostAddress.toString(), QString::number(port)));
+    QHostAddress hostAddress(_peerAddress);
+    _socket->connectToHost(hostAddress, _port);
+    LoggerManager::getInstance().writeInfo(QString("MsgStream.init ended -|- connected to %1 on %2").arg(hostAddress.toString(), QString::number(_port)));
 }
 
-void MsgStream::init(QTcpSocket* socket) {
+void MsgStream::init(QTcpSocket *socket) {
     LoggerManager::getInstance().writeInfo(QStringLiteral("MsgStream.init started"));
 
     _socket = socket;
@@ -351,14 +296,14 @@ void MsgStream::stop() {
         _socket->close();
 }
 
-void MsgStream::sendMessage(QByteArray& data) {
-    outData.swap(data);
-    outData.prepend(QString("%1").arg(outData.length(), 10).toLocal8Bit());
-    outDataLen += outData.length();
+void MsgStream::sendMessage(QByteArray &data) {
+    _outData.swap(data);
+    _outData.prepend(QString("%1").arg(_outData.length(), 10).toLocal8Bit());
+    _outDataLen += _outData.length();
 
-    LoggerManager::getInstance().writeInfo(QString("MsgStream.sendMessage started -|- Writing %1 bytes: %2").arg(QString::number(outData.length()), outData.data()));
+    LoggerManager::getInstance().writeInfo(QString("MsgStream.sendMessage started -|- Writing %1 bytes: %2").arg(QString::number(_outData.length()), _outData.data()));
 
-    qint64 numBytesWritten = _socket->write(outData);
+    qint64 numBytesWritten = _socket->write(_outData);
     _socket->flush();
     if(numBytesWritten < 0)
         LoggerManager::getInstance().writeError(QStringLiteral("MsgStream.sendMessage -|- Socket write failed"));
@@ -369,12 +314,12 @@ void MsgStream::sendMessage(QByteArray& data) {
 void MsgStream::connected() {
     LoggerManager::getInstance().writeInfo(QStringLiteral("MsgStream.connected started"));
 
-    outData = QString("MSG%1").arg(localId).toLocal8Bit(); // insert indicator that this socket handles messages
-    outDataLen = outData.length();
+    _outData = QString("MSG%1").arg(_localId).toLocal8Bit(); // insert indicator that this socket handles messages
+    _outDataLen = _outData.length();
 
     //	send an id message and then wait for public key message
     //	from receiver, which will trigger readyRead signal
-    qint64 numBytesWritten = _socket->write(outData, outDataLen);
+    qint64 numBytesWritten = _socket->write(_outData, _outDataLen);
     if(numBytesWritten < 0)
          LoggerManager::getInstance().writeError(QStringLiteral("MsgStream.connected -|- Socket write failed"));
 
@@ -382,8 +327,8 @@ void MsgStream::connected() {
 }
 
 void MsgStream::disconnected() {
-    LoggerManager::getInstance().writeInfo(QString("MsgStream.disconnected -|- Connection to user %1 lost").arg(peerId));
-    emit connectionLost(&peerId);
+    LoggerManager::getInstance().writeInfo(QString("MsgStream.disconnected -|- Connection to user %1 lost").arg(_peerId));
+    emit connectionLost(_peerId);
 }
 
 void MsgStream::readyRead() {
@@ -391,35 +336,35 @@ void MsgStream::readyRead() {
 
     qint64 available = _socket->bytesAvailable();
     while(available > 0) {
-        if(!reading) {
-            reading = true;
+        if(!_reading) {
+            _reading = true;
             if (available > 10) {
                 QByteArray len = _socket->read(10);
                 LoggerManager::getInstance().writeInfo(QString("MsgStream.readyRead-|- reading input: %1").arg(len.data()));
 
-                inDataLen = len.toUInt();
+                _inDataLen = len.toUInt();
             } else
-                inDataLen = 0;
+                _inDataLen = 0;
 
-            inData.clear();
-            QByteArray data = _socket->read(inDataLen);
+            _inData.clear();
+            QByteArray data = _socket->read(_inDataLen);
             LoggerManager::getInstance().writeInfo(QString("MsgStream.readyRead-|- data: %1").arg(data.data()));
 
-            inData.append(data);
-            inDataLen -= data.length();
+            _inData.append(data);
+            _inDataLen -= data.length();
             available -= ((available > 10 ? 10 : available) +  data.length());
-            if(inDataLen == 0) {
-                reading = false;
-                emit messageReceived(&peerId, &peerAddress, inData);
+            if(_inDataLen == 0) {
+                _reading = false;
+                emit messageReceived(_peerId, _peerAddress, _inData);
             }
         } else {
-            QByteArray data = _socket->read(inDataLen);
-            inData.append(data);
-            inDataLen -= data.length();
+            QByteArray data = _socket->read(_inDataLen);
+            _inData.append(data);
+            _inDataLen -= data.length();
             available -= data.length();
-            if(inDataLen == 0) {
-                reading = false;
-                emit messageReceived(&peerId, &peerAddress, inData);
+            if(_inDataLen == 0) {
+                _reading = false;
+                emit messageReceived(_peerId, _peerAddress, _inData);
             }
         }
     }
@@ -428,19 +373,14 @@ void MsgStream::readyRead() {
 }
 
 void MsgStream::bytesWritten(qint64 bytes) {
-    outDataLen -= bytes;
-    if(outDataLen == 0){
+    _outDataLen -= bytes;
+    if(_outDataLen == 0){
         LoggerManager::getInstance().writeInfo(QStringLiteral("MsgStream.bytesWritten -|- Socket write operation completed"));
         return;
     }
 
-    if(outDataLen > 0)
-         LoggerManager::getInstance().writeWarning(QString("MsgStream.bytesWritten -|- Socket write operation not completed. Written %1 bytes out of %2 - error: %3").arg(QString::number(bytes), QString::number(outDataLen + bytes), QString::number(_socket->error())));
-    if(outDataLen < 0)
-        LoggerManager::getInstance().writeWarning(QString("MsgStream.bytesWritten -|- Socket write overrun. Written %1 bytes out of %2 - error: %3").arg(QString::number(bytes), QString::number(outDataLen + bytes), QString::number(_socket->error())));
-
-    //	TODO: handle situation when entire message is not written to stream in one write operation
-    //	The following code is not functional currently, hence commented out.
-    /*outData = outData.mid(outDataLen);
-    socket->write(outData);*/
+    if(_outDataLen > 0)
+         LoggerManager::getInstance().writeWarning(QString("MsgStream.bytesWritten -|- Socket write operation not completed. Written %1 bytes out of %2 - error: %3").arg(QString::number(bytes), QString::number(_outDataLen + bytes), QString::number(_socket->error())));
+    if(_outDataLen < 0)
+        LoggerManager::getInstance().writeWarning(QString("MsgStream.bytesWritten -|- Socket write overrun. Written %1 bytes out of %2 - error: %3").arg(QString::number(bytes), QString::number(_outDataLen + bytes), QString::number(_socket->error())));
 }

@@ -1,11 +1,11 @@
 ﻿/****************************************************************************
 **
 ** This file is part of LAN Messenger.
-** 
+**
 ** Copyright (c) 2010 - 2012 Qualia Digital Solutions.
-** 
+**
 ** Contact:  qualiatech@gmail.com
-** 
+**
 ** LAN Messenger is free software: you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation, either version 3 of the License, or
@@ -32,17 +32,17 @@
 
 enum DatagramHeaderMember
 {
-	DH_AppId = 0,
-	DH_Type,
-	DH_UserId,
-	DH_Max
+    DH_AppId = 0,
+    DH_Type,
+    DH_UserId,
+    DH_Max
 };
 
 class Datagram {
 public:
-	static void addHeader(DatagramType type, QByteArray& baData);
-	static bool getHeader(QByteArray& baDatagram, DatagramHeader** ppHeader);
-	static QByteArray getData(QByteArray& baDatagram);
+    static void addHeader(DatagramType type, QByteArray& baData);
+    static bool getHeader(const QByteArray &datagram, DatagramHeader &header);
+    static QByteArray getData(QByteArray& baDatagram);
 };
 
 #endif // DATAGRAM_H

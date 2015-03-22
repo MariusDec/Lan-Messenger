@@ -28,14 +28,14 @@
 #include "shared.h"
 #include "thememanager.h"
 
-lmcUpdateWindow::lmcUpdateWindow(QRect* pRect, QWidget *parent) : QWidget(parent), ui(new Ui::UpdateWindow) {
+lmcUpdateWindow::lmcUpdateWindow(const QRect &pRect, QWidget *parent) : QWidget(parent), ui(new Ui::UpdateWindow) {
     ui->setupUi(this);
     setProperty("isWindow", true);
 
     //	set fixed size
     layout()->setSizeConstraint(QLayout::SetFixedSize);
 
-    move(pRect->center() - rect().center());
+    move(pRect.center() - rect().center());
     QRect screenRect = QApplication::desktop()->screenGeometry();
     if(!screenRect.contains(geometry(), true)) {
         QRect windowRect = geometry();
@@ -75,12 +75,10 @@ void lmcUpdateWindow::init() {
 void lmcUpdateWindow::stop() {
 }
 
-void lmcUpdateWindow::receiveMessage(MessageType type, QString *lpszUserId, XmlMessage *pMessage) {
-    Q_UNUSED(lpszUserId);
-
+void lmcUpdateWindow::receiveMessage(MessageType type, const XmlMessage &message) {
     switch(type) {
     case MT_Version:
-        webVersion = pMessage->data(XN_VERSION);
+        webVersion = message.data(XN_VERSION);
         if(Helper::compareVersions(webVersion, QString(IDA_VERSION)) > 0)
             status = US_New;	// newer version available online
         else
@@ -144,7 +142,7 @@ void lmcUpdateWindow::checkForUpdates() {
     status = US_Check;
     setUIText();
 
-    emit messageSent(MT_Version, NULL, NULL);
+    emit messageSent(MT_Version, QString(), QString());
 }
 
 QString lmcUpdateWindow::getStatusMessage() {

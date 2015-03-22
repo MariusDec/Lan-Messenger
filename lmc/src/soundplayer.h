@@ -1,11 +1,11 @@
 ﻿/****************************************************************************
 **
 ** This file is part of LAN Messenger.
-** 
+**
 ** Copyright (c) 2010 - 2012 Qualia Digital Solutions.
-** 
+**
 ** Contact:  qualiatech@gmail.com
-** 
+**
 ** LAN Messenger is free software: you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation, either version 3 of the License, or
@@ -31,18 +31,15 @@
 
 class lmcSoundPlayer {
 public:
-	lmcSoundPlayer();
+    lmcSoundPlayer();
 
-	void play(SoundEvent event);
-	void settingsChanged();
+    void play(const SoundEvent &event);
+    void settingsChanged();
 
 private:
-	lmcSettings* pSettings;
-	int eventState[SE_Max];
-	QString sounds[SE_Max];
-	bool playSound;
-	bool noBusySound;
-	bool noDNDSound;
+    lmcSettings* pSettings;
+    int eventState[SE_Max];
+    QString sounds[SE_Max];
 };
 
 #endif // SOUNDPLAYER_H

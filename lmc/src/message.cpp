@@ -24,48 +24,41 @@
 #include "message.h"
 #include "loggermanager.h"
 
-QString Message::addHeader(MessageType type, qint64 id, QString* lpszLocalId, QString* lpszPeerId, XmlMessage* pMessage) {
-    if(!pMessage)
-        pMessage = new XmlMessage();
-
+QString Message::addHeader(MessageType type, qint64 id, const QString &localId, const QString &peerId, XmlMessage &message) {
     // remove time stamp from message
-    pMessage->removeHeader(XN_TIME);
+    message.removeHeader(XN_TIME);
 
-    pMessage->addHeader(XN_FROM, *lpszLocalId);
-    if(lpszPeerId)
-        pMessage->addHeader(XN_TO, *lpszPeerId);
-    pMessage->addHeader(XN_MESSAGEID, QString::number(id));
-    pMessage->addHeader(XN_TYPE, MessageTypeNames[type]);
+    message.addHeader(XN_FROM, localId);
+    if(!peerId.isEmpty())
+        message.addHeader(XN_TO, peerId);
+    message.addHeader(XN_MESSAGEID, QString::number(id));
+    message.addHeader(XN_TYPE, MessageTypeNames[type]);
 
-    return pMessage->toString();
+    return message.toString();
 }
 
-void Message::removeHeader(XmlMessage *pMessage) {
-    if (!pMessage)
-        return;
-
-    pMessage->removeHeader(XN_TIME);
-    pMessage->removeHeader(XN_FROM);
-    pMessage->removeHeader(XN_TO);
-    pMessage->removeHeader(XN_MESSAGEID);
-    pMessage->removeHeader(XN_TYPE);
+void Message::removeHeader(XmlMessage &message) {
+    message.removeHeader(XN_TIME);
+    message.removeHeader(XN_FROM);
+    message.removeHeader(XN_TO);
+    message.removeHeader(XN_MESSAGEID);
+    message.removeHeader(XN_TYPE);
 }
 
-bool Message::getHeader(QString* lpszMessage, MessageHeader** ppHeader, XmlMessage** ppMessage) {
-    *ppMessage = new XmlMessage(*lpszMessage);
-    if(!((*ppMessage)->isValid()))
+bool Message::getHeader(const QString &message, MessageHeader &header, XmlMessage &xmlMessage) {
+    xmlMessage.setContent(message);
+    if(!xmlMessage.isValid())
         return false;
 
     // add time stamp to message
-    (*ppMessage)->addHeader(XN_TIME, QString::number(QDateTime::currentDateTimeUtc().toMSecsSinceEpoch()));
+    xmlMessage.addHeader(XN_TIME, QString::number(QDateTime::currentDateTimeUtc().toMSecsSinceEpoch()));
 
-    int type = Helper::indexOf(MessageTypeNames, MT_Max, (*ppMessage)->header(XN_TYPE));
+    int type = Helper::indexOf(MessageTypeNames, MT_Max, xmlMessage.header(XN_TYPE));
     if(type < 0)
         return false;
 
-    *ppHeader = new MessageHeader(
-                    (MessageType)type,
-                    (*ppMessage)->header(XN_MESSAGEID).toLongLong(),
-                    (*ppMessage)->header(XN_FROM));
+    header.init((MessageType)type,
+                    xmlMessage.header(XN_MESSAGEID).toLongLong(),
+                    xmlMessage.header(XN_FROM));
     return true;
 }

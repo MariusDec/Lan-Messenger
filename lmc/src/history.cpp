@@ -23,7 +23,8 @@
 
 #include "history.h"
 #include "imageslist.h"
-#include "stdlocation.h"
+#include "globals.h"
+#include "loggermanager.h"
 
 #include <QFileInfo>
 #include <QDir>
@@ -34,11 +35,11 @@
 #include <QXmlSchema>
 
 QString History::historyFile(const QDate &date) {
-    return StdLocation::historyFile(date);
+    return Globals::getInstance().historyFile(date);
 }
 
 QString History::historyFilesDir() {
-    return StdLocation::historyFilesDir();
+    return Globals::getInstance().historySavePath();
 }
 
 void History::save(const QString &user, const QString &userId, const QDateTime &date, const QList<QString> &peersList, QList<SingleMessage> &messages, bool isBroadcast) {
@@ -69,7 +70,7 @@ void History::save(const QString &user, const QString &userId, const QDateTime &
                 }
                 ++peersInConversation;
             }
-        users = usersList.join(QStringList(", "));
+        users = usersList.join(", ");
     }
     else
         users = user;
@@ -98,14 +99,14 @@ void History::save(const QString &user, const QString &userId, const QDateTime &
     QFile file(path);
     if(file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         xml = file.readAll().trimmed();
-        writeRootTag = !xml.startsWith(QStringLiteral("<root>"));
+        writeRootTag = !xml.startsWith(QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
         file.setPermissions(QFile::WriteOwner); // make it writable
 
         file.close();
     }
 
     if (writeRootTag)
-        xml.prepend(QStringLiteral("<root>\n"));
+        xml.prepend(QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root>\n"));
     if (xml.endsWith(QStringLiteral("</root>")))
         xml.remove((xml.size() - 7), 7);
 
@@ -119,8 +120,6 @@ void History::save(const QString &user, const QString &userId, const QDateTime &
         QString msg;
         if (message.message.dataExists(XN_MESSAGE))
             msg = message.message.data(XN_MESSAGE);
-        else if (message.message.dataExists(XN_BROADCAST))
-            msg = message.message.data(XN_BROADCAST);
         else if (message.message.dataExists(XN_FILENAME))
             msg = message.message.data(XN_FILENAME);
 
@@ -138,10 +137,11 @@ void History::save(const QString &user, const QString &userId, const QDateTime &
     conversation.appendChild(htmlMessage);
 
     document.appendChild(conversation);
+    xml.append(QString("%1</root>").arg(document.toString()));
 
     if(file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
         QTextStream writer(&file);
-        xml.append(QString("%1</root>").arg(document.toString()));
+        writer.setCodec("UTF-8");
         writer << xml;
 
         file.setPermissions(QFile::ReadOwner|QFile::ExeOwner|QFile::ReadGroup|QFile::ExeGroup|QFile::ReadOther|QFile::ExeOther); // make it readonly
@@ -292,21 +292,56 @@ QString History::getHtmlFromMessages(const QList<SingleMessage> messageLog) {
     QDateTime time;
 
     QString html =
-        "<style type='text/css'>"\
-        "div.body_history {font-size: 9pt; -webkit-nbsp-mode: space; word-wrap: break-word; margin-left: 5px; margin-right: 5px;}"\
-        "span.salutation_history {font-size: 9pt; float:left; font-weight: bold;} span.time_history {font-size: 9pt; float: right;}"\
-        "span.message_history {font-size: 9pt; clear: both; display: block;} p.p_history {font-size: 9pt; border-bottom: 1px solid #CCC;}"\
+        "<style type='text/css'>"
+        "blockquote:before { "
+        "display: block; "
+        "height: 0; "
+        "content: \"“\"; "
+        "margin-left: -.85em; "
+        "font: italic 400%/1 Cochin,Georgia,\"Times New Roman\", serif; "
+        "color: #999; } "
+        "blockquote {"
+        "margin: 1.5em 0px .75em -1.5em; "
+        "box-shadow: 0 0 6px rgba(0,0,0,0.5); "
+        "padding: .75em .5em .75em 1em; "
+        "background: #fff; "
+        "border-left: 0.5em solid #DDD; "
+        "font-size: 1em; "
+        "line-height: 1.5; "
+        "border: 0; "
+        "outline: 0; "
+        "font: inherit; "
+        "vertical-align: baseline; "
+        "display: block; "
+        "-webkit-margin-before: 1em; "
+        "-webkit-margin-after: 1em; "
+        "-webkit-margin-start: 20px; "
+        "-webkit-margin-end: 2px; } "
+        "blockquote > blockquote:before { "
+        "display: none; } "
+        "blockquote > blockquote { "
+        "-webkit-margin-before: 0em; "
+        "-margin-after: 0em; "
+        "-webkit-margin-start: 0px; "
+        "-webkit-margin-en; "
+        "padding: 0em; "
+        "padding-left: 0.6em; "
+        "border: none; "
+        "padding-top: 1em; "
+        "margin-top: 1em; "
+        "border-top: 1px ridge #BBB; "
+        "box-shadow: none; } "
+        "div.body_history {font-size: 9pt; -webkit-nbsp-mode: space; word-wrap: break-word; margin-left: 5px; margin-right: 5px;}"
+        "span.salutation_history {font-size: 9pt; float:left; font-weight: bold;} span.time_history {font-size: 9pt; float: right;}"
+        "span.message_history {font-size: 9pt; clear: both; display: block;} p.p_history {font-size: 9pt; border-bottom: 1px solid #CCC;}"
         "</style><div class='body_history'>";
 
     for(int index = 0; index < messageLog.count(); index++) {
         SingleMessage msg = messageLog.at(index);
-        if(msg.type == MT_Message || msg.type == MT_GroupMessage || msg.type == MT_PublicMessage || msg.type == MT_Broadcast) {
+        if(msg.type == MT_Message || msg.type == MT_GroupMessage || msg.type == MT_PublicMessage || msg.type == MT_Broadcast || msg.type == MT_InstantMessage) {
             time.setMSecsSinceEpoch(msg.message.header(XN_TIME).toLongLong());
             QString messageText;
-            if (msg.type == MT_Broadcast)
-                messageText = msg.message.data(XN_BROADCAST);
-            else
-                messageText = msg.message.data(XN_MESSAGE);
+            messageText = msg.message.data(XN_MESSAGE);
 
             decodeMessage(messageText);
             QString htmlMsg =
@@ -334,16 +369,15 @@ void History::decodeMessage(QString &html) {
      html.replace(QRegExp("((\\\\\\\\[\\w-]+\\\\[^\\\\/:*?<>|""]+)((?:\\\\[^\\\\/:*?<>|""]+)*\\\\?)$)"),
                           "<a data-isLink='true' href='file:\\1'>\\1</a>");
 
-     lmcSettings settings;
-     QString erpAddress = settings.value(IDS_ERPADDRESS, IDS_ERPADDRESS_VAL).toString();
+     QString erpAddress = Globals::getInstance().erpAddress();
      if (!erpAddress.endsWith('/'))
          erpAddress.append('/');
 
      // replace ITx, COMMx, ATTx and VIDx with links
      html.replace(QRegExp("\\b(IT(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?IssueId=\\2' title='%1Pages/Issues/IssueDetail.aspx?IssueId=\\2'>\\1</a>").arg(erpAddress));
      html.replace(QRegExp("\\b(COMM(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?CommentId=\\2#COMMN\\2' title='%1erp/Pages/Issues/IssueDetail.aspx?CommentId=\\2#COMMN\\2'>\\1</a>").arg(erpAddress));
-     html.replace(QRegExp("\\b(ATT(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?VideoId=\\2' title='%1erp/Pages/Issues/IssueDetail.aspx?VideoId=\\2'>\\1</a>").arg(erpAddress));
-     html.replace(QRegExp("\\b(VID(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?AttachmentId=\\2' title='%1Pages/Issues/IssueDetail.aspx?AttachmentId=\\2'>\\1</a>").arg(erpAddress));
+     html.replace(QRegExp("\\b(VID(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?VideoId=\\2' title='%1erp/Pages/Issues/IssueDetail.aspx?VideoId=\\2'>\\1</a>").arg(erpAddress));
+     html.replace(QRegExp("\\b(ATT(\\d+))\\b", Qt::CaseInsensitive), QString("<a data-isLink='true' href='%1Pages/Issues/IssueDetail.aspx?AttachmentId=\\2' title='%1Pages/Issues/IssueDetail.aspx?AttachmentId=\\2'>\\1</a>").arg(erpAddress));
 
     QString message;
     int index = 0;
@@ -373,7 +407,7 @@ void History::decodeMessage(QString &html) {
 
 
 void History::processMessageText(QString &message) {
-    ChatHelper::makeHtmlSafe(message);
+    message = message.toHtmlEscaped();
 
     ChatHelper::decodeSmileys(message, ImagesList::getInstance().getSmileysRegex(), false);
     ChatHelper::decodeSmileys(message, ImagesList::getInstance().getEmojisRegex(), true);

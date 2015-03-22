@@ -52,7 +52,6 @@
 #define XN_ABOUT			"about"
 #define XN_THREAD			"thread"
 #define XN_MESSAGE			"message"
-#define XN_BROADCAST		"broadcast"
 #define XN_MODE				"mode"
 #define XN_FILEOP			"fileop"
 #define XN_FILETYPE			"filetype"
@@ -90,20 +89,20 @@ public:
 
     bool addHeader(const QString& nodeName, const QString& nodeValue);
     bool addData(const QString& nodeName, const QString& nodeValue);
-    QString header(const QString& nodeName);
-    QString data(const QString& nodeName);
+    QString header(const QString& nodeName) const;
+    QString data(const QString& nodeName) const;
     bool removeHeader(const QString& nodeName);
     bool removeData(const QString& nodeName);
-    bool headerExists(const QString& nodeName);
-    bool dataExists(const QString& nodeName);
-    XmlMessage clone();
-    bool isValid();
+    bool headerExists(const QString& nodeName) const;
+    bool dataExists(const QString& nodeName) const;
+    XmlMessage clone() const;
+    bool isValid() const;
 
 private:
     bool addXmlNode(const QString& parentNode, const QString& nodeName, const QString& nodeValue);
-    QString getXmlNode(const QString& parentNode, const QString& nodeName);
+    QString getXmlNode(const QString& parentNode, const QString& nodeName) const;
     bool removeXmlNode(const QString& parentNode, const QString& nodeName);
-    bool xmlNodeExists(const QString& parentNode, const QString& nodeName);
+    bool xmlNodeExists(const QString& parentNode, const QString& nodeName) const;
 };
 
 #endif // XMLMESSAGE_H

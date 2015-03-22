@@ -50,11 +50,11 @@ bool XmlMessage::addData(const QString& nodeName, const QString& nodeValue) {
     return addXmlNode(XN_BODY, nodeName, nodeValue);
 }
 
-QString XmlMessage::header(const QString& nodeName) {
+QString XmlMessage::header(const QString& nodeName) const {
     return getXmlNode(XN_HEAD, nodeName);
 }
 
-QString XmlMessage::data(const QString& nodeName) {
+QString XmlMessage::data(const QString& nodeName) const {
     return getXmlNode(XN_BODY, nodeName);
 }
 
@@ -66,21 +66,21 @@ bool XmlMessage::removeData(const QString& nodeName) {
     return removeXmlNode(XN_BODY, nodeName);
 }
 
-bool XmlMessage::headerExists(const QString& nodeName) {
+bool XmlMessage::headerExists(const QString& nodeName) const {
     return xmlNodeExists(XN_HEAD, nodeName);
 }
 
-bool XmlMessage::dataExists(const QString& nodeName) {
+bool XmlMessage::dataExists(const QString& nodeName) const {
     return xmlNodeExists(XN_BODY, nodeName);
 }
 
-XmlMessage XmlMessage::clone() {
+XmlMessage XmlMessage::clone() const {
     XmlMessage newMsg;
     newMsg.setContent(toString());
     return newMsg;
 }
 
-bool XmlMessage::isValid() {
+bool XmlMessage::isValid() const {
     QDomElement root = documentElement();
     if(root.isNull())
         return false;
@@ -108,7 +108,7 @@ bool XmlMessage::addXmlNode(const QString& parentNode, const QString& nodeName, 
     return true;
 }
 
-QString XmlMessage::getXmlNode(const QString& parentNode, const QString& nodeName) {
+QString XmlMessage::getXmlNode(const QString& parentNode, const QString& nodeName) const {
     QDomElement root = documentElement();
     if(root.isNull())
         return QString::null;
@@ -148,7 +148,7 @@ bool XmlMessage::removeXmlNode(const QString& parentNode, const QString& nodeNam
     return true;
 }
 
-bool XmlMessage::xmlNodeExists(const QString& parentNode, const QString& nodeName) {
+bool XmlMessage::xmlNodeExists(const QString& parentNode, const QString& nodeName) const {
     QDomElement root = documentElement();
     if(root.isNull())
         return false;

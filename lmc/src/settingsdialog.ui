@@ -256,6 +256,53 @@
                   </property>
                  </widget>
                 </item>
+                <item>
+                 <widget class="QCheckBox" name="checkBoxEnableSnap">
+                  <property name="text">
+                   <string>Enable window snapping</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="checkBoxRememberStatus">
+                  <property name="toolTip">
+                   <string>Unchecking this option sets the status to available when starting the application</string>
+                  </property>
+                  <property name="text">
+                   <string>Restore last used status when starting the application</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="label_3">
+                  <property name="styleSheet">
+                   <string notr="true">font-weight: bold;</string>
+                  </property>
+                  <property name="text">
+                   <string>Default new message action:</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QRadioButton" name="radioOpenConversation">
+                  <property name="styleSheet">
+                   <string notr="true">margin-left: 20px</string>
+                  </property>
+                  <property name="text">
+                   <string>Open conversation</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QRadioButton" name="radioSendInstantMessage">
+                  <property name="styleSheet">
+                   <string notr="true">margin-left: 20px</string>
+                  </property>
+                  <property name="text">
+                   <string>Send instant message</string>
+                  </property>
+                 </widget>
+                </item>
                </layout>
               </widget>
              </item>
@@ -320,16 +367,6 @@
                   </property>
                  </widget>
                 </item>
-                <item>
-                 <widget class="QCheckBox" name="checkBoxRememberStatus">
-                  <property name="toolTip">
-                   <string>Unchecking this option sets the status to available when starting the application</string>
-                  </property>
-                  <property name="text">
-                   <string>Restore last used status when starting the application</string>
-                  </property>
-                 </widget>
-                </item>
                </layout>
               </widget>
              </item>
@@ -351,6 +388,9 @@
                 </item>
                 <item row="1" column="1">
                  <widget class="ThemedComboBox" name="comboBoxLanguage">
+                  <property name="enabled">
+                   <bool>false</bool>
+                  </property>
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                     <horstretch>0</horstretch>
@@ -631,74 +671,32 @@
                </property>
                <layout class="QVBoxLayout" name="verticalLayout_12">
                 <item>
-                 <widget class="QRadioButton" name="radioButtonMessageTop">
+                 <widget class="QLabel" name="label">
+                  <property name="styleSheet">
+                   <string notr="true">font-weight: bold;</string>
+                  </property>
                   <property name="text">
-                   <string>Set incoming messages foreground</string>
+                   <string>New messages:</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QRadioButton" name="radioButtonMessageBottom">
-                  <property name="text">
-                   <string>Minimize incoming messages to taskbar</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="checkBoxPublicMessagePop">
+                 <widget class="QCheckBox" name="checkBoxMessageRaise">
                   <property name="styleSheet">
                    <string notr="true">margin-left: 20px</string>
                   </property>
                   <property name="text">
-                   <string>Apply to public messages</string>
+                   <string>Raise chat window when receiving messages</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QCheckBox" name="checkBoxEmoticon">
-                  <property name="text">
-                   <string>Show emoticons in instant messages</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="checkBoxMessageTime">
-                  <property name="text">
-                   <string>Add time stamp to instant messages</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="checkBoxMessageDate">
+                 <widget class="QCheckBox" name="checkBoxPublicMessageRaise">
                   <property name="styleSheet">
                    <string notr="true">margin-left: 20px</string>
                   </property>
                   <property name="text">
-                   <string>Show date in time stamp</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="checkBoxAllowLinks">
-                  <property name="text">
-                   <string>Allow hyperlinks in instant messages</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="checkBoxPathToLink">
-                  <property name="styleSheet">
-                   <string notr="true">margin-left: 20px</string>
-                  </property>
-                  <property name="text">
-                   <string>Convert network paths to links</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="checkBoxTrimMessage">
-                  <property name="text">
-                   <string>Remove whitespace from start and end of messages</string>
+                   <string>Show public chat window when receiving public messages</string>
                   </property>
                  </widget>
                 </item>
@@ -707,8 +705,98 @@
                   <property name="enabled">
                    <bool>true</bool>
                   </property>
+                  <property name="styleSheet">
+                   <string notr="true">margin-left: 20px</string>
+                  </property>
                   <property name="text">
                    <string>Append all day's chat history in new conversations</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="checkBoxReadNotifications">
+                  <property name="styleSheet">
+                   <string notr="true">margin-left: 20px</string>
+                  </property>
+                  <property name="text">
+                   <string>Do not send read notifications</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="label_2">
+                  <property name="styleSheet">
+                   <string notr="true">font-weight: bold;</string>
+                  </property>
+                  <property name="text">
+                   <string>Formatting:</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="checkBoxEmoticon">
+                  <property name="styleSheet">
+                   <string notr="true">margin-left: 20px</string>
+                  </property>
+                  <property name="text">
+                   <string>Show emoticons in instant messages</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="checkBoxMessageTime">
+                  <property name="styleSheet">
+                   <string notr="true">margin-left: 20px</string>
+                  </property>
+                  <property name="text">
+                   <string>Add time stamp to instant messages</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="checkBoxMessageDate">
+                  <property name="styleSheet">
+                   <string notr="true">margin-left: 40px</string>
+                  </property>
+                  <property name="text">
+                   <string>Show date in time stamp</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="checkBoxAllowLinks">
+                  <property name="styleSheet">
+                   <string notr="true">margin-left: 20px</string>
+                  </property>
+                  <property name="text">
+                   <string>Allow hyperlinks in instant messages</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="checkBoxPathToLink">
+                  <property name="styleSheet">
+                   <string notr="true">margin-left: 40px</string>
+                  </property>
+                  <property name="text">
+                   <string>Convert network paths to links</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="checkBoxTrimMessage">
+                  <property name="styleSheet">
+                   <string notr="true">margin-left: 20px</string>
+                  </property>
+                  <property name="text">
+                   <string>Remove whitespace from start and end of messages</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="checkBoxCharCount">
+                  <property name="text">
+                   <string>Show character count row in message window</string>
                   </property>
                  </widget>
                 </item>
@@ -2114,13 +2202,11 @@ border-radius: 4px</string>
   <tabstop>checkBoxSingleClickTray</tabstop>
   <tabstop>checkBoxSysTrayMsg</tabstop>
   <tabstop>checkBoxAllowSysTrayMin</tabstop>
-  <tabstop>radioButtonMessageTop</tabstop>
-  <tabstop>radioButtonMessageBottom</tabstop>
+  <tabstop>checkBoxMessageRaise</tabstop>
   <tabstop>checkBoxEmoticon</tabstop>
   <tabstop>checkBoxMessageTime</tabstop>
   <tabstop>checkBoxAllowLinks</tabstop>
   <tabstop>checkBoxTrimMessage</tabstop>
-  <tabstop>checkBoxAppendHistory</tabstop>
   <tabstop>checkBoxHistory</tabstop>
   <tabstop>radioButtonSysHistoryPath</tabstop>
   <tabstop>radioButtonCustomHistoryPath</tabstop>

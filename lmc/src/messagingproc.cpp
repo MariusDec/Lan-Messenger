@@ -26,71 +26,68 @@
 #include "stdlocation.h"
 
 //	A broadcast is to be sent
-void lmcMessaging::sendBroadcast(MessageType type, XmlMessage* pMessage) {
-    prepareBroadcast(type, pMessage);
+void lmcMessaging::sendBroadcast(MessageType type) {
+    prepareBroadcast(type);
 }
 
 //	A message is to be sent
-void lmcMessaging::sendMessage(MessageType type, QString* userId, XmlMessage* pMessage) {
+void lmcMessaging::sendMessage(MessageType type, const QString &userId, XmlMessage &message) {
     QString data = QString::null;
-    XmlMessage message;
 
     switch(type) {
     case MT_Group:
-        data = pMessage->data(XN_GROUP);
-        updateUser(type, *userId, data);
+        data = message.data(XN_GROUP);
+        updateUser(type, userId, data);
         break;
     case MT_Status:
-        if (userId)
-            prepareMessage(type, msgId, false, userId, pMessage);
+        if (!userId.isEmpty())
+            prepareMessage(type, msgId, false, userId, message);
         else
             for(int index = 0; index < userList.count(); index++)
-                prepareMessage(type, msgId, false, &userList[index].id, pMessage);
+                prepareMessage(type, msgId, false, userList[index].id, message);
         msgId++;
         break;
     case MT_UserName:
     case MT_Note:
     case MT_PublicMessage:
         for(int index = 0; index < userList.count(); index++)
-            prepareMessage(type, msgId, false, &userList[index].id, pMessage);
+            prepareMessage(type, msgId, false, userList[index].id, message);
         msgId++;
         break;
     case MT_GroupMessage:
-        if(userId)
-            prepareMessage(type, msgId, false, userId, pMessage);
+        if(!userId.isEmpty())
+            prepareMessage(type, msgId, false, userId, message);
         else {
             for(int index = 0; index < userList.count(); index++)
-                prepareMessage(type, msgId, false, &userList[index].id, pMessage);
+                prepareMessage(type, msgId, false, userList[index].id, message);
         }
         msgId++;
         break;
     case MT_Avatar:
         //	if user id is specified send to that user alone, else send to all
-        if(userId) {
-            prepareMessage(type, msgId, false, userId, pMessage);
+        if(!userId.isEmpty()) {
+            prepareMessage(type, msgId, false, userId, message);
         } else {
-            message = pMessage->clone();
-            emit messageReceived(MT_Avatar, &localUser->id, &message);
+            XmlMessage msg;
+            emit messageReceived(MT_Avatar, localUser->id, message);
             for(int index = 0; index < userList.count(); index++) {
-                message = pMessage->clone();
-                prepareMessage(type, msgId, false, &userList[index].id, &message);
+                msg.setContent(message.toString());
+                prepareMessage(type, msgId, false, userList[index].id, msg);
             }
         }
         msgId++;
         break;
     case MT_Version:
-        sendWebMessage(type, pMessage);
+        sendWebMessage(type);
         break;
     default:
-        prepareMessage(type, msgId, false, userId, pMessage);
+        prepareMessage(type, msgId, false, userId, message);
         msgId++;
         break;
     }
 }
 
-void lmcMessaging::sendWebMessage(MessageType type, XmlMessage *pMessage) {
-    Q_UNUSED(pMessage);
-
+void lmcMessaging::sendWebMessage(MessageType type) {
     LoggerManager::getInstance().writeInfo(QString("lmcMessaging.sendWebMessage started-|- Sending web message type %1").arg(QString::number(type)));
 
     QString szUrl;
@@ -98,7 +95,7 @@ void lmcMessaging::sendWebMessage(MessageType type, XmlMessage *pMessage) {
     switch(type) {
     case MT_Version:
         szUrl = QString(IDA_DOMAIN"/webservice.php?q=version&p=" IDA_PLATFORM);
-        pNetwork->sendWebMessage(&szUrl, NULL);
+        pNetwork->sendWebMessage(szUrl);
         break;
     default:
         break;
@@ -107,56 +104,56 @@ void lmcMessaging::sendWebMessage(MessageType type, XmlMessage *pMessage) {
 }
 
 //	A broadcast has been received
-void lmcMessaging::receiveBroadcast(DatagramHeader* pHeader, QString* lpszData) {
-    MessageHeader* pMsgHeader = NULL;
-    XmlMessage* pMessage = NULL;
-    if(!Message::getHeader(lpszData, &pMsgHeader, &pMessage)) {
-        LoggerManager::getInstance().writeWarning(QString("lmcMessaging.receiveWebMessage started -|- Broadcast header parse failed. Header: %1").arg(*lpszData));
+void lmcMessaging::receiveBroadcast(const DatagramHeader &header, const QString &data) {
+    MessageHeader messageHeader;
+    XmlMessage message;
+    if(!Message::getHeader(data, messageHeader, message)) {
+        LoggerManager::getInstance().writeWarning(QString("lmcMessaging.receiveWebMessage started -|- Broadcast header parse failed. Header: %1").arg(data));
         return;
     }
-    pMsgHeader->address = pHeader->address;
-    processBroadcast(pMsgHeader, pMessage);
+    messageHeader.address = header.address;
+    processBroadcast(messageHeader);
 }
 
 //	A message has been received
-void lmcMessaging::receiveMessage(DatagramHeader* pHeader, QString* lpszData) {
-    MessageHeader* pMsgHeader = NULL;
-    XmlMessage* pMessage = NULL;
-    if(!Message::getHeader(lpszData, &pMsgHeader, &pMessage)) {
-        LoggerManager::getInstance().writeWarning(QString("lmcMessaging.receiveMessage -|- Message header parse failed. Header: %1").arg(*lpszData));
+void lmcMessaging::receiveMessage(const DatagramHeader &header, const QString &data) {
+    MessageHeader messageHeader;
+    XmlMessage message;
+    if(!Message::getHeader(data, messageHeader, message)) {
+        LoggerManager::getInstance().writeWarning(QString("lmcMessaging.receiveMessage -|- Message header parse failed. Header: %1").arg(data));
         return;
     }
-    pMsgHeader->address = pHeader->address;
-    processMessage(pMsgHeader, pMessage);
+    messageHeader.address = header.address;
+    processMessage(messageHeader, message);
 }
 
 //	A web message has been received
-void lmcMessaging::receiveWebMessage(QString *lpszData) {
-    MessageHeader* pMsgHeader = NULL;
-    XmlMessage* pMessage = NULL;
-    if(!Message::getHeader(lpszData, &pMsgHeader, &pMessage)) {
-        LoggerManager::getInstance().writeWarning(QString("lmcMessaging.receiveWebMessage started -|- Web message header parse failed. Header: %1").arg(*lpszData));
+void lmcMessaging::receiveWebMessage(const QString &data) {
+    MessageHeader messageHeader;
+    XmlMessage message;
+    if(!Message::getHeader(data, messageHeader, message)) {
+        LoggerManager::getInstance().writeWarning(QString("lmcMessaging.receiveWebMessage started -|- Web message header parse failed. Header: %1").arg(data));
         return;
     }
 
-    processWebMessage(pMsgHeader, pMessage);
+    processWebMessage(messageHeader, message);
 }
 
 //	Handshake procedure has been completed
-void lmcMessaging::newConnection(QString* lpszUserId, QString* lpszAddress) {
-    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.newConnection started -|- Connection completed with user %1 at %2").arg(*lpszUserId, *lpszAddress));
-    sendUserData(MT_UserData, QO_Get, lpszUserId, lpszAddress);
+void lmcMessaging::newConnection(QString userId, QString address) {
+    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.newConnection started -|- Connection completed with user %1 at %2").arg(userId, address));
+    sendUserData(MT_UserData, QO_Get, userId);
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.newConnection ended"));
 }
 
-void lmcMessaging::connectionLost(QString* lpszUserId) {
-    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.connectionLost started -|- Connection to user %1 lost").arg(*lpszUserId));
-    removeUser(*lpszUserId);
+void lmcMessaging::connectionLost(QString userId) {
+    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.connectionLost started -|- Connection to user %1 lost").arg(userId));
+    removeUser(userId);
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.connectionLost ended"));
 }
 
-void lmcMessaging::sendUserData(MessageType type, QueryOp op, QString* lpszUserId, QString* lpszAddress) {
-    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.sendUserData started -|- Sending local user details to user %1 at %2").arg(*lpszUserId, *lpszAddress));
+void lmcMessaging::sendUserData(MessageType type, QueryOp op, const QString &userId) {
+    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.sendUserData started -|- Sending local user details to user %1 at %2").arg(userId));
 
     XmlMessage xmlMessage;
     xmlMessage.addData(XN_USERID, localUser->id);
@@ -168,15 +165,14 @@ void lmcMessaging::sendUserData(MessageType type, QueryOp op, QString* lpszUserI
     xmlMessage.addData(XN_USERCAPS, QString::number(localUser->caps));
     xmlMessage.addData(XN_HOST, localUser->hostName);
     xmlMessage.addData(XN_QUERYOP, QueryOpNames[op]);
-    QString szMessage = Message::addHeader(type, msgId, &localUser->id, lpszUserId, &xmlMessage);
-    pNetwork->sendMessage(lpszUserId, lpszAddress, &szMessage);
+
+    QString messageToSend = Message::addHeader(type, msgId, localUser->id, userId, xmlMessage);
+    pNetwork->sendMessage(userId, messageToSend);
 
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.sendUserData ended"));
 }
 
-void lmcMessaging::prepareBroadcast(MessageType type, XmlMessage* pMessage) {
-    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.prepareBroadcast started -|- Sending broadcast type %1").arg(type));
-
+void lmcMessaging::prepareBroadcast(MessageType type) {
     if(!isConnected()) {
         LoggerManager::getInstance().writeWarning(QStringLiteral("lmcMessaging.prepareBroadcast -|- Not connected. Broadcast not sent"));
         return;
@@ -186,15 +182,13 @@ void lmcMessaging::prepareBroadcast(MessageType type, XmlMessage* pMessage) {
         return;
     }
 
-    Message::removeHeader(pMessage);
-    QString szMessage = Message::addHeader(type, msgId, &localUser->id, NULL, pMessage);
-    pNetwork->sendBroadcast(&szMessage);
-
-    LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.prepareBroadcast ended"));
+    XmlMessage message;
+    QString messageToSend = Message::addHeader(type, msgId, localUser->id, QString::null, message);
+    pNetwork->sendBroadcast(messageToSend);
 }
 
 //	This method converts a Message from ui layer to a Datagram that can be passed to network layer
-void lmcMessaging::prepareMessage(MessageType type, qint64 msgId, bool retry, QString* lpszUserId, XmlMessage *pMessage) {
+void lmcMessaging::prepareMessage(MessageType type, qint64 msgId, bool retry, const QString &userId, XmlMessage &message) {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.prepareMessage started"));
 
     if(!isConnected()) {
@@ -205,181 +199,178 @@ void lmcMessaging::prepareMessage(MessageType type, qint64 msgId, bool retry, QS
         LoggerManager::getInstance().writeWarning(QStringLiteral("lmcMessaging.prepareMessage -|- Local user not initialized. Message not sent"));
         return;
     }
-    if(!lpszUserId) {
+    if(userId.isEmpty()) {
         LoggerManager::getInstance().writeWarning(QStringLiteral("lmcMessaging.prepareMessage -|- No receiver user specified. Message not sent"));
         return;
     }
 
-    User* receiver = getUser(lpszUserId);
+    User *receiver = getUser(userId);
 
     switch(type) {
     case MT_Status:
-        if (!pMessage->dataExists(XN_STATUS))
-            pMessage->addData(XN_STATUS, localUser->status); // TODO!!! revise all this functionality with MT_STATUS
+        if (!message.dataExists(XN_STATUS))
+            message.addData(XN_STATUS, localUser->status);
         break;
     case MT_UserName:
-        if (!pMessage->dataExists(XN_NAME))
-            pMessage->addData(XN_NAME, localUser->name);
+        if (!message.dataExists(XN_NAME))
+            message.addData(XN_NAME, localUser->name);
         break;
     case MT_Note:
-        if (!pMessage->dataExists(XN_NOTE))
-            pMessage->addData(XN_NOTE, localUser->note);
+        if (!message.dataExists(XN_NOTE))
+            message.addData(XN_NOTE, localUser->note);
         break;
     case MT_Message:
         if(!receiver) {
-            emit messageReceived(MT_Failed, lpszUserId, pMessage);
+            emit messageReceived(MT_Failed, userId, message);
             break;
         }
         //	add message to pending list
         if(!retry)
-            addPendingMsg(msgId, MT_Message, lpszUserId, pMessage);
+            addPendingMsg(msgId, MT_Message, userId, message);
         break;
     case MT_GroupMessage:
-        break;
     case MT_PublicMessage:
-        break;
     case MT_Broadcast:
-        break;
+    case MT_InstantMessage:
     case MT_Acknowledge:
         break;
     case MT_Query:
         //	if its a 'get' query add message to pending list
-        if(pMessage->data(XN_QUERYOP) == QueryOpNames[QO_Get] && !retry)
-            addPendingMsg(msgId, MT_Query, lpszUserId, pMessage);
-        else if(pMessage->data(XN_QUERYOP) == QueryOpNames[QO_Result])
-            getUserInfo(pMessage);
+        if(message.data(XN_QUERYOP) == QueryOpNames[QO_Get] && !retry)
+            addPendingMsg(msgId, MT_Query, userId, message); // sendUserData(MessageType type, QueryOp op, const QString &userId)
+        else if(message.data(XN_QUERYOP) == QueryOpNames[QO_Result])
+            getUserInfo(message);
         break;
     case MT_ChatState:
         break;
     case MT_File:
     case MT_Avatar:
-        prepareFile(type, msgId, retry, lpszUserId, pMessage);
+        prepareFile(userId, message);
         break;
     case MT_Folder:
-        prepareFolder(type, msgId, retry, lpszUserId, pMessage);
+        prepareFolder(userId, message);
         break;
     default:
         break;
     }
 
     if(!receiver) {
-        LoggerManager::getInstance().writeWarning(QString("lmcMessaging.prepareMessage -|- Recipient %1 not found. Message not sent").arg(lpszUserId ? *lpszUserId : "(null)"));
+        LoggerManager::getInstance().writeWarning(QString("lmcMessaging.prepareMessage -|- Recipient %1 not found. Message not sent").arg(userId));
         return;
     }
 
     LoggerManager::getInstance().writeInfo(QString("lmcMessaging.prepareMessage -|- Sending message type %1 (%2) to user %3 at %4").arg(QString::number(type), MessageTypeNames[type], receiver->id, receiver->address));
 
-    Message::removeHeader(pMessage);
-    QString szMessage = Message::addHeader(type, msgId, &localUser->id, lpszUserId, pMessage);
-    pNetwork->sendMessage(&receiver->id, &receiver->address, &szMessage);
+    Message::removeHeader(message);
+    QString messageToSend = Message::addHeader(type, msgId, localUser->id, userId, message);
+    pNetwork->sendMessage(receiver->id, messageToSend);
 
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.prepareMessage ended"));
 }
 
 //	This method converts a Datagram from network layer to a Message that can be passed to ui layer
-void lmcMessaging::processBroadcast(MessageHeader* pHeader, XmlMessage* pMessage) {
-    Q_UNUSED(pMessage);
-
-    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.processBroadcast started -|- Processing broadcast type %1 from user %2").arg(QString::number(pHeader->type), pHeader->userId));
-
+void lmcMessaging::processBroadcast(const MessageHeader &header) {
     //	do not process broadcasts from local user unless loopback is specified in command line
-    if(!loopback && pHeader->userId.compare(localUser->id) == 0)
+    if(!loopback && header.userId.compare(localUser->id) == 0)
         return;
 
-    switch(pHeader->type) {
+    switch(header.type) {
     case MT_Announce:
-        if(!getUser(&pHeader->userId))
-            pNetwork->addConnection(&pHeader->userId, &pHeader->address);
+        if(!getUser(header.userId))
+            pNetwork->addConnection(header.userId, header.address);
         break;
     case MT_Depart:
-        removeUser(pHeader->userId);
+        removeUser(header.userId);
         break;
     default:
         break;
     }
-
-    LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.processBroadcast ended"));
 }
 
-void lmcMessaging::processMessage(MessageHeader* pHeader, XmlMessage* pMessage) {
+void lmcMessaging::processMessage(const MessageHeader &header, XmlMessage &message) {
     QString msgId;
     QString data = QString::null;
     XmlMessage reply;
 
-    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.processMessage started -|- Processing message type %1 (%2) from user %3").arg(QString::number(pHeader->type), ((pHeader->type >= 0) ? MessageTypeNames[pHeader->type] : ""), pHeader->userId));
+    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.processMessage started -|- Processing message type %1 (%2) from user %3").arg(QString::number(header.type), ((header.type >= 0) ? MessageTypeNames[header.type] : ""), header.userId));
 
-    switch(pHeader->type) {
+    switch(header.type) {
     case MT_UserData:
-        if(pMessage->data(XN_QUERYOP) == QueryOpNames[QO_Get])
-            sendUserData(pHeader->type, QO_Result, &pHeader->userId, &pHeader->address);
+        if(message.data(XN_QUERYOP) == QueryOpNames[QO_Get])
+            sendUserData(header.type, QO_Result, header.userId);
         //	add the user only after sending back user data, this way both parties will have added each other
-        addUser(pMessage->data(XN_USERID), pMessage->data(XN_VERSION), pMessage->data(XN_ADDRESS),
-            pMessage->data(XN_NAME), pMessage->data(XN_STATUS), pMessage->data(XN_AVATAR), pMessage->data(XN_NOTE),
-            pMessage->data(XN_USERCAPS), pMessage->data(XN_HOST));
+        addUser(message.data(XN_USERID), message.data(XN_VERSION), message.data(XN_ADDRESS),
+            message.data(XN_NAME), message.data(XN_STATUS), message.data(XN_AVATAR), message.data(XN_NOTE),
+            message.data(XN_USERCAPS), message.data(XN_HOST));
         break;
     case MT_Broadcast:
-        emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
+    case MT_InstantMessage:
+        emit messageReceived(header.type, header.userId, message);
         break;
     case MT_Status:
-        data = pMessage->data(XN_STATUS);
-        updateUser(pHeader->type, pHeader->userId, data);
+        data = message.data(XN_STATUS);
+        updateUser(header.type, header.userId, data);
         break;
     case MT_UserName:
-        data = pMessage->data(XN_NAME);
-        updateUser(pHeader->type, pHeader->userId, data);
+        data = message.data(XN_NAME);
+        updateUser(header.type, header.userId, data);
         break;
     case MT_Note:
-        data = pMessage->data(XN_NOTE);
-        updateUser(pHeader->type, pHeader->userId, data);
+        data = message.data(XN_NOTE);
+        updateUser(header.type, header.userId, data);
         break;
     case MT_Message:
         //	add message to received message list
-        if(addReceivedMsg(pHeader->id, pHeader->userId)) {
-            emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
+        if(addReceivedMsg(header.id, header.userId)) {
+            emit messageReceived(header.type, header.userId, message);
         }
+
         //	send an acknowledgement
-        msgId = QString::number(pHeader->id);
+        msgId = QString::number(header.id);
         reply.addData(XN_MESSAGEID, msgId);
-        sendMessage(MT_Acknowledge, &pHeader->userId, &reply);
+        sendMessage(MT_Acknowledge, header.userId, reply);
         break;
     case MT_GroupMessage:
     case MT_UserList:
-        emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
+        emit messageReceived(header.type, header.userId, message);
         break;
     case MT_PublicMessage:
-        emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
+        emit messageReceived(header.type, header.userId, message);
         break;
     case MT_Query:
         //	send a reply cum acknowledgement if its a 'get' query
-        if(pMessage->data(XN_QUERYOP) == QueryOpNames[QO_Get]) {
-            msgId = QString::number(pHeader->id);
+        if(message.data(XN_QUERYOP) == QueryOpNames[QO_Get]) {
+            msgId = QString::number(header.id);
             reply.addData(XN_MESSAGEID, msgId);
             reply.addData(XN_QUERYOP, QueryOpNames[QO_Result]);
-            sendMessage(pHeader->type, &pHeader->userId, &reply);
-        } else if(pMessage->data(XN_QUERYOP) == QueryOpNames[QO_Result]) {
-            msgId = pMessage->data(XN_MESSAGEID);
+            sendMessage(header.type, header.userId, reply);
+        } else if(message.data(XN_QUERYOP) == QueryOpNames[QO_Result]) {
+            msgId = message.data(XN_MESSAGEID);
             removePendingMsg(msgId.toLongLong());
+
             //  Add the path to the user's avatar image stored locally
-            data = "avt_" + pHeader->userId + ".png";
+            data = "avt_" + header.userId + ".png";
             data = QDir(StdLocation::getCacheDir()).absoluteFilePath(data);
-            pMessage->addData(XN_AVATAR, data);
-            emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
+
+            reply.setContent(message.toString());
+            reply.addData(XN_AVATAR, data);
+            emit messageReceived(header.type, header.userId, reply);
         }
         break;
     case MT_ChatState:
-        emit messageReceived(pHeader->type, &pHeader->userId, pMessage);
+        emit messageReceived(header.type, header.userId, message);
         break;
     case MT_Acknowledge:
         //	remove message from pending list
-        msgId = pMessage->data(XN_MESSAGEID);
+        msgId = message.data(XN_MESSAGEID);
         removePendingMsg(msgId.toLongLong());
         break;
     case MT_File:
     case MT_Avatar:
-        processFile(pHeader, pMessage);
+        processFile(header, message);
         break;
     case MT_Folder:
-        processFolder(pHeader, pMessage);
+        processFolder(header, message);
         break;
     default:
         break;
@@ -388,19 +379,15 @@ void lmcMessaging::processMessage(MessageHeader* pHeader, XmlMessage* pMessage) 
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.processMessage ended"));
 }
 
-void lmcMessaging::processWebMessage(MessageHeader* pHeader, XmlMessage *pMessage) {
-    LoggerManager::getInstance().writeInfo(QString("lmcMessaging.processWebMessage started -|- Processing web message type %1").arg(pHeader->type));
-
-    switch(pHeader->type) {
+void lmcMessaging::processWebMessage(const MessageHeader &header, const XmlMessage &message) {
+    switch(header.type) {
     case MT_Version:
-        emit messageReceived(pHeader->type, NULL, pMessage);
+        emit messageReceived(header.type, QString::null, message);
         break;
     case MT_WebFailed:
-        emit messageReceived(pHeader->type, NULL, pMessage);
+        emit messageReceived(header.type, QString::null, message);
         break;
     default:
         break;
     }
-
-    LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.processWebMessage ended"));
 }
