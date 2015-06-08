@@ -306,7 +306,7 @@ void MsgStream::sendMessage(QByteArray &data) {
     qint64 numBytesWritten = _socket->write(_outData);
     _socket->flush();
     if(numBytesWritten < 0)
-        LoggerManager::getInstance().writeError(QStringLiteral("MsgStream.sendMessage -|- Socket write failed"));
+        LoggerManager::getInstance().writeError(QString("MsgStream.sendMessage -|- Socket write failed: %1").arg(_socket->errorString()));
 
     LoggerManager::getInstance().writeInfo(QStringLiteral("MsgStream.sendMessage ended"));
 }
@@ -320,8 +320,9 @@ void MsgStream::connected() {
     //	send an id message and then wait for public key message
     //	from receiver, which will trigger readyRead signal
     qint64 numBytesWritten = _socket->write(_outData, _outDataLen);
+    _socket->flush();
     if(numBytesWritten < 0)
-         LoggerManager::getInstance().writeError(QStringLiteral("MsgStream.connected -|- Socket write failed"));
+         LoggerManager::getInstance().writeError(QString("MsgStream.connected -|- Socket write failed: %1").arg(_socket->errorString()));
 
     LoggerManager::getInstance().writeInfo(QStringLiteral("MsgStream.connected ended"));
 }
@@ -332,8 +333,6 @@ void MsgStream::disconnected() {
 }
 
 void MsgStream::readyRead() {
-    LoggerManager::getInstance().writeInfo(QStringLiteral("MsgStream.readyRead started"));
-
     qint64 available = _socket->bytesAvailable();
     while(available > 0) {
         if(!_reading) {
@@ -368,8 +367,6 @@ void MsgStream::readyRead() {
             }
         }
     }
-
-    LoggerManager::getInstance().writeInfo(QStringLiteral("MsgStream.readyRead ended"));
 }
 
 void MsgStream::bytesWritten(qint64 bytes) {

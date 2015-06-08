@@ -278,7 +278,7 @@ bool History::validateXml(const QString &fileName) {
         }
         QXmlSchemaValidator validator(schema);
         if (!validator.validate(&file, QUrl::fromLocalFile(file.fileName()))) {
-            QMessageBox::information(0, 0, QString("The history file \"%1\" is not a valid XML file.").arg(fileName));
+            //QMessageBox::information(0, 0, QString("The history file \"%1\" is not a valid XML file.").arg(fileName));
             return false;
         }
     }

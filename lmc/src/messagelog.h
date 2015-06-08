@@ -120,6 +120,8 @@ private:
     bool linkHovered;
     bool outStyle;
     bool autoScroll;
+
+    QString _prependedHtml;
 };
 
 #endif // MESSAGELOG_H

@@ -41,38 +41,28 @@ void lmcMessaging::sendMessage(MessageType type, const QString &userId, XmlMessa
         break;
     case MT_Status:
         if (!userId.isEmpty())
-            prepareMessage(type, msgId, false, userId, message);
+            prepareMessage(type, msgId, userId, message);
         else
             for(int index = 0; index < userList.count(); index++)
-                prepareMessage(type, msgId, false, userList[index].id, message);
+                prepareMessage(type, msgId, userList[index].id, message);
         msgId++;
         break;
     case MT_UserName:
     case MT_Note:
-    case MT_PublicMessage:
         for(int index = 0; index < userList.count(); index++)
-            prepareMessage(type, msgId, false, userList[index].id, message);
-        msgId++;
-        break;
-    case MT_GroupMessage:
-        if(!userId.isEmpty())
-            prepareMessage(type, msgId, false, userId, message);
-        else {
-            for(int index = 0; index < userList.count(); index++)
-                prepareMessage(type, msgId, false, userList[index].id, message);
-        }
+            prepareMessage(type, msgId, userList[index].id, message);
         msgId++;
         break;
     case MT_Avatar:
         //	if user id is specified send to that user alone, else send to all
         if(!userId.isEmpty()) {
-            prepareMessage(type, msgId, false, userId, message);
+            prepareMessage(type, msgId, userId, message);
         } else {
             XmlMessage msg;
             emit messageReceived(MT_Avatar, localUser->id, message);
             for(int index = 0; index < userList.count(); index++) {
                 msg.setContent(message.toString());
-                prepareMessage(type, msgId, false, userList[index].id, msg);
+                prepareMessage(type, msgId, userList[index].id, msg);
             }
         }
         msgId++;
@@ -81,7 +71,7 @@ void lmcMessaging::sendMessage(MessageType type, const QString &userId, XmlMessa
         sendWebMessage(type);
         break;
     default:
-        prepareMessage(type, msgId, false, userId, message);
+        prepareMessage(type, msgId, userId, message);
         msgId++;
         break;
     }
@@ -188,7 +178,7 @@ void lmcMessaging::prepareBroadcast(MessageType type) {
 }
 
 //	This method converts a Message from ui layer to a Datagram that can be passed to network layer
-void lmcMessaging::prepareMessage(MessageType type, qint64 msgId, bool retry, const QString &userId, XmlMessage &message) {
+void lmcMessaging::prepareMessage(MessageType type, qint64 msgId, const QString &userId, XmlMessage &message) {
     LoggerManager::getInstance().writeInfo(QStringLiteral("lmcMessaging.prepareMessage started"));
 
     if(!isConnected()) {
@@ -224,9 +214,6 @@ void lmcMessaging::prepareMessage(MessageType type, qint64 msgId, bool retry, co
             emit messageReceived(MT_Failed, userId, message);
             break;
         }
-        //	add message to pending list
-        if(!retry)
-            addPendingMsg(msgId, MT_Message, userId, message);
         break;
     case MT_GroupMessage:
     case MT_PublicMessage:
@@ -235,10 +222,7 @@ void lmcMessaging::prepareMessage(MessageType type, qint64 msgId, bool retry, co
     case MT_Acknowledge:
         break;
     case MT_Query:
-        //	if its a 'get' query add message to pending list
-        if(message.data(XN_QUERYOP) == QueryOpNames[QO_Get] && !retry)
-            addPendingMsg(msgId, MT_Query, userId, message); // sendUserData(MessageType type, QueryOp op, const QString &userId)
-        else if(message.data(XN_QUERYOP) == QueryOpNames[QO_Result])
+        if(message.data(XN_QUERYOP) == QueryOpNames[QO_Result])
             getUserInfo(message);
         break;
     case MT_ChatState:
@@ -346,7 +330,6 @@ void lmcMessaging::processMessage(const MessageHeader &header, XmlMessage &messa
             sendMessage(header.type, header.userId, reply);
         } else if(message.data(XN_QUERYOP) == QueryOpNames[QO_Result]) {
             msgId = message.data(XN_MESSAGEID);
-            removePendingMsg(msgId.toLongLong());
 
             //  Add the path to the user's avatar image stored locally
             data = "avt_" + header.userId + ".png";
@@ -361,9 +344,6 @@ void lmcMessaging::processMessage(const MessageHeader &header, XmlMessage &messa
         emit messageReceived(header.type, header.userId, message);
         break;
     case MT_Acknowledge:
-        //	remove message from pending list
-        msgId = message.data(XN_MESSAGEID);
-        removePendingMsg(msgId.toLongLong());
         break;
     case MT_File:
     case MT_Avatar:

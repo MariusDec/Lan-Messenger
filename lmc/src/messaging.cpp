@@ -48,7 +48,6 @@ lmcMessaging::lmcMessaging() {
     groupList.clear();
     userGroupMap.clear();
     receivedList.clear();
-    pendingList.clear();
     fileList.clear();
     folderList.clear();
     loopback = false;
@@ -80,10 +79,6 @@ void lmcMessaging::init(const XmlMessage &initParams) {
                          QString::number(userCaps), Helper::getHostName());
 
     loadGroups();
-
-    pTimer = new QTimer(this);
-    connect(pTimer, &QTimer::timeout, this, &lmcMessaging::timer_timeout);
-    pTimer->start(1000);
 
     msgId = 1;
 
@@ -222,7 +217,11 @@ void lmcMessaging::saveGroups() {
     }
     groupSettings.endArray();
 
-    groupSettings.sync();
+    if (groupSettings.isWritable())
+#ifdef Q_OS_WIN
+        if (!QFileInfo(QString("%1.lock").arg(groupSettings.fileName())).exists())
+#endif
+        groupSettings.sync();
 
     // make sure the correct version is set in the preferences file
     // so the group settings will not be wrongly migrated next time
@@ -244,11 +243,6 @@ void lmcMessaging::network_connectionStateChanged() {
         }
     }
     emit connectionStateChanged();
-}
-
-void lmcMessaging::timer_timeout() {
-    //	check if any pending message has timed out
-    checkPendingMsg();
 }
 
 QString lmcMessaging::createUserId(const QString &lpszAddress, const QString &lpszUserName) {
@@ -430,73 +424,4 @@ bool lmcMessaging::addReceivedMsg(qint64 msgId, const QString &userId) {
 
     receivedList.append(received);
     return true;
-}
-
-void lmcMessaging::addPendingMsg(qint64 msgId, MessageType type, const QString &userId, XmlMessage &message) {
-    pendingList.append(PendingMsg(msgId, true, QDateTime::currentDateTime(), type, userId, message, 1));
-}
-
-void lmcMessaging::removePendingMsg(qint64 msgId) {
-    for(int index = 0; index < pendingList.count(); index++) {
-        if(pendingList[index].msgId == msgId) {
-            pendingList[index].active = false;
-            pendingList.removeAt(index);
-            return;
-        }
-    }
-}
-
-void lmcMessaging::removeAllPendingMsg(QString* lpszUserId) {
-    for(int index = 0; index < pendingList.count(); index++) {
-        if(pendingList[index].userId.compare(*lpszUserId) == 0) {
-            pendingList.removeAt(index);
-            index--;
-        }
-    }
-}
-
-void lmcMessaging::checkPendingMsg() {
-    for(int index = 0; index < pendingList.count(); index++) {
-        //	check if message has timed out
-        if(pendingList[index].active && pendingList[index].timeStamp.msecsTo(QDateTime::currentDateTime()) > pendingList[index].retry * Globals::getInstance().connectionTimeout()) {
-            if(pendingList[index].retry < Globals::getInstance().connectionRetries()) {
-                //	send the message once more
-                pendingList[index].retry++;
-                pendingList[index].timeStamp = QDateTime::currentDateTime();
-                resendMessage(pendingList[index]);
-            }
-            else {
-                //	max retries exceeded. mark message as failed.
-                switch(pendingList[index].type) {
-                case MT_Message:
-                {
-                    XmlMessage statusMsg(pendingList[index].xmlMessage.toString());
-                    emit messageReceived(MT_Failed, pendingList[index].userId, statusMsg);
-                }
-                    break;
-                default:
-                    break;
-                }
-                pendingList[index].active = false;
-                pendingList.removeAt(index);
-                index--;	//	since next item will have this index now
-            }
-        }
-    }
-}
-
-void lmcMessaging::resendMessage(MessageType type, qint64 msgId, const QString &userId, XmlMessage &pMessage) {
-    if(!getUser(userId))
-        return;
-
-    prepareMessage(type, msgId, true, userId, pMessage);
-}
-
-void lmcMessaging::resendMessage(PendingMsg msg) {
-    // type, pendingList[index].msgId, &pendingList[index].userId, &pendingList[index].xmlMessage
-
-    if(msg.userId != QString::null && !getUser(msg.userId))
-        return;
-
-    prepareMessage(msg.type, msg.msgId, true, msg.userId, msg.xmlMessage);
 }

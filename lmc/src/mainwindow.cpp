@@ -58,10 +58,10 @@ lmcMainWindow::lmcMainWindow(QWidget *parent, Qt::WindowFlags flags)
   connect(ui.treeWidgetUserList,
           &lmcUserTreeWidget::itemSelectionChanged,
           this, &lmcMainWindow::treeWidgetUserList_itemSelectionChanged);
-  connect(ui.textBoxNote, SIGNAL(returnPressed()), this,
-          SLOT(textBoxNote_returnPressed()));
-  connect(ui.textBoxNote, SIGNAL(lostFocus()), this,
-          SLOT(textBoxNote_lostFocus()));
+  connect(ui.textBoxNote, &lmcLineEdit::returnPressed, this,
+          &lmcMainWindow::textBoxNote_returnPressed);
+  connect(ui.textBoxNote, &lmcLineEdit::lostFocus, this,
+          &lmcMainWindow::textBoxNote_lostFocus);
 
   ui.textBoxNote->installEventFilter(this);
   ui.treeWidgetUserList->installEventFilter(this);
@@ -907,7 +907,7 @@ void lmcMainWindow::textBoxNote_lostFocus() {
   QString note = ui.textBoxNote->text();
   Globals::getInstance().setUserNote(note);
   _localUser->note = note;
-  sendMessage(MT_Note, QString(), note);
+  sendMessage(MT_Note, QString::null, note);
 }
 
 void lmcMainWindow::createMainMenu() {

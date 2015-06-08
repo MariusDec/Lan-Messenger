@@ -591,15 +591,15 @@ void Globals::setMessagesColor(const QString &messagesColor)
     _settings.setValue(IDS_COLOR, messagesColor);
 }
 
-bool Globals::informReadMessage() const
+bool Globals::sendReadNotifs() const
 {
-    return _informReadMessage;
+    return _sendReadNotifs;
 }
 
-void Globals::setInformReadMessage(bool informReadMessage)
+void Globals::setSendReadNotifs(bool sendReadNotifs)
 {
-    _informReadMessage = informReadMessage;
-    _settings.setValue(IDS_INFORMREAD, informReadMessage);
+    _sendReadNotifs = sendReadNotifs;
+    _settings.setValue(IDS_INFORMREAD, sendReadNotifs);
 }
 
 const QString &Globals::chatTheme() const
@@ -743,37 +743,37 @@ void Globals::setFileHistorySavePath(const QString &fileHistorySavePath)
     _settings.setValue(IDS_FILEHISTORYPATH, _fileHistorySavePath);
 }
 
-bool Globals::autoReceiveFile() const
+bool Globals::autoReceiveFiles() const
 {
-    return _autoReceiveFile;
+    return _autoReceiveFiles;
 }
 
-void Globals::setAutoReceiveFile(bool autoReceiveFile)
+void Globals::setAutoReceiveFiles(bool autoReceiveFiles)
 {
-    _autoReceiveFile = autoReceiveFile;
-    _settings.setValue(IDS_AUTOFILE, autoReceiveFile);
+    _autoReceiveFiles = autoReceiveFiles;
+    _settings.setValue(IDS_AUTOFILE, autoReceiveFiles);
 }
 
-bool Globals::autoShowTransfer() const
+bool Globals::openNewTransfers() const
 {
-    return _autoShowTransfer;
+    return _openNewTransfers;
 }
 
-void Globals::setAutoShowTransfer(bool autoShowTransfer)
+void Globals::setOpenNewTransfers(bool openNewTransfers)
 {
-    _autoShowTransfer = autoShowTransfer;
-    _settings.setValue(IDS_AUTOSHOWFILE, autoShowTransfer);
+    _openNewTransfers = openNewTransfers;
+    _settings.setValue(IDS_AUTOSHOWFILE, openNewTransfers);
 }
 
-bool Globals::displayNewTransfers() const
+bool Globals::popupNewTransfers() const
 {
-    return _autoShowTransfer && _displayNewTransfers;
+    return _openNewTransfers && _popupNewTransfers;
 }
 
-void Globals::setDisplayNewTransfers(bool displayNewTransfers)
+void Globals::setPopupNewTransfers(bool popupNewTransfers)
 {
-    _displayNewTransfers = displayNewTransfers;
-    _settings.setValue(IDS_FILETOP, displayNewTransfers);
+    _popupNewTransfers = popupNewTransfers;
+    _settings.setValue(IDS_FILETOP, popupNewTransfers);
 }
 
 QString Globals::fileStoragePath(const QString &sender) const
@@ -1087,10 +1087,10 @@ void Globals::loadSettings()
     _popOnNewMessage = _settings.value(IDS_MESSAGEPOP, IDS_MESSAGEPOP_VAL).toBool();
     _popOnNewPublicMessage = _settings.value(IDS_PUBMESSAGEPOP, IDS_PUBMESSAGEPOP_VAL).toBool();
     _messagesFontString = _settings.value(IDS_FONT, IDS_FONT_VAL).toString();
-    _showCharacterCount = _settings.value(IDS_SHOWCHARCOUNT, IDS_SHOWCHARCOUNT_VAL).toString();
+    _showCharacterCount = _settings.value(IDS_SHOWCHARCOUNT, IDS_SHOWCHARCOUNT_VAL).toBool();
     _messagesFont.fromString(_messagesFontString);
     _messagesColor = _settings.value(IDS_COLOR, IDS_COLOR_VAL).toString();
-    _informReadMessage = _settings.value(IDS_INFORMREAD, IDS_INFORMREAD_VAL).toBool();
+    _sendReadNotifs = _settings.value(IDS_INFORMREAD, IDS_INFORMREAD_VAL).toBool();
 
     _chatTheme = _settings.value(IDS_CHATTHEME, IDS_CHATTHEME_VAL).toString();
     _applicationTheme = _settings.value(IDS_APPTHEME, IDS_APPTHEME_VAL).toString();
@@ -1106,9 +1106,9 @@ void Globals::loadSettings()
     _fileHistorySavePath = _settings.value(IDS_FILEHISTORYPATH, IDS_FILEHISTORYPATH_VAL).toString();
     if (!_fileHistorySavePath.isEmpty() && !_fileHistorySavePath.endsWith('/')) _fileHistorySavePath.append('/');
 
-    _autoReceiveFile = _settings.value(IDS_AUTOFILE, IDS_AUTOFILE_VAL).toBool();
-    _autoShowTransfer = _settings.value(IDS_AUTOSHOWFILE, IDS_AUTOSHOWFILE_VAL).toBool();
-    _displayNewTransfers = _settings.value(IDS_FILETOP, IDS_FILETOP_VAL).toBool();
+    _autoReceiveFiles = _settings.value(IDS_AUTOFILE, IDS_AUTOFILE_VAL).toBool();
+    _openNewTransfers = _settings.value(IDS_AUTOSHOWFILE, IDS_AUTOSHOWFILE_VAL).toBool();
+    _popupNewTransfers = _settings.value(IDS_FILETOP, IDS_FILETOP_VAL).toBool();
     _fileStoragePath = _settings.value(IDS_FILESTORAGEPATH, IDS_FILESTORAGEPATH).toString();
     if (!_fileStoragePath.isEmpty() && !_fileStoragePath.endsWith('/')) _fileStoragePath.append('/');
     _createIndividualFolders = _settings.value(IDS_STORAGEUSERFOLDER, IDS_STORAGEUSERFOLDER_VAL).toBool();
@@ -1138,6 +1138,10 @@ bool Globals::loadSettingsFromConfig(const QString &configFile)
 
 void Globals::syncSettings()
 {
-    _settings.sync();
+    if (_settings.isWritable())
+#ifdef Q_OS_WIN
+        if (!QFileInfo(QString("%1.lock").arg(_settings.fileName())).exists())
+#endif
+        _settings.sync();
 }
 

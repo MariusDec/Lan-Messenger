@@ -671,6 +671,13 @@
                </property>
                <layout class="QVBoxLayout" name="verticalLayout_12">
                 <item>
+                 <widget class="QCheckBox" name="checkBoxCharCount">
+                  <property name="text">
+                   <string>Show character count row in message window</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
                  <widget class="QLabel" name="label">
                   <property name="styleSheet">
                    <string notr="true">font-weight: bold;</string>
@@ -790,13 +797,6 @@
                   </property>
                   <property name="text">
                    <string>Remove whitespace from start and end of messages</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="checkBoxCharCount">
-                  <property name="text">
-                   <string>Show character count row in message window</string>
                   </property>
                  </widget>
                 </item>

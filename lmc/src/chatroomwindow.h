@@ -50,7 +50,7 @@
 #include "chathelper.h"
 #include "stdlocation.h"
 #include "xmlmessage.h"
-
+#include <QMessageBox>
 class lmcChatRoomWindow : public QWidget
 {
     Q_OBJECT
@@ -78,18 +78,33 @@ public:
     const QHash<QString, QString> &getUsers() const { return _peerNames; }
     const QString &getLastUserId() const { return _lastUserId; }
 
+    void showHTMLz()
+    {
+        QMessageBox::information(0, 0, ui.textEditMain->toHtml() + "\n\n" + ui.textEditMain->toHtml().toHtmlEscaped());
+        QMessageBox::information(0, 0, ui.textEditMain->toPlainText());
+
+        QTextCharFormat fmt;
+        fmt.setFontWeight(QFont::Bold);
+
+        QTextCursor cursor = ui.textEditMain->textCursor();
+        if (!cursor.hasSelection())
+            cursor.select(QTextCursor::WordUnderCursor);
+        cursor.mergeCharFormat(fmt);
+        ui.textEditMain->mergeCurrentCharFormat(fmt);
+    }
+
     QStringList mimeTypes() const {
       return QStringList(
           {"text/uri-list"});
     }
 
 signals:
-    void messageSent(MessageType type, QString lpszUserId, XmlMessage pMessage);
-    void chatStarting(QString lpszThreadId, XmlMessage message, QStringList contacts);
+    void messageSent(MessageType type, QString userId, XmlMessage message);
+    void chatStarting(QString roomId, XmlMessage message, QStringList contacts);
     void contactsAdding(QStringList excludeList);
     void showHistory(QString userId);
     void showTransfers(QString userId);
-    void showTrayMessage(TrayMessageType type, QString szMessage, QString chatRoomId, QString szTitle, TrayMessageIcon icon);
+    void showTrayMessage(TrayMessageType type, QString message, QString chatRoomId, QString title, TrayMessageIcon icon);
     void closed(QString chatRoomId);
 
 protected:
@@ -135,7 +150,7 @@ private:
     void appendMessageLog(MessageType type, const QString &userId, const QString &userName, const XmlMessage &message);
     void showStatus(int flag, bool isLocalUser);
     QString getWindowTitle();
-    void setMessageFont(QFont& font);
+    void setMessageFont(const QFont &font);
     void updateStatusImage(QTreeWidgetItem* pItem, const QString &status);
     QTreeWidgetItem* getUserItem(const QString &userId);
     QTreeWidgetItem* getGroupItem(const QString &groupId);
@@ -196,6 +211,7 @@ private:
 
     bool _leaveChatTriggered = false;
     bool _isPublicChat = false;
+    bool _fontChangedManually = false;
 };
 
 #endif // CHATROOMWINDOW_H

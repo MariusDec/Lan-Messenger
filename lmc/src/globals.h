@@ -36,7 +36,7 @@ class Globals
 
     lmcSettings         _settings;
 
-    QString             _version = "1.3.3";
+    QString             _version = "1.3.3.1";
     QString             _fileOpenPath;
     QString             _fileSavePath;
 
@@ -99,8 +99,8 @@ class Globals
     QString             _messagesFontString = QApplication::font().toString();
     QFont               _messagesFont = QApplication::font();
     QString             _messagesColor = QApplication::palette().text().color().name();
-    bool                _informReadMessage = true;
-    bool                _showCharacterCount = false;
+    bool                _sendReadNotifs = true;
+    bool                _showCharacterCount = true;
 
     QString             _chatTheme = "Classic";
     QString             _applicationTheme = "native";
@@ -114,9 +114,9 @@ class Globals
     bool                _saveFileHistory = true;
     QString             _fileHistorySavePath;
 
-    bool                _autoReceiveFile = false;
-    bool                _autoShowTransfer = true;
-    bool                _displayNewTransfers = true;
+    bool                _autoReceiveFiles = false;
+    bool                _openNewTransfers = true;
+    bool                _popupNewTransfers = true;
     QString             _fileStoragePath;
     bool                _createIndividualFolders = false;
 
@@ -284,12 +284,12 @@ public:
     void setSaveFileHistory(bool saveFileHistory);
     QString fileHistorySavePath() const;
     void setFileHistorySavePath(const QString &fileHistorySavePath);
-    bool autoReceiveFile() const;
-    void setAutoReceiveFile(bool autoReceiveFile);
-    bool autoShowTransfer() const;
-    void setAutoShowTransfer(bool autoShowTransfer);
-    bool displayNewTransfers() const;
-    void setDisplayNewTransfers(bool displayNewTransfers);
+    bool autoReceiveFiles() const;
+    void setAutoReceiveFile(bool autoReceiveFiles);
+    bool openNewTransfers() const;
+    void setOpenNewTransfers(bool openNewTransfers);
+    bool popupNewTransfers() const;
+    void setPopupNewTransfers(bool popupNewTransfers);
     QString fileStoragePath(const QString &sender = QString()) const;
     void setFileStoragePath(const QString &fileStoragePath);
     bool createIndividualFolders() const;
@@ -328,8 +328,8 @@ public:
     void setDefaultNewMessageAction(int defaultNewMessageAction);
     bool confirmLeaveChat() const;
     void setConfirmLeaveChat(bool confirmLeaveChat);
-    bool informReadMessage() const;
-    void setInformReadMessage(bool informReadMessage);
+    bool sendReadNotifs() const;
+    void setSendReadNotifs(bool sendReadNotifs);
 };
 
 #endif // GLOBALS_H

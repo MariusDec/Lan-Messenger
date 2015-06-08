@@ -33,7 +33,6 @@
 
 #include <QObject>
 #include <QTimer>
-#include <experimental/optional>
 
 
 struct PendingMsg {
@@ -163,7 +162,6 @@ private slots:
     void connectionLost(QString userId);
     void receiveProgress(QString userId, QString userName, QString data);
     void network_connectionStateChanged();
-    void timer_timeout();
 
 private:
     QString createUserId(const QString &lpszAddress, const QString &lpszUserName);
@@ -172,7 +170,7 @@ private:
     void getUserInfo(XmlMessage &message);
     void sendUserData(MessageType type, QueryOp op, const QString &userId);
     void prepareBroadcast(MessageType type);
-    void prepareMessage(MessageType type, qint64 msgId, bool retry, const QString &userId, XmlMessage &message);
+    void prepareMessage(MessageType type, qint64 msgId, const QString &userId, XmlMessage &message);
     void prepareFile(const QString &userId, XmlMessage &message);
     void prepareFolder(const QString &userId, XmlMessage &message);
     void processBroadcast(const MessageHeader &header);
@@ -184,12 +182,6 @@ private:
     void updateUser(MessageType type, const QString &userId, const QString &userData);
     void removeUser(const QString &szUserId);
     bool addReceivedMsg(qint64 msgId, const QString &userId);
-    void addPendingMsg(qint64 msgId, MessageType type, const QString &userId, XmlMessage &message);
-    void removePendingMsg(qint64);
-    void removeAllPendingMsg(QString* lpszUserId);
-    void checkPendingMsg();
-    void resendMessage(MessageType type, qint64 msgId, const QString &lpszUserId, XmlMessage &pMessage);
-    void resendMessage(PendingMsg msg);
     bool addFileTransfer(FileMode fileMode, const QString &userId, XmlMessage &message);
     bool updateFileTransfer(FileMode fileMode, FileOp fileOp, const QString &userId, const QString &userName, XmlMessage &pMessage);
     QString getFreeFileName(const QString &fileName);
@@ -199,10 +191,8 @@ private:
     QString getFolderPath(const QString &folderId, const QString &userId, FileMode mode);
 
     lmcNetwork*			pNetwork;
-    QTimer*				pTimer;
     qint64				msgId;
     QList<ReceivedMsg>	receivedList;
-    QList<PendingMsg>	pendingList;
     QList<TransFile>    fileList;
     QList<TransFolder>  folderList;
     bool				loopback;

@@ -74,11 +74,11 @@ void ChatHelper::decodeSmileys(QString &message, const QRegularExpression &regex
             if (isEmoji) {
                 smiley = ImagesList::getInstance().getEmojiByCode(matches[index].second, found);
                 if (found)
-                    message.replace(matches[index].first, matches[index].second.size(), QString("<span title=\"%1\" >%2</span>").arg (smiley->description.toHtmlEscaped(), smiley->code.toHtmlEscaped()));
+                    message.replace(matches[index].first, matches[index].second.size(), QString("<span style=\"font-size: inherit; font-family: inherit; color: inherit;\" title=\"%1\" >%2</span>").arg (smiley->description.toHtmlEscaped(), smiley->code.toHtmlEscaped()));
             } else {
                 smiley = ImagesList::getInstance().getSmileyByCode(matches[index].second, found);
                 if (found) {
-                    message.replace(matches[index].first, matches[index].second.size(), QString("<img src=\"%1\" alt=\"%2\" title=\"%3: %2\" style='vertical-align: middle;' />").arg (QUrl::fromLocalFile(smiley->icon).toString(), smiley->code.toHtmlEscaped(), smiley->description.toHtmlEscaped()));
+                    message.replace(matches[index].first, matches[index].second.size(), QString("<img style=\"font-size: inherit; font-family: inherit; color: inherit; vertical-align: middle; margin-bottom: 4px;\" src=\"%1\" alt=\"%2\" title=\"%3: %2\" />").arg (QUrl::fromLocalFile(smiley->icon).toString(), smiley->code.toHtmlEscaped(), smiley->description.toHtmlEscaped()));
                 }
             }
         }

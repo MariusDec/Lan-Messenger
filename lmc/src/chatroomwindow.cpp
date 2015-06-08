@@ -69,6 +69,8 @@ lmcChatRoomWindow::lmcChatRoomWindow(QWidget *parent, bool isPublicChat)
           &lmcMessageLog::messageSent, this,
           &lmcChatRoomWindow::log_sendMessage);
 
+  connect(ui.toolButton, &QToolButton::clicked, this, &lmcChatRoomWindow::showHTMLz);
+
   int bottomPanelHeight = ui.textBoxMessage->minimumHeight() +
                           ui.labelDividerBottom->minimumHeight() +
                           ui.labelDividerTop->minimumHeight() +
@@ -446,7 +448,7 @@ void lmcChatRoomWindow::receiveMessage(MessageType type, const QString &userId,
           if (Globals::getInstance().sysTrayNewMessages())
               emit showTrayMessage(TM_Message, message.data(XN_MESSAGE), _chatRoomId, QString("%1 messaged you").arg(senderName), TMI_Info);
           QApplication::alert(this);
-      } else if (Globals::getInstance().informReadMessage()) {
+      } else if (Globals::getInstance().sendReadNotifs()) {
           _hasUnreadMessages = false;
           setChatState(CS_Read);
       }
@@ -546,6 +548,8 @@ void lmcChatRoomWindow::settingsChanged() {
   ui.labelSendKey->setVisible(Globals::getInstance().showCharacterCount());
   textChanged();
 
+  if (!_fontChangedManually)
+      setMessageFont(Globals::getInstance().messagesFont());
 
   ui.treeWidgetUserList->setView(Globals::getInstance().userListView());
   ui.labelSendKey->setText(QString("Send message using %1\t").arg(Globals::getInstance().sendByEnter() ? "Enter" : "Ctrl+Enter"));
@@ -598,7 +602,7 @@ bool lmcChatRoomWindow::eventFilter(QObject *object, QEvent *event) {
       }
     }
   } else if (event->type() == QEvent::Enter) {
-      if (_hasUnreadMessages && ui.textBoxMessage->hasFocus() && Globals::getInstance().informReadMessage()) {
+      if (_hasUnreadMessages && ui.textBoxMessage->hasFocus() && Globals::getInstance().sendReadNotifs()) {
           _hasUnreadMessages = false;
           setChatState(CS_Read);
       }
@@ -630,11 +634,7 @@ void lmcChatRoomWindow::closeEvent(QCloseEvent *event) {
     if (!_isPublicChat && !_leaveChatTriggered && _peerNames.size () > 1) {
         if (Globals::getInstance().confirmLeaveChat()) {
             QMessageBox messageBox;
-
-            QCheckBox checkbox;
-            checkbox.setText("Do not show this message again");
-
-            messageBox.setCheckBox(&checkbox);
+            messageBox.setCheckBox(new QCheckBox("Do not show this message again"));
             messageBox.setIcon(QMessageBox::Warning);
             messageBox.setWindowTitle(QStringLiteral("Warning"));
             messageBox.setText(QStringLiteral("By closing this window you will leave the group chat. You cannot come back to the group chat if you leave. \nAre you sure you want to close this window?"));
@@ -643,7 +643,7 @@ void lmcChatRoomWindow::closeEvent(QCloseEvent *event) {
             if (messageBox.exec() == QMessageBox::No) {
                 event->ignore();
             } else {
-                if (checkbox.isChecked())
+                if (messageBox.checkBox()->isChecked())
                     Globals::getInstance().setConfirmLeaveChat(false);
 
                 buttonLeaveChat_clicked();
@@ -777,10 +777,11 @@ void lmcChatRoomWindow::userInfoAction_triggered() {
 void lmcChatRoomWindow::buttonFont_clicked() {
   bool ok;
   QFont font = ui.textBoxMessage->font();
-  font.setPointSize(ui.textBoxMessage->fontPointSize());
   QFont newFont = QFontDialog::getFont(&ok, font, this, tr("Select Font"));
-  if (ok)
+  if (ok) {
     setMessageFont(newFont);
+    _fontChangedManually = true;
+  }
 }
 
 void lmcChatRoomWindow::buttonFontColor_clicked() {
@@ -867,6 +868,7 @@ void lmcChatRoomWindow::buttonLeaveChat_clicked() {
     XmlMessage xmlMessage;
     xmlMessage.addData(XN_THREAD, _chatRoomId);
     xmlMessage.addData(XN_GROUPMSGOP, GroupMsgOpNames[GMO_Leave]);
+    xmlMessage.addData(XN_USERID, _localUser->id);
 
     for (QString &peerId : _peerNames.keys())
         emit messageSent(MT_GroupMessage, peerId, xmlMessage);
@@ -1242,7 +1244,6 @@ void lmcChatRoomWindow::sendMessage() {
     QString message(ui.textBoxMessage->toPlainText());
 
     QFont font = ui.textBoxMessage->font();
-    font.setPointSize(ui.textBoxMessage->fontPointSize());  // TODO is this negative ???
 
     MessageType type = !_isPublicChat ? (_peerNames.size() <= 1 ? MT_Message : MT_GroupMessage) : MT_PublicMessage;
     XmlMessage xmlMessage;
@@ -1260,8 +1261,7 @@ void lmcChatRoomWindow::sendMessage() {
 
     QHash<QString, QString>::const_iterator index = _peerNames.constBegin();
     while (index != _peerNames.constEnd()) {
-        QString userId = index.key();
-        emit messageSent(type, userId, xmlMessage);
+        emit messageSent(type, index.key(), xmlMessage);
         index++;
     }
   } else
@@ -1342,9 +1342,8 @@ QString lmcChatRoomWindow::getWindowTitle() {
     return title;
 }
 
-void lmcChatRoomWindow::setMessageFont(QFont &font) {
+void lmcChatRoomWindow::setMessageFont(const QFont &font) {
   ui.textBoxMessage->setFont(font);
-  ui.textBoxMessage->setFontPointSize(font.pointSize());
 }
 
 void lmcChatRoomWindow::updateStatusImage(QTreeWidgetItem *pItem,

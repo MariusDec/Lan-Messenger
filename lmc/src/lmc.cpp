@@ -150,7 +150,7 @@ bool lmcCore::start() {
 
   _mainWindow->start();
 
-  connect(&_timer, SIGNAL(timeout()), this, SLOT(timer_timeout()));
+  connect(&_timer, &QTimer::timeout, this, &lmcCore::timer_timeout);
   //	Set the timer to trigger 10 seconds after the application starts. After the
   //	first trigger, the timeout period will be decided by user settings.
   _adaptiveRefresh = false;
@@ -240,6 +240,11 @@ void lmcCore::stop() {
         chatRoomWindow->deleteLater();
     }
 
+    for (InstantMessageWindow *messageWindow : _instantMessageWindows) {
+        messageWindow->stop();
+        messageWindow->deleteLater();
+    }
+
   if (_transferWindow) {
     _transferWindow->stop();
     _transferWindow->deleteLater();
@@ -284,7 +289,10 @@ void lmcCore::stop() {
 
 //	This slot handles the exit signal emitted by main window when the user
 //	selects quit from the menu.
-void lmcCore::exitApp() { saveUnsavedChatLog(); qApp->quit(); }
+void lmcCore::exitApp() {
+    saveUnsavedChatLog();
+    qApp->quit();
+}
 
 //	This slot handles the signal emitted by QApplication when the
 // application
@@ -342,8 +350,8 @@ void lmcCore::startChat(QString roomId, XmlMessage message, QStringList contacts
     }
 }
 
-void lmcCore::sendMessage(MessageType type, QString lpszUserId,
-                          XmlMessage pMessage) {
+void lmcCore::sendMessage(MessageType type, QString userId,
+                          XmlMessage message) {
   switch (type) {
   case MT_Broadcast:
   case MT_InstantMessage:
@@ -359,11 +367,9 @@ void lmcCore::sendMessage(MessageType type, QString lpszUserId,
   case MT_Folder:
   case MT_Avatar:
   case MT_UserList:
-    _messaging->sendMessage(type, lpszUserId, pMessage);
-    break;
   case MT_Status:
   case MT_Note:
-    _messaging->sendMessage(type, lpszUserId, pMessage);
+    _messaging->sendMessage(type, userId, message);
     break;
   case MT_Refresh:
     _messaging->update();
@@ -826,8 +832,9 @@ void lmcCore::routeMessage(MessageType type, const QString &userId,
       // from all chat rooms.
       if (!message.isValid()) {
           for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows)
-              if (chatRoomWindow->getUsers().contains(userId))
+              if (chatRoomWindow->getUsers().contains(userId)) {
                   chatRoomWindow->removeUser(userId);
+              }
       }
 
       for (InstantMessageWindow *window : _instantMessageWindows)
@@ -900,20 +907,21 @@ void lmcCore::routeMessage(MessageType type, const QString &userId,
     default:
     {
         if (message.isValid()) {
+            QString tempUserId = !message.data(XN_USERID).isEmpty() ? message.data(XN_USERID) : userId;
+
             int op = Helper::indexOf(GroupMsgOpNames, GMO_Max, message.data(XN_GROUPMSGOP));
             if (op == GMO_Request or op == GMO_Join or op == GMO_Leave) {
-                QString userId = !message.data(XN_USERID).isEmpty() ? message.data(XN_USERID) : userId;
 
                 for(int index = 0; index < _chatRoomWindows.count(); index++) {
                     if(!_chatRoomWindows[index]->getRoomId().compare(chatRoomId)) {
                         switch(op) {
                         case GMO_Request:
                         case GMO_Join:
-                            _chatRoomWindows[index]->addUser(_messaging->getUser(userId));
+                            _chatRoomWindows[index]->addUser(_messaging->getUser(tempUserId));
                             return;
                             break;
                         case GMO_Leave:
-                            _chatRoomWindows[index]->removeUser(userId);
+                            _chatRoomWindows[index]->removeUser(tempUserId);
                             return;
                             break;
                         default:
@@ -926,67 +934,66 @@ void lmcCore::routeMessage(MessageType type, const QString &userId,
                 if (op == GMO_Join or op == GMO_Leave)
                     return;
             }
-        }
 
-        //	Check if a chat room with the thread id already exists
-        for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows) {
-            if (chatRoomWindow->getRoomId().compare(chatRoomId) == 0) {
-                if (!chatRoomWindow->getUsers().contains(userId)) {
-                    User *user = _messaging->getUser(userId);
-                    if (user)
-                        chatRoomWindow->addUser(user);
-                }
-                chatRoomWindow->receiveMessage(type, userId, message);
-                if((!chatRoomWindow->isPublicChat() or Globals::getInstance().popOnNewPublicMessage()) or !chatRoomWindow->isClosed())
-                    if (createWindow)
-                        showChatRoomWindow(chatRoomWindow, (Globals::getInstance().popOnNewMessage() and setWindowToForeground), setWindowToForeground);
-                windowExists = true;
-                break;
-            }
-        }
-
-        if (!windowExists && (type == MT_Message || type == MT_Broadcast || type == MT_InstantMessage || type == MT_ChatState)) {
+            //	Check if a chat room with the thread id already exists
             for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows) {
-                if (chatRoomWindow->getUsers().size() == 1)
-                if (chatRoomWindow->getUsers().size() == 1 and chatRoomWindow->getUsers().contains(userId)) {
-                    if (type == MT_Message)
-                        chatRoomWindow->changeRoomId(chatRoomId);
-
-                    chatRoomWindow->receiveMessage(type, userId, message);
+                if (chatRoomWindow->getRoomId().compare(chatRoomId) == 0) {
+                    if (!chatRoomWindow->getUsers().contains(tempUserId)) {
+                        User *user = _messaging->getUser(tempUserId);
+                        if (user)
+                            chatRoomWindow->addUser(user);
+                    }
+                    chatRoomWindow->receiveMessage(type, tempUserId, message);
                     if((!chatRoomWindow->isPublicChat() or Globals::getInstance().popOnNewPublicMessage()) or !chatRoomWindow->isClosed())
                         if (createWindow)
                             showChatRoomWindow(chatRoomWindow, (Globals::getInstance().popOnNewMessage() and setWindowToForeground), setWindowToForeground);
-
                     windowExists = true;
                     break;
                 }
             }
-        }
 
-        if(!windowExists and createWindow and !chatRoomId.isEmpty()) {
-            createChatRoomWindow(chatRoomId);
+            if (!windowExists && (type == MT_Message || type == MT_Broadcast || type == MT_InstantMessage || type == MT_ChatState)) {
+                for (lmcChatRoomWindow *chatRoomWindow : _chatRoomWindows) {
+                    if (chatRoomWindow->getUsers().size() == 1 and chatRoomWindow->getUsers().contains(tempUserId)) {
+                        if (type == MT_Message && chatRoomWindow->getRoomId().compare(chatRoomId))
+                            chatRoomWindow->changeRoomId(chatRoomId);
 
-            if (type == MT_GroupMessage) {
-                XmlMessage xmlMessage;
-                xmlMessage.addData(XN_THREAD, chatRoomId);
-                xmlMessage.addData(XN_USERID, "");
+                        chatRoomWindow->receiveMessage(type, tempUserId, message);
+                        if((!chatRoomWindow->isPublicChat() or Globals::getInstance().popOnNewPublicMessage()) or !chatRoomWindow->isClosed())
+                            if (createWindow)
+                                showChatRoomWindow(chatRoomWindow, (Globals::getInstance().popOnNewMessage() and setWindowToForeground), setWindowToForeground);
 
-                sendMessage(MT_UserList, userId, xmlMessage);
+                        windowExists = true;
+                        break;
+                    }
+                }
             }
 
-            showChatRoomWindow(_chatRoomWindows.last(), (Globals::getInstance().popOnNewMessage() and setWindowToForeground), setWindowToForeground);
+            if(!windowExists and createWindow and !chatRoomId.isEmpty()) {
+                createChatRoomWindow(chatRoomId);
 
-            if (type == MT_Message && Globals::getInstance().appendHistory()) {
-                _chatRoomWindows.last()->setHtml(History::getUserMessageHistory(userId, QDate::currentDate()));
+                if (type == MT_GroupMessage) {
+                    XmlMessage xmlMessage;
+                    xmlMessage.addData(XN_THREAD, chatRoomId);
+                    xmlMessage.addData(XN_USERID, "");
+
+                    sendMessage(MT_UserList, userId, xmlMessage);
+                }
+
+                showChatRoomWindow(_chatRoomWindows.last(), (Globals::getInstance().popOnNewMessage() and setWindowToForeground), setWindowToForeground);
+
+                User *user = _messaging->getUser(tempUserId);
+                if (user)
+                    _chatRoomWindows.last()->addUser(user);
+
+
+                if (type == MT_Message && Globals::getInstance().appendHistory())
+                    _chatRoomWindows.last()->setHtml(History::getUserMessageHistory(tempUserId, QDate::currentDate()));
+
+                _chatRoomWindows.last()->receiveMessage(type, tempUserId, message);
             }
 
-            User *user = _messaging->getUser(userId);
-            if (user)
-                _chatRoomWindows.last()->addUser(user);
-
-            _chatRoomWindows.last()->receiveMessage(type, userId, message);
         }
-
     }
         break;
     }
@@ -1044,8 +1051,8 @@ void lmcCore::createTransferWindow() {
 }
 
 void lmcCore::showTransferWindow(bool show, QString userId) {
-  bool autoShow = Globals::getInstance().autoShowTransfer();
-  bool bringToForeground = Globals::getInstance().displayNewTransfers();
+  bool autoShow = Globals::getInstance().openNewTransfers();
+  bool bringToForeground = Globals::getInstance().popupNewTransfers();
 
   if ((autoShow && bringToForeground) || show) {
     //	if window is minimized it, restore it to previous state
@@ -1104,6 +1111,8 @@ void lmcCore::showUserInfo(const XmlMessage &message) {
 }
 
 void lmcCore::createChatRoomWindow(const QString &chatRoomId) {
+  LoggerManager::getInstance().writeInfo(QString("lmcCore.createChatRoomWindow started-|- ChatRoomId: %1").arg(chatRoomId));
+
   //	create a new chat room with the specified thread id
   lmcChatRoomWindow *chatRoomWindow = new lmcChatRoomWindow();
   _chatRoomWindows.append(chatRoomWindow);
@@ -1125,6 +1134,8 @@ void lmcCore::createChatRoomWindow(const QString &chatRoomId) {
 
   User *pLocalUser = _messaging->localUser;
   chatRoomWindow->init(pLocalUser, _messaging->isConnected(), chatRoomId);
+
+  LoggerManager::getInstance().writeInfo(QStringLiteral("lmcCore.createChatRoomWindow ended"));
 }
 
 void lmcCore::showChatRoomWindow(lmcChatRoomWindow *chatRoomWindow, bool show,

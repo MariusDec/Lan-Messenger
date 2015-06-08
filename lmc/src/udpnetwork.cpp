@@ -157,7 +157,6 @@ void lmcUdpNetwork::processPendingDatagrams() {
         QHostAddress hostAddress;
         _udpReceiver.readDatagram(datagram.data(), datagram.size(), &hostAddress);
         QString address = hostAddress.toString();
-        LoggerManager::getInstance().writeInfo(QString("lmcUdpNetwork.processPendingDatagrams-|- address: %1").arg(address));
         parseDatagram(address, datagram);
     }
 }

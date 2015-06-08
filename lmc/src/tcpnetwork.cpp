@@ -95,7 +95,7 @@ void lmcTcpNetwork::sendMessage(const QString &receiverId, const QString &data) 
     if(!receiverId.compare(_localId))
         msgStream = _localMsgStream;
     else
-        msgStream = _messageMap.value(receiverId, NULL);
+        msgStream = _messageMap.value(receiverId, nullptr);
 
     if(msgStream) {
         QByteArray sendData = data.toUtf8();
@@ -264,8 +264,6 @@ void lmcTcpNetwork::update(FileMode mode, FileOp op, FileType type, QString id, 
 }
 
 void lmcTcpNetwork::receiveMessage(QString userId, QString address, QByteArray datagram) {
-    LoggerManager::getInstance().writeInfo(QString("lmcTcpNetwork.receiveMessage started-|- message received from %1 on %2").arg(userId, address));
-
     DatagramHeader header;
     if(!Datagram::getHeader(datagram, header))
         return;
@@ -288,8 +286,6 @@ void lmcTcpNetwork::receiveMessage(QString userId, QString address, QByteArray d
     default:
         break;
     }
-
-    LoggerManager::getInstance().writeInfo(QStringLiteral("lmcTcpNetwork.receiveMessage ended"));
 }
 
 void lmcTcpNetwork::addFileSocket(const QString &Id, const QString userId, QTcpSocket *socket) {

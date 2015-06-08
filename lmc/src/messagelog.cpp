@@ -284,6 +284,8 @@ void lmcMessageLog::reloadMessageLog() {
         SingleMessage msg = messageLog[index];
         appendMessageLog(msg.type, msg.userId, msg.userName, msg.message, true);
     }
+
+    prependHtml(_prependedHtml);
 }
 
 QString lmcMessageLog::prepareMessageLogForSave(OutputFormat format) {
@@ -497,6 +499,8 @@ void lmcMessageLog::prependHtml(const QString &html) {
     QWebElement document = frame->documentElement();
     document.prependInside(html);
     lastId.clear();
+
+    _prependedHtml.append(html);
 }
 
 void lmcMessageLog::appendMessage(const QString &userId, const QString &userName, QString &message, const QDateTime &dateTime,
@@ -645,7 +649,7 @@ void lmcMessageLog::appendFileMessage(MessageType type, const QString &userName,
         }
     } else {
         tempId = "receive" + fileId;
-        if(Globals::getInstance().autoReceiveFile()) {
+        if(Globals::getInstance().autoReceiveFiles()) {
             if(type == MT_File)
                 caption = tr("%1 is sending you a file:");
             else
@@ -671,7 +675,7 @@ void lmcMessageLog::appendFileMessage(MessageType type, const QString &userName,
             message.removeData(XN_TEMPID);
             message.addData(XN_TEMPID, tempId);
 
-            if(Globals::getInstance().autoReceiveFile()) {
+            if(Globals::getInstance().autoReceiveFiles()) {
                 htmlMsg.replace("%links%", tr("Accepted"));
                 if(!reload)
                     fileOperation(fileId, acceptOp, fileType, userId);
@@ -762,7 +766,7 @@ QString lmcMessageLog::getChatStateMessage(ChatState chatState) {
         message = tr("%1 is typing...");
         break;
     case CS_Paused:
-        message = tr("%1 has entered text");
+        message = tr("%1 has stopped typing");
         break;
     case CS_Read:
         message = tr("%1 has read the message");

@@ -31,6 +31,7 @@ public:
     ~InstantMessageWindow();
 
     void init(const QString &peerId, const QString &peerName, MessageType messageType, const XmlMessage &message);
+    void stop();
     void settingsChanged();
     void connectionChanged(bool connected);
     void peerConnectionChanged(bool connected);

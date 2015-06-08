@@ -193,7 +193,6 @@ bool lmcNetwork::getIPAddress(bool getLanAddress) {
         if(isInterfaceUp(_networkInterface) && ((getLanAddress && getIPAddress(_networkInterface, addressEntry, getLanAddress)) || (!getLanAddress && getIPAddress(_networkInterface, addressEntry, false)))) {
             ipAddress = addressEntry.ip().toString();
             subnetMask = addressEntry.netmask().toString();
-            LoggerManager::getInstance().writeInfo(QString("lmcNetwork.getIPAddress -|- Active network interface found: %1").arg(_networkInterface.humanReadableName()));
             return true;
         }
     }
@@ -211,7 +210,6 @@ bool lmcNetwork::getIPAddress(bool getLanAddress) {
                 subnetMask = addressEntry.netmask().toString();
                 _networkInterface = allInterfaces[index];
                 _interfaceName = allInterfaces[index].name();
-                LoggerManager::getInstance().writeInfo(QString("lmcNetwork.getIPAddress -|- Active network interface found: %1").arg(allInterfaces[index].humanReadableName()));
                 return true;
             }
         }

@@ -114,6 +114,13 @@ void InstantMessageWindow::init(const QString &peerId, const QString &peerName, 
     show();
 }
 
+void InstantMessageWindow::stop()
+{
+    Globals::getInstance().setInstantMessageWindowGeometry(saveGeometry());
+    if (_xmlMessage.dataExists(XN_MESSAGE))
+        Globals::getInstance().setInstantMessageSplitterGeometry(ui->hSplitter->saveGeometry());
+}
+
 void InstantMessageWindow::settingsChanged()
 {
     ui->labelSendKey->setText(QString("Send message using %1\t").arg(Globals::getInstance().sendByEnter() ? "Enter" : "Ctrl+Enter"));
@@ -241,9 +248,7 @@ void InstantMessageWindow::moveEvent(QMoveEvent *event)
 
 void InstantMessageWindow::closeEvent(QCloseEvent *event)
 {
-    Globals::getInstance().setInstantMessageWindowGeometry(saveGeometry());
-    if (_xmlMessage.dataExists(XN_MESSAGE))
-        Globals::getInstance().setInstantMessageSplitterGeometry(ui->hSplitter->saveGeometry());
+    stop();
 
     emit closed();
     QDialog::closeEvent(event);

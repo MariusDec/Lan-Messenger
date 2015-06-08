@@ -65,7 +65,7 @@ private slots:
     void exitApp();
     void timer_timeout();
     void startChat(QString roomId, XmlMessage message = XmlMessage(), QStringList contacts = QStringList());
-    void sendMessage(MessageType type, QString lpszUserId, XmlMessage pMessage);
+    void sendMessage(MessageType type, QString userId, XmlMessage message);
     void receiveMessage(MessageType type, QString userId, XmlMessage message);
     void connectionStateChanged();
     void showTransfers(QString userId = QString());

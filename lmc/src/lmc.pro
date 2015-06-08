@@ -8,8 +8,8 @@ QT       += core gui network xml webkit
 QTPLUGIN += qjpeg qgif
 
 QT += widgets multimedia webkitwidgets xmlpatterns
-#CONFIG  += c++14
-QMAKE_CXXFLAGS += -std=c++1y
+CONFIG  += c++11
+#QMAKE_CXXFLAGS += -std=c++1y
 
 win32: TARGET = lmc
 unix: TARGET = lan-messenger
